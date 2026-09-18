@@ -177,7 +177,7 @@ via WhatsApp, instalável com um único comando.
 
 ## Instalação
 
-curl -fsSL https://raw.githubusercontent.com/andersmonteiro/zabbix/main/install.sh | bash
+curl -fsSL https://github.com/andersmonteiro/zabbix/releases/latest/download/install.sh | bash
 
 ## Componentes
 
@@ -839,7 +839,7 @@ Se `gh` não estiver disponível/autenticado, criar a release manualmente pela U
 
 Numa VM Ubuntu limpa (sem Docker instalado):
 
-Run: `curl -fsSL https://raw.githubusercontent.com/andersmonteiro/zabbix/main/install.sh | bash`
+Run: `curl -fsSL https://github.com/andersmonteiro/zabbix/releases/latest/download/install.sh | bash`
 Expected:
 - Docker é instalado automaticamente
 - `docker compose ps` dentro de `stack/`, `whatsapp/` e `tools/` mostra todos os containers `Up` (o `zabbix-whatsapp` pode levar até 60s para ficar `healthy`)
