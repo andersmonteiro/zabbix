@@ -37,7 +37,7 @@ sudo apt-get install -y nodejs npm \
 Este diretório faz parte do repositório `natverk-noc-repo`. O fluxo recomendado é o instalador de um comando, executado a partir da raiz do repositório (ver README principal):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/andersmonteiro/zabbix/main/install.sh | bash
+curl -fsSL https://github.com/andersmonteiro/zabbix/releases/latest/download/install.sh | bash
 ```
 
 Para uma instalação manual (apenas este componente, fora do fluxo Docker do `install.sh`):

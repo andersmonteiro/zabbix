@@ -828,6 +828,7 @@ Se o `gh` CLI estiver disponível e autenticado:
 gh release create v1.0.0 \
     externalscripts-v1.0.0.tar.gz \
     externalscripts-v1.0.0.tar.gz.sha256 \
+    install.sh \
     --title "v1.0.0" \
     --notes-file CHANGELOG.md
 ```

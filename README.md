@@ -5,7 +5,7 @@ via WhatsApp, instalável com um único comando.
 
 ## Instalação
 
-curl -fsSL https://raw.githubusercontent.com/andersmonteiro/zabbix/main/install.sh | bash
+curl -fsSL https://github.com/andersmonteiro/zabbix/releases/latest/download/install.sh | bash
 
 ## Componentes
 

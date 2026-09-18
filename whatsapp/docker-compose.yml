@@ -31,7 +31,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   autoheal:
-    image: willfarrell/autoheal:latest
+    image: willfarrell/autoheal:1.2.0
     container_name: zabbix-whatsapp-autoheal
     restart: unless-stopped
     environment:
