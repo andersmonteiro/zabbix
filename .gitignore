@@ -1,0 +1,7 @@
+.env
+.wwebjs_auth/
+node_modules/
+*.log
+backups/
+*.tar.gz
+*.sha256
