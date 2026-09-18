@@ -1,0 +1,16 @@
+services:
+  noc-tools:
+    build: .
+    container_name: noc-tools
+    ports:
+      - "5001:5001"
+    restart: unless-stopped
+    environment:
+      - TOOLS_TOKEN=${TOOLS_TOKEN}
+    networks:
+      - natverk-zabbix-net
+
+networks:
+  natverk-zabbix-net:
+    external: true
+    name: natverk-zabbix-net

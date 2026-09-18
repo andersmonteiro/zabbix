@@ -5,3 +5,7 @@ node_modules/
 backups/
 *.tar.gz
 *.sha256
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
