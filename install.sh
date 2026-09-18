@@ -91,12 +91,16 @@ AUTH=$(curl -s -X POST "$ZABBIX_API" -H 'Content-Type: application/json-rpc' -d 
 }' | jq -r '.result // empty')
 
 if [ -n "$AUTH" ]; then
-    curl -s -X POST "$ZABBIX_API" \
+    UPDATE_RESPONSE=$(curl -s -X POST "$ZABBIX_API" \
         -H 'Content-Type: application/json-rpc' \
         -H "Authorization: Bearer $AUTH" \
-        -d "{\"jsonrpc\":\"2.0\",\"method\":\"user.update\",\"params\":{\"userid\":\"1\",\"password\":\"$ZABBIX_ADMIN_PASSWORD\"},\"id\":2}" \
-        >/dev/null
-    log "Senha do Admin do Zabbix atualizada para o padrão Natverk"
+        -d "{\"jsonrpc\":\"2.0\",\"method\":\"user.update\",\"params\":{\"userid\":\"1\",\"passwd\":\"$ZABBIX_ADMIN_PASSWORD\",\"current_passwd\":\"zabbix\"},\"id\":2}")
+    UPDATE_ERROR=$(echo "$UPDATE_RESPONSE" | jq -r '.error.data // .error.message // empty')
+    if [ -z "$UPDATE_ERROR" ]; then
+        log "Senha do Admin do Zabbix atualizada para o padrão Natverk"
+    else
+        log "AVISO: falha ao atualizar a senha do Admin do Zabbix: $UPDATE_ERROR"
+    fi
 else
     log "Login padrão Admin/zabbix já não funciona — Admin já deve estar configurado, pulando"
 fi
