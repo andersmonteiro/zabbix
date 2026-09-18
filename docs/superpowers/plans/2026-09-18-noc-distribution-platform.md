@@ -92,7 +92,7 @@ Remove as variáveis mortas (`ZABBIX_SERVER_IMAGE`, `ZABBIX_FRONTEND_IMAGE`, `ZA
 ```
 # Grafana
 GF_SECURITY_ADMIN_USER=admin
-GF_SECURITY_ADMIN_PASSWORD=Natverk#NOC2026!
+GF_SECURITY_ADMIN_PASSWORD=Natverk-Noc-2026!
 
 # PostgreSQL — uso interno, sem porta publicada no host
 POSTGRES_USER=zabbix
@@ -134,7 +134,7 @@ datasources:
       cacheTTL: "1h"
       timeout: 30
     secureJsonData:
-      password: Natverk#NOC2026!
+      password: Natverk-Noc-2026!
     version: 1
 ```
 
@@ -384,7 +384,7 @@ GROUP_IDS=
 
 ZABBIX_URL=http://host.docker.internal:8080
 ZABBIX_USER=Admin
-ZABBIX_PASS=Natverk#NOC2026!
+ZABBIX_PASS=Natverk-Noc-2026!
 
 CHART_PERIOD=3600
 CHART_WIDTH=900
@@ -614,7 +614,7 @@ networks:
 
 ```
 # Token de autenticação da API de diagnóstico (mesmo padrão do X-Webhook-Token do WhatsApp)
-TOOLS_TOKEN=Natverk#Tools2026!
+TOOLS_TOKEN=Natverk-Tools-2026!
 ```
 
 - [ ] **Step 8: Validar sintaxe do compose**
