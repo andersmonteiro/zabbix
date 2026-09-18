@@ -29,6 +29,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
+COPY patches/ ./patches/
+RUN node patches/fix-media-send-getter.js
+
 COPY server.js .
 
 EXPOSE 3000
