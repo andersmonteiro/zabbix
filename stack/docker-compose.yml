@@ -82,8 +82,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_SECRET:-12345}
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-Natverk-Noc-2026!}
       GF_INSTALL_PLUGINS: alexanderzobnin-zabbix-app
       TZ: ${TZ}
     user: "472"
