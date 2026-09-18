@@ -1,0 +1,44 @@
+services:
+  zabbix-whatsapp:
+    build: .
+    container_name: zabbix-whatsapp
+    restart: unless-stopped
+    shm_size: '256mb'
+    labels:
+      - "autoheal=true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    ports:
+      - "${PORT:-8765}:3000"
+    environment:
+      - PORT=3000
+      - WEBHOOK_TOKEN=${WEBHOOK_TOKEN}
+      - GROUP_IDS=${GROUP_IDS}
+      - ZABBIX_URL=${ZABBIX_URL}
+      - ZABBIX_USER=${ZABBIX_USER}
+      - ZABBIX_PASS=${ZABBIX_PASS}
+      - CHART_PERIOD=${CHART_PERIOD:-3600}
+      - CHART_WIDTH=${CHART_WIDTH:-900}
+      - CHART_HEIGHT=${CHART_HEIGHT:-200}
+      - ZABBIX_INSECURE=${ZABBIX_INSECURE:-0}
+    volumes:
+      - whatsapp-session:/app/.wwebjs_auth
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: zabbix-whatsapp-autoheal
+    restart: unless-stopped
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=30
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  whatsapp-session:
