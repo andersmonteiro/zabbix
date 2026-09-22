@@ -243,9 +243,6 @@ ZABBIX_URL=http://zabbix-frontend:8080
 ZABBIX_USER=Admin
 ZABBIX_PASS=
 
-# Token de autenticação da API do map/ (mesmo padrão do X-Webhook-Token)
-MAP_TOKEN=Natverk-Map-2026!
-
 # Segundos entre atualizações do cache de status do Zabbix
 POLL_INTERVAL_SECONDS=30
 
@@ -1597,8 +1594,11 @@ document.getElementById('modal-close').addEventListener('click', closeModal);
 document.getElementById('backdrop').addEventListener('click', closeModal);
 
 function equipmentPhotoUrl(model) {
-  if (!model) return '/static/equipment-images/_generic.svg';
-  return `/api/equipment-images/${encodeURIComponent(model)}`;
+  // No local static fallback file exists — always route through the API,
+  // which already returns a generic SVG server-side when no image is
+  // uploaded for the given model (including the 'generic' placeholder
+  // used here when a circuit segment, not an equipment point, was clicked).
+  return `/api/equipment-images/${encodeURIComponent(model || 'generic')}`;
 }
 
 async function refresh() {
@@ -2255,7 +2255,6 @@ services:
       - ZABBIX_URL=${ZABBIX_URL:-http://zabbix-frontend:8080}
       - ZABBIX_USER=${ZABBIX_USER:-Admin}
       - ZABBIX_PASS=${ZABBIX_PASS}
-      - MAP_TOKEN=${MAP_TOKEN}
       - POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS:-30}
       - STALE_THRESHOLD_SECONDS=${STALE_THRESHOLD_SECONDS:-120}
       - TILE_PROVIDER=${TILE_PROVIDER:-osm}
