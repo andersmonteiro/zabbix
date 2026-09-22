@@ -10,8 +10,8 @@ set -euo pipefail
 # de um clone), via a API do GitHub com o mesmo token.
 TZ_VALUE="${TZ:-America/Sao_Paulo}"
 
-log() { echo "[natverk-noc] $*"; }
-die() { echo "[natverk-noc] ERRO: $*" >&2; exit 1; }
+log() { echo "[natverk-zabbix] $*"; }
+die() { echo "[natverk-zabbix] ERRO: $*" >&2; exit 1; }
 
 : "${GITHUB_TOKEN:?GITHUB_TOKEN não definido. Repositório privado — gere um Personal Access Token (leitura de Contents neste repositório) e rode: GITHUB_TOKEN=ghp_xxx ./install.sh — a partir de um clone já no tag desejado (veja o README).}"
 REPO="andersmonteiro/zabbix"

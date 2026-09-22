@@ -38,15 +38,15 @@ Este diretório faz parte do repositório `natverk-noc-repo`. O fluxo recomendad
 
 ```bash
 export GITHUB_TOKEN=ghp_xxx   # repositório privado — veja o README principal
-git clone "https://$GITHUB_TOKEN@github.com/andersmonteiro/zabbix.git" /opt/natverk-noc
-cd /opt/natverk-noc
+git clone "https://$GITHUB_TOKEN@github.com/andersmonteiro/zabbix.git" /opt/natverk-zabbix
+cd /opt/natverk-zabbix
 git remote set-url origin https://github.com/andersmonteiro/zabbix.git   # tira o token do .git/config
 git checkout "$(git tag --sort=-creatordate | head -1)"
 ./install.sh
 ```
 
 > O `git clone` com o token na URL grava esse token em texto puro em
-> `/opt/natverk-noc/.git/config` permanentemente — por isso o
+> `/opt/natverk-zabbix/.git/config` permanentemente — por isso o
 > `git remote set-url` logo após clonar. Nas atualizações posteriores o token
 > volta a ser fornecido por invocação:
 > `git -c http.extraHeader="Authorization: Bearer $GITHUB_TOKEN" fetch --tags`
@@ -55,8 +55,8 @@ git checkout "$(git tag --sort=-creatordate | head -1)"
 Para uma instalação manual (apenas este componente, fora do fluxo Docker do `install.sh`):
 
 ```bash
-git clone "https://$GITHUB_TOKEN@github.com/andersmonteiro/zabbix.git" /opt/natverk-noc
-cd /opt/natverk-noc
+git clone "https://$GITHUB_TOKEN@github.com/andersmonteiro/zabbix.git" /opt/natverk-zabbix
+cd /opt/natverk-zabbix
 git remote set-url origin https://github.com/andersmonteiro/zabbix.git   # tira o token do .git/config
 cd whatsapp
 npm install
@@ -97,8 +97,8 @@ Description=Natverk Zabbix WhatsApp Webhook
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/natverk-noc/whatsapp
-ExecStart=/usr/bin/node /opt/natverk-noc/whatsapp/server.js
+WorkingDirectory=/opt/natverk-zabbix/whatsapp
+ExecStart=/usr/bin/node /opt/natverk-zabbix/whatsapp/server.js
 Restart=always
 RestartSec=5
 
