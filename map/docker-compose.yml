@@ -16,6 +16,9 @@ services:
       - STALE_THRESHOLD_SECONDS=${STALE_THRESHOLD_SECONDS:-120}
       - TILE_PROVIDER=${TILE_PROVIDER:-osm}
       - MAPBOX_TOKEN=${MAPBOX_TOKEN}
+      - MAP_SECRET_KEY=${MAP_SECRET_KEY}
+      - MAP_ADMIN_USER=${MAP_ADMIN_USER:-admin}
+      - MAP_ADMIN_PASSWORD=${MAP_ADMIN_PASSWORD}
     volumes:
       - map-equipment-images:/app/equipment-images
     networks:
