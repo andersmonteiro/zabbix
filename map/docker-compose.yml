@@ -1,0 +1,30 @@
+services:
+  map:
+    build: .
+    container_name: netmap
+    restart: unless-stopped
+    ports:
+      - "${MAP_PORT:-5002}:5002"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-zabbix}
+      - ZABBIX_URL=${ZABBIX_URL:-http://zabbix-frontend:8080}
+      - ZABBIX_USER=${ZABBIX_USER:-Admin}
+      - ZABBIX_PASS=${ZABBIX_PASS}
+      - POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS:-30}
+      - STALE_THRESHOLD_SECONDS=${STALE_THRESHOLD_SECONDS:-120}
+      - TILE_PROVIDER=${TILE_PROVIDER:-osm}
+      - MAPBOX_TOKEN=${MAPBOX_TOKEN}
+    volumes:
+      - map-equipment-images:/app/equipment-images
+    networks:
+      - natverk-zabbix-net
+
+networks:
+  natverk-zabbix-net:
+    external: true
+    name: natverk-zabbix-net
+
+volumes:
+  map-equipment-images:

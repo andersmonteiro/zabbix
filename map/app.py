@@ -75,6 +75,11 @@ atexit.register(_poller_stop_event.set)
 init_map_routes(SessionLocal, status_cache, STALE_THRESHOLD_SECONDS)
 app.register_blueprint(map_state_bp)
 
+from routes_equipment_images import equipment_images_bp, init_equipment_images_routes
+
+init_equipment_images_routes(os.environ.get('EQUIPMENT_IMAGES_DIR', '/app/equipment-images'))
+app.register_blueprint(equipment_images_bp)
+
 
 @app.route('/health')
 def health():

@@ -32,5 +32,6 @@ GITHUB_TOKEN=ghp_xxx ./install.sh
 - `stack/` — Zabbix 7 + Grafana + PostgreSQL/TimescaleDB
 - `whatsapp/` — ponte de alertas Zabbix → WhatsApp
 - `tools/` — API de diagnóstico de rede (MTR, ping, dig, whois) para uso em dashboards
+- `map/` — mapa geográfico dos circuitos de rede, com status ao vivo por segmento e editor de trajeto
 
 Ver `docs/superpowers/specs/` para o desenho completo da arquitetura.

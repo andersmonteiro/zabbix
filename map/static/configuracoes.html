@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Natverk NOC — Configurações</title>
+  <link rel="stylesheet" href="css/app.css" />
+  <style>
+    .config-shell { flex: 1; padding: 24px; max-width: 480px; }
+    form.inline { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    form.inline input { background: #232326; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 6px 8px; color: inherit; font-size: 13px; }
+    form.inline button { padding: 7px; border-radius: 6px; border: 1px solid rgba(80,160,255,0.5); background: rgba(80,160,255,0.15); color: inherit; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="nav">
+      <div class="nav-title">Natverk NOC</div>
+      <a href="/" class="nav-item">Início</a>
+      <a href="/circuitos.html" class="nav-item">Circuitos</a>
+      <a href="/configuracoes.html" class="nav-item active">Configurações</a>
+    </nav>
+    <div class="config-shell">
+      <h3>Foto de equipamento por modelo</h3>
+      <p>O nome do modelo deve ser exatamente igual ao campo "Modelo" usado ao cadastrar um ponto em Circuitos.</p>
+      <form class="inline" id="upload-form">
+        <input name="model" placeholder="Modelo, ex: Huawei MA5800-X2" required />
+        <input name="file" type="file" accept=".png,.jpg,.jpeg,.svg,.webp" required />
+        <button type="submit">Enviar imagem</button>
+      </form>
+      <p id="upload-status"></p>
+    </div>
+  </div>
+  <script>
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const model = form.model.value;
+      const file = form.file.files[0];
+      const body = new FormData();
+      body.append('file', file);
+      const resp = await fetch(`/api/equipment-images/${encodeURIComponent(model)}`, { method: 'POST', body });
+      document.getElementById('upload-status').textContent = resp.ok
+        ? `Imagem salva para "${model}".`
+        : 'Falha ao enviar — verifique a extensão do arquivo.';
+      if (resp.ok) form.reset();
+    });
+  </script>
+</body>
+</html>

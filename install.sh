@@ -49,7 +49,7 @@ tar xzf externalscripts.tar.gz -C stack/externalscripts --strip-components=1
 rm externalscripts.tar.gz
 
 # ── Gera .env de cada componente (idempotente — não sobrescreve se já existir) ──
-for comp in stack whatsapp tools; do
+for comp in stack whatsapp tools map; do
     if [ ! -f "$comp/.env" ]; then
         cp "$comp/.env.example" "$comp/.env"
         log "Criado $comp/.env a partir do template"
@@ -116,11 +116,18 @@ log "Subindo serviço WhatsApp..."
 log "Subindo natverk-tools..."
 (cd tools && docker compose up -d)
 
+log "Subindo mapa de circuitos..."
+sed -i "s|^POSTGRES_USER=.*|POSTGRES_USER=$(grep '^POSTGRES_USER=' stack/.env | cut -d= -f2-)|" map/.env
+sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(grep '^POSTGRES_PASSWORD=' stack/.env | cut -d= -f2-)|" map/.env
+sed -i "s|^ZABBIX_PASS=.*|ZABBIX_PASS=$ZABBIX_ADMIN_PASSWORD|" map/.env
+(cd map && docker compose up -d)
+
 IP=$(hostname -I | awk '{print $1}')
 log ""
 log "=== Instalação concluída ==="
 log "Zabbix:  http://$IP:8080  (Admin / senha em stack/.env)"
 log "Grafana: http://$IP:3000  (admin / senha em stack/.env)"
+log "Mapa de circuitos: http://$IP:${MAP_PORT:-5002}"
 log ""
 log "Próximo passo manual — configurar o WhatsApp:"
 log "  1. docker logs -f zabbix-whatsapp    # escaneie o QR Code que aparecer"
