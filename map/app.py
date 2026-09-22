@@ -20,9 +20,13 @@ SessionLocal = get_session_factory(engine)
 init_db(engine)
 
 from routes_points import points_bp, init_points_routes
+from routes_circuits import circuits_bp, init_circuits_routes
 
 init_points_routes(SessionLocal)
 app.register_blueprint(points_bp)
+
+init_circuits_routes(SessionLocal)
+app.register_blueprint(circuits_bp)
 
 
 @app.route('/health')
