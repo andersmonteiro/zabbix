@@ -5,79 +5,91 @@
   <title>Natverk NOC — Adicionar hosts</title>
   <link rel="stylesheet" href="css/app.css" />
   <style>
-    .hosts-shell { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 20px 24px; }
-    .hosts-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-    .hosts-header h2 { margin: 0; font-size: 16px; }
-    .hosts-toolbar { display: flex; gap: 10px; margin-bottom: 14px; }
-    .hosts-toolbar input { flex: 1; background: #232326; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 8px 10px; color: inherit; font-size: 13px; }
-    .btn-primary { padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(80,160,255,0.5); background: rgba(80,160,255,0.15); color: inherit; cursor: pointer; font-size: 13px; white-space: nowrap; }
-    .btn-primary:hover { background: rgba(80,160,255,0.28); }
+    .hosts-toolbar { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--border); }
+    .hosts-toolbar input {
+      flex: 1; background: var(--bg-canvas); border: 1px solid var(--border-2); color: var(--text-primary);
+      padding: 8px 10px; font-size: 13px; font-family: var(--sans); outline: none;
+    }
+    .hosts-toolbar input:focus { border-color: var(--accent); }
+    .hosts-table-wrap { max-height: calc(100vh - 220px); overflow: auto; }
 
-    .hosts-table-wrap { flex: 1; overflow: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; }
-    table.hosts-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    table.hosts-table th { text-align: left; padding: 10px 12px; background: #1a1a1c; position: sticky; top: 0; opacity: 0.6; font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.03em; }
-    table.hosts-table td { padding: 9px 12px; border-top: 1px solid rgba(255,255,255,0.06); }
-    table.hosts-table tr:hover td { background: rgba(255,255,255,0.03); }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; background: rgba(255,255,255,0.08); }
-    .row-delete { background: none; border: none; color: #e5484d; cursor: pointer; font-size: 12px; }
-
-    .modal-form { width: 420px; max-height: 80vh; overflow-y: auto; }
-    .modal-form h4 { margin: 0 0 4px; padding: 16px 16px 0; }
-    .modal-form-body { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
-    .modal-form-body input, .modal-form-body select { background: #232326; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 7px 9px; color: inherit; font-size: 13px; }
+    .modal-form { width: 440px; max-height: 84vh; overflow-y: auto; }
+    .modal-form-body { padding: 14px 20px 20px; display: flex; flex-direction: column; gap: 10px; }
     .modal-form-body .row2 { display: flex; gap: 8px; }
     .modal-form-body .row2 > * { flex: 1; }
-    .modal-form-body summary { cursor: pointer; opacity: 0.6; font-size: 12.5px; margin-top: 4px; }
-    #host-form-status { font-size: 12px; min-height: 15px; color: rgba(255,255,255,0.5); }
+    .modal-form-body summary {
+      cursor: pointer; color: var(--text-muted); font-size: 11.5px; font-family: var(--mono);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px;
+    }
+    .modal-form-body summary:hover { color: var(--accent); }
   </style>
 </head>
 <body>
   <div class="app-shell">
-    <nav class="nav">
-      <div class="nav-title">Natverk NOC</div>
-      <a href="/" class="nav-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        Início
-      </a>
-      <a href="/hosts.html" class="nav-item active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>
-        Adicionar hosts
-      </a>
-      <a href="/circuitos.html" class="nav-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2H9a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2h6"/></svg>
-        Circuitos
-      </a>
-      <a href="/configuracoes.html" class="nav-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Configurações
-      </a>
-      <div class="nav-footer">
-        <div class="nav-user" id="nav-user"></div>
-        <button class="nav-item nav-logout" id="nav-logout" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Sair
-        </button>
+    <div class="nav-wrap">
+      <nav class="nav notch">
+        <a href="/" class="nav-logo">
+          <span class="logo-main">Nätverk</span>
+          <span class="logo-sub">NOC</span>
+        </a>
+        <div class="nav-section">
+          <div class="nav-section-label"><span class="slashes">//</span><span class="label-text">Mapa</span></div>
+          <a href="/" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Início
+          </a>
+          <a href="/hosts.html" class="nav-item active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>
+            Adicionar hosts
+          </a>
+          <a href="/circuitos.html" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2H9a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2h6"/></svg>
+            Circuitos
+          </a>
+          <div class="nav-section-label"><span class="slashes">//</span><span class="label-text">Sistema</span></div>
+          <a href="/configuracoes.html" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Configurações
+          </a>
+        </div>
+        <div class="nav-footer">
+          <div class="nav-avatar" id="nav-avatar">?</div>
+          <div class="nav-user" id="nav-user"></div>
+          <button class="nav-logout" id="nav-logout" type="button" title="Sair">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </div>
+      </nav>
+    </div>
+    <div class="main-col">
+      <div class="topbar-wrap">
+        <header class="topbar notch">
+          <div class="topbar-title-row">
+            <span class="topbar-slash">//</span>
+            <h1>Adicionar hosts</h1>
+            <div class="topbar-rule"></div>
+          </div>
+          <button class="btn-primary" id="new-host-btn" type="button">+ Novo host</button>
+        </header>
       </div>
-    </nav>
-    <div class="hosts-shell">
-      <div class="hosts-header">
-        <h2>Hosts cadastrados no Zabbix</h2>
-        <button class="btn-primary" id="new-host-btn" type="button">+ Novo host</button>
-      </div>
-      <div class="hosts-toolbar">
-        <input id="host-search" placeholder="Buscar por nome, IP ou grupo..." />
-      </div>
-      <div class="hosts-table-wrap">
-        <table class="hosts-table">
-          <thead>
-            <tr>
-              <th>Host</th><th>IP</th><th>Comunidade</th><th>Porta</th>
-              <th>Fabricante</th><th>Modelo</th><th>Grupo</th><th>User SSH</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="hosts-tbody"></tbody>
-        </table>
-      </div>
+      <main class="content-area">
+        <div class="panel">
+          <div class="hosts-toolbar">
+            <input id="host-search" placeholder="Buscar por nome, IP ou grupo..." />
+          </div>
+          <div class="hosts-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Host</th><th>IP</th><th>Comunidade</th><th>Porta</th>
+                  <th>Fabricante</th><th>Modelo</th><th>Grupo</th><th>User SSH</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="hosts-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </main>
     </div>
   </div>
 
@@ -114,7 +126,7 @@
         </div>
       </details>
       <button class="btn-primary" type="submit">Criar host</button>
-      <p id="host-form-status"></p>
+      <p id="host-form-status" class="form-status"></p>
     </form>
   </div>
 

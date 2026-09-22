@@ -4,6 +4,8 @@
     const data = await resp.json();
     const userEl = document.getElementById('nav-user');
     if (userEl && data.username) userEl.textContent = data.username;
+    const avatarEl = document.getElementById('nav-avatar');
+    if (avatarEl && data.username) avatarEl.textContent = data.username[0].toUpperCase();
   } catch (err) {
     console.error('Falha ao buscar sessão', err);
   }

@@ -7,94 +7,116 @@
   <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css" />
   <link rel="stylesheet" href="css/app.css" />
   <style>
-    .circuitos-shell { display: flex; flex: 1; min-height: 0; }
-    .panel { width: 360px; background: #1a1a1c; padding: 16px; overflow-y: auto; font-size: 13px; }
-    .panel h3 { font-size: 13px; text-transform: uppercase; opacity: 0.5; margin: 18px 0 8px; }
-    .panel h3:first-child { margin-top: 0; }
-    .list-item { padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
-    .list-item:hover { background: rgba(255,255,255,0.06); }
-    .list-item.selected { background: rgba(80,160,255,0.15); }
-    form.inline { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-    form.inline input, form.inline select { background: #232326; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 6px 8px; color: inherit; font-size: 13px; }
-    form.inline button { padding: 7px; border-radius: 6px; border: 1px solid rgba(80,160,255,0.5); background: rgba(80,160,255,0.15); color: inherit; cursor: pointer; }
-    .form-status { font-size: 12px; margin: 6px 0 0; min-height: 15px; color: rgba(255,255,255,0.5); }
-    #editor-map { flex: 1; }
+    .circuitos-shell { display: flex; flex: 1; min-height: 0; gap: 16px; padding: 0 24px 24px; }
+    .side-panel {
+      width: 340px; flex-shrink: 0; background: var(--bg-panel); border: 1px solid var(--border);
+      box-shadow: var(--shadow-card); padding: 18px; overflow-y: auto; font-size: 13px;
+    }
+    .side-panel .section-label {
+      font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text-muted); margin: 20px 0 8px;
+    }
+    .side-panel .section-label:first-child { margin-top: 0; }
+    .side-panel .section-label .slashes { color: var(--accent); margin-right: 6px; }
+    #editor-map { flex: 1; border: 1px solid var(--border); box-shadow: var(--shadow-card); }
+    #edit-path-btn { margin-top: 10px; width: 100%; }
+    #segment-warning { font-family: var(--mono); font-size: 11.5px; }
   </style>
 </head>
 <body>
   <div class="app-shell">
-    <nav class="nav">
-      <div class="nav-title">Natverk NOC</div>
-      <a href="/" class="nav-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        Início
-      </a>
-      <a href="/hosts.html" class="nav-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>
-        Adicionar hosts
-      </a>
-      <a href="/circuitos.html" class="nav-item active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2H9a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2h6"/></svg>
-        Circuitos
-      </a>
-      <a href="/configuracoes.html" class="nav-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Configurações
-      </a>
-      <div class="nav-footer">
-        <div class="nav-user" id="nav-user"></div>
-        <button class="nav-item nav-logout" id="nav-logout" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Sair
-        </button>
-      </div>
-    </nav>
-    <div class="circuitos-shell">
-      <div class="panel">
-        <h3>Pontos</h3>
-        <div id="points-list"></div>
-        <form class="inline" id="point-form">
-          <input name="name" placeholder="Nome" required />
-          <input name="lat" type="number" step="any" min="-90" max="90" placeholder="Latitude" required />
-          <input name="lng" type="number" step="any" min="-180" max="180" placeholder="Longitude" required />
-          <select name="point_type">
-            <option value="waypoint">Trajeto (sem monitoramento)</option>
-            <option value="equipment">Equipamento (host do Zabbix)</option>
-          </select>
-          <input name="zabbix_hostid" placeholder="Zabbix hostid (equipamento)" />
-          <input name="zabbix_status_itemid" placeholder="Zabbix itemid — status" />
-          <input name="zabbix_cpu_itemid" placeholder="Zabbix itemid — CPU (opcional)" />
-          <input name="equipment_model" placeholder="Modelo do equipamento (opcional)" />
-          <input name="equipment_ip" placeholder="IP (opcional)" />
-          <button type="submit">Adicionar ponto</button>
-        </form>
-        <p id="point-status" class="form-status"></p>
-
-        <h3>Circuitos</h3>
-        <div id="circuits-list"></div>
-        <form class="inline" id="circuit-form">
-          <input name="name" placeholder="Nome do circuito" required />
-          <button type="submit">Criar circuito</button>
-        </form>
-
-        <div id="segment-panel" style="display:none">
-          <h3>Novo segmento</h3>
-          <form class="inline" id="segment-form">
-            <select name="origin_point_id" id="origin-select"></select>
-            <select name="destination_point_id" id="destination-select"></select>
-            <input name="zabbix_operstatus_itemid" placeholder="itemid — status da porta" />
-            <input name="zabbix_speed_itemid" placeholder="itemid — velocidade" />
-            <input name="zabbix_throughput_in_itemid" placeholder="itemid — throughput entrada" />
-            <input name="zabbix_throughput_out_itemid" placeholder="itemid — throughput saída" />
-            <input name="zabbix_optical_rx_itemid" placeholder="itemid — sinal óptico RX" />
-            <input name="zabbix_error_itemid" placeholder="itemid — contador de erros" />
-            <input name="signal_warn_threshold_dbm" placeholder="Limiar de sinal (dBm), ex: -25" />
-            <button type="submit">Adicionar segmento</button>
-          </form>
-          <button id="edit-path-btn" style="margin-top:10px">Editar trajeto</button>
+    <div class="nav-wrap">
+      <nav class="nav notch">
+        <a href="/" class="nav-logo">
+          <span class="logo-main">Nätverk</span>
+          <span class="logo-sub">NOC</span>
+        </a>
+        <div class="nav-section">
+          <div class="nav-section-label"><span class="slashes">//</span><span class="label-text">Mapa</span></div>
+          <a href="/" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Início
+          </a>
+          <a href="/hosts.html" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>
+            Adicionar hosts
+          </a>
+          <a href="/circuitos.html" class="nav-item active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2H9a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2h6"/></svg>
+            Circuitos
+          </a>
+          <div class="nav-section-label"><span class="slashes">//</span><span class="label-text">Sistema</span></div>
+          <a href="/configuracoes.html" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Configurações
+          </a>
         </div>
+        <div class="nav-footer">
+          <div class="nav-avatar" id="nav-avatar">?</div>
+          <div class="nav-user" id="nav-user"></div>
+          <button class="nav-logout" id="nav-logout" type="button" title="Sair">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </div>
+      </nav>
+    </div>
+    <div class="main-col">
+      <div class="topbar-wrap">
+        <header class="topbar notch">
+          <div class="topbar-title-row">
+            <span class="topbar-slash">//</span>
+            <h1>Circuitos</h1>
+            <div class="topbar-rule"></div>
+          </div>
+        </header>
       </div>
-      <div id="editor-map"></div>
+      <div class="circuitos-shell">
+        <div class="side-panel">
+          <div class="section-label"><span class="slashes">//</span>Pontos</div>
+          <div id="points-list"></div>
+          <form class="inline" id="point-form">
+            <input name="name" placeholder="Nome" required />
+            <input name="lat" type="number" step="any" min="-90" max="90" placeholder="Latitude" required />
+            <input name="lng" type="number" step="any" min="-180" max="180" placeholder="Longitude" required />
+            <select name="point_type">
+              <option value="waypoint">Trajeto (sem monitoramento)</option>
+              <option value="equipment">Equipamento (host do Zabbix)</option>
+            </select>
+            <input name="zabbix_hostid" placeholder="Zabbix hostid (equipamento)" />
+            <input name="zabbix_status_itemid" placeholder="Zabbix itemid — status" />
+            <input name="zabbix_cpu_itemid" placeholder="Zabbix itemid — CPU (opcional)" />
+            <input name="equipment_model" placeholder="Modelo do equipamento (opcional)" />
+            <input name="equipment_ip" placeholder="IP (opcional)" />
+            <button class="btn-primary" type="submit">Adicionar ponto</button>
+          </form>
+          <p id="point-status" class="form-status"></p>
+
+          <div class="section-label"><span class="slashes">//</span>Circuitos</div>
+          <div id="circuits-list"></div>
+          <form class="inline" id="circuit-form">
+            <input name="name" placeholder="Nome do circuito" required />
+            <button class="btn-primary" type="submit">Criar circuito</button>
+          </form>
+
+          <div id="segment-panel" style="display:none">
+            <div class="section-label"><span class="slashes">//</span>Novo segmento</div>
+            <form class="inline" id="segment-form">
+              <select name="origin_point_id" id="origin-select"></select>
+              <select name="destination_point_id" id="destination-select"></select>
+              <input name="zabbix_operstatus_itemid" placeholder="itemid — status da porta" />
+              <input name="zabbix_speed_itemid" placeholder="itemid — velocidade" />
+              <input name="zabbix_throughput_in_itemid" placeholder="itemid — throughput entrada" />
+              <input name="zabbix_throughput_out_itemid" placeholder="itemid — throughput saída" />
+              <input name="zabbix_optical_rx_itemid" placeholder="itemid — sinal óptico RX" />
+              <input name="zabbix_error_itemid" placeholder="itemid — contador de erros" />
+              <input name="signal_warn_threshold_dbm" placeholder="Limiar de sinal (dBm), ex: -25" />
+              <button class="btn-primary" type="submit">Adicionar segmento</button>
+            </form>
+            <button class="btn-secondary" id="edit-path-btn">Editar trajeto</button>
+          </div>
+        </div>
+        <div id="editor-map"></div>
+      </div>
     </div>
   </div>
 
