@@ -17,6 +17,7 @@
     form.inline { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
     form.inline input, form.inline select { background: #232326; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 6px 8px; color: inherit; font-size: 13px; }
     form.inline button { padding: 7px; border-radius: 6px; border: 1px solid rgba(80,160,255,0.5); background: rgba(80,160,255,0.15); color: inherit; cursor: pointer; }
+    .form-status { font-size: 12px; margin: 6px 0 0; min-height: 15px; color: rgba(255,255,255,0.5); }
     #editor-map { flex: 1; }
   </style>
 </head>
@@ -34,8 +35,8 @@
         <div id="points-list"></div>
         <form class="inline" id="point-form">
           <input name="name" placeholder="Nome" required />
-          <input name="lat" placeholder="Latitude" required />
-          <input name="lng" placeholder="Longitude" required />
+          <input name="lat" type="number" step="any" min="-90" max="90" placeholder="Latitude" required />
+          <input name="lng" type="number" step="any" min="-180" max="180" placeholder="Longitude" required />
           <select name="point_type">
             <option value="waypoint">Trajeto (sem monitoramento)</option>
             <option value="equipment">Equipamento (host do Zabbix)</option>
@@ -47,6 +48,7 @@
           <input name="equipment_ip" placeholder="IP (opcional)" />
           <button type="submit">Adicionar ponto</button>
         </form>
+        <p id="point-status" class="form-status"></p>
 
         <h3>Circuitos</h3>
         <div id="circuits-list"></div>

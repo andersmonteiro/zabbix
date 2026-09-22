@@ -106,3 +106,35 @@ def test_build_map_state_waypoints_have_no_status_field(session):
     wp = next(p for p in state['points'] if p['id'] == waypoint.id)
     assert wp['point_type'] == 'waypoint'
     assert 'status' not in wp
+
+
+# --- Finding 7: the UI needs the age of the data to show "dados desde X" -----
+
+def test_build_map_state_reports_last_refresh_age_when_fresh(session):
+    _seed_circuit(session)
+    cache = StatusCache()
+    cache.update({'60001': {'lastvalue': '1'}})
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    assert state['last_refresh_seconds_ago'] is not None
+    assert 0 <= state['last_refresh_seconds_ago'] < 5
+
+
+def test_build_map_state_reports_last_refresh_age_when_stale(session):
+    _seed_circuit(session)
+    cache = StatusCache()
+    cache.update({'60001': {'lastvalue': '1'}})
+    cache._last_refresh = time.time() - 600
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    assert state['stale'] is True
+    assert 595 <= state['last_refresh_seconds_ago'] <= 605
+
+
+def test_build_map_state_last_refresh_age_is_none_when_never_refreshed(session):
+    _seed_circuit(session)
+    cache = StatusCache()  # never updated
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    assert state['stale'] is True
+    assert state['last_refresh_seconds_ago'] is None

@@ -54,6 +54,13 @@ async function saveEditedPath(segment, latlngs) {
   // an equipment point's real location happens via the Pontos form instead).
   const middleLatLngs = latlngs.slice(1, -1);
 
+  // Captured BEFORE the segment is repointed: each save used to mint a fresh
+  // waypoint Point per vertex and abandon the previous ones, and since
+  // build_map_state returns every point regardless of whether any segment still
+  // references it, those orphans piled up as permanent grey dots on the live
+  // map. Origin/destination points are never in waypoint_ids, so they are safe.
+  const previousWaypointIds = (segment.waypoint_ids || []).slice();
+
   const newWaypoints = [];
   for (const ll of middleLatLngs) {
     const point = await api('/api/points', {
@@ -67,6 +74,18 @@ async function saveEditedPath(segment, latlngs) {
     method: 'PUT',
     body: JSON.stringify({ waypoint_ids: newWaypoints }),
   });
+
+  // Only after the segment no longer references them. A failure here (e.g. the
+  // point is still used by another segment -> 409) is logged and skipped: the
+  // path itself is already saved, so it must not abort the rest of the flow.
+  for (const oldId of previousWaypointIds) {
+    if (newWaypoints.includes(oldId)) continue;
+    try {
+      await api(`/api/points/${oldId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn(`Não foi possível remover o waypoint ${oldId} substituído`, err);
+    }
+  }
 
   await selectCircuit(selectedCircuitId);
 }

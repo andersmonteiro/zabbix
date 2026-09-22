@@ -30,26 +30,57 @@ addTileLayer();
 let allPoints = [];
 let selectedCircuitId = null;
 
+// Same helper as app.js — DB-sourced strings are attacker-controllable through
+// the unauthenticated CRUD API, so nothing untrusted reaches innerHTML raw.
+// (Deliberately duplicated: both files are plain <script> tags with no module
+// system, and a build step is not worth six lines.)
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
 async function api(path, options) {
   const resp = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
-  if (!resp.ok) throw new Error(`${path} -> HTTP ${resp.status}`);
+  if (!resp.ok) {
+    // Surface the server's Portuguese message (e.g. "lat deve ser um número
+    // entre -90 e 90") instead of a bare status code.
+    let detail = `HTTP ${resp.status}`;
+    try {
+      const body = await resp.json();
+      if (body && body.error) detail = body.error;
+    } catch (err) {
+      /* non-JSON error body — keep the status code */
+    }
+    throw new Error(detail);
+  }
   if (resp.status === 204) return null;
   return resp.json();
+}
+
+function setFormStatus(elementId, message, isError) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.textContent = message;
+  el.style.color = isError ? '#e5484d' : 'rgba(255,255,255,0.5)';
 }
 
 async function loadPoints() {
   allPoints = await api('/api/points');
   const list = document.getElementById('points-list');
-  list.innerHTML = allPoints.map((p) => `<div class="list-item">${p.name} <small>(${p.point_type})</small></div>`).join('');
+  list.innerHTML = allPoints
+    .map((p) => `<div class="list-item">${esc(p.name)} <small>(${esc(p.point_type)})</small></div>`)
+    .join('');
 
   const originSel = document.getElementById('origin-select');
   const destSel = document.getElementById('destination-select');
   const equipmentOptions = allPoints
     .filter((p) => p.point_type === 'equipment')
-    .map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
+    .map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
   originSel.innerHTML = equipmentOptions;
   destSel.innerHTML = equipmentOptions;
 }
@@ -58,7 +89,7 @@ async function loadCircuits() {
   const circuits = await api('/api/circuits');
   const list = document.getElementById('circuits-list');
   list.innerHTML = circuits.map((c) => `
-    <div class="list-item${c.id === selectedCircuitId ? ' selected' : ''}" data-id="${c.id}">${c.name}</div>
+    <div class="list-item${c.id === selectedCircuitId ? ' selected' : ''}" data-id="${esc(c.id)}">${esc(c.name)}</div>
   `).join('');
   list.querySelectorAll('.list-item').forEach((el) => {
     el.addEventListener('click', () => selectCircuit(Number(el.dataset.id)));
@@ -101,8 +132,18 @@ document.getElementById('point-form').addEventListener('submit', async (e) => {
     equipment_model: form.get('equipment_model') || null,
     equipment_ip: form.get('equipment_ip') || null,
   };
-  await api('/api/points', { method: 'POST', body: JSON.stringify(body) });
+  setFormStatus('point-status', '', false);
+  try {
+    await api('/api/points', { method: 'POST', body: JSON.stringify(body) });
+  } catch (err) {
+    // Without this the api() rejection was swallowed and the form simply did
+    // nothing visible — e.g. a non-numeric latitude looked like a dead button.
+    console.error('Falha ao criar ponto', err);
+    setFormStatus('point-status', `Falha ao criar ponto: ${err.message}`, true);
+    return;
+  }
   e.target.reset();
+  setFormStatus('point-status', 'Ponto criado.', false);
   await loadPoints();
 });
 

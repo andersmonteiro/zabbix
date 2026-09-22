@@ -1,6 +1,18 @@
 const STATUS_COLOR = { up: '#3ecf6a', warn: '#f5a623', down: '#e5484d', unknown: '#888888' };
 const REFRESH_INTERVAL_MS = 30000;
 
+// Every string below comes from the database, and the CRUD API is
+// unauthenticated by design — so any DB-sourced value that ends up inside an
+// innerHTML / bindTooltip template literal has to be escaped first, or it is
+// stored XSS. (Duplicated in circuitos.js: these are plain <script> tags with
+// no module system, and a build step is not worth six lines.)
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
 const map = L.map('map').setView([-23.5629, -46.6544], 13);
 
 async function addTileLayer() {
@@ -60,9 +72,11 @@ function fmt(value, unit) {
 function openModal({ photoUrl, title, statusClass, rows }) {
   document.getElementById('modal-photo-img').src = photoUrl;
   const titleEl = document.getElementById('modal-title');
-  titleEl.innerHTML = `<span class="status-dot ${statusClass}"></span>${title}`;
+  titleEl.innerHTML = `<span class="status-dot ${esc(statusClass)}"></span>${esc(title)}`;
   const table = document.getElementById('modal-table');
-  table.innerHTML = rows.map(([label, value]) => `<tr><td>${label}</td><td>${value}</td></tr>`).join('');
+  table.innerHTML = rows
+    .map(([label, value]) => `<tr><td>${esc(label)}</td><td>${esc(value)}</td></tr>`)
+    .join('');
   document.getElementById('backdrop').classList.add('open');
   document.getElementById('detail-modal').classList.add('open');
 }
@@ -82,6 +96,25 @@ function equipmentPhotoUrl(model) {
   return `/api/equipment-images/${encodeURIComponent(model || 'generic')}`;
 }
 
+function formatAge(seconds) {
+  if (seconds === null || seconds === undefined) return 'nunca';
+  if (seconds < 90) return `${seconds}s`;
+  return `${Math.round(seconds / 60)} min`;
+}
+
+function updateStaleBanner(state) {
+  const banner = document.getElementById('stale-banner');
+  if (!banner) return;
+  if (state.stale) {
+    banner.textContent =
+      `Dados do Zabbix desatualizados — última atualização há ${formatAge(state.last_refresh_seconds_ago)}. `
+      + 'Os status em cinza não refletem a rede.';
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+}
+
 async function refresh() {
   let state;
   try {
@@ -91,6 +124,8 @@ async function refresh() {
     console.error('Falha ao buscar /api/map-state', err);
     return;
   }
+
+  updateStaleBanner(state);
 
   markerLayer.clearLayers();
   lineLayer.clearLayers();
@@ -108,8 +143,8 @@ async function refresh() {
       const line = drawGlowLine(latlngs, color, segment.status === 'down');
 
       line.bindTooltip(
-        `${circuit.name}<br>${segment.status} · sinal ${fmt(segment.optical_rx_dbm, ' dBm')} · ` +
-        `${fmt(segment.throughput_in_mbps, ' Mbps')} / ${fmt(segment.throughput_out_mbps, ' Mbps')}`,
+        `${esc(circuit.name)}<br>${esc(segment.status)} · sinal ${esc(fmt(segment.optical_rx_dbm, ' dBm'))} · ` +
+        `${esc(fmt(segment.throughput_in_mbps, ' Mbps'))} / ${esc(fmt(segment.throughput_out_mbps, ' Mbps'))}`,
         { className: 'mini-tip', sticky: true },
       );
       line.on('click', () => openModal({
@@ -138,7 +173,7 @@ async function refresh() {
     const color = STATUS_COLOR[point.status] || STATUS_COLOR.unknown;
     const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color) }).addTo(markerLayer);
     marker.bindTooltip(
-      `<b>${point.name}</b><br>${point.equipment_ip || ''} · ${point.status}`,
+      `<b>${esc(point.name)}</b><br>${esc(point.equipment_ip || '')} · ${esc(point.status)}`,
       { className: 'mini-tip' },
     );
     marker.on('click', () => openModal({

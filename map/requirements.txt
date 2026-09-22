@@ -1,3 +1,7 @@
 flask==3.0.3
 SQLAlchemy==2.0.35
 requests==2.32.3
+# app.py's default DATABASE_URL is postgresql+psycopg2://..., and
+# create_engine() imports the DBAPI driver eagerly — without this the
+# container crash-loops on every real (non-SQLite) install.
+psycopg2-binary==2.9.9

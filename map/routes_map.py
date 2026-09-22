@@ -38,8 +38,19 @@ def _is_stale(cache, stale_threshold_seconds):
     return (time.time() - last_refresh) > stale_threshold_seconds
 
 
+def _last_refresh_seconds_ago(cache):
+    """Age of the cached Zabbix data in whole seconds, or None if the poller has
+    never completed a refresh. The frontend needs this to tell the operator
+    "Zabbix is down" apart from "nothing is configured yet"."""
+    last_refresh = cache.last_refresh()
+    if last_refresh is None:
+        return None
+    return max(0, int(time.time() - last_refresh))
+
+
 def build_map_state(session, cache, stale_threshold_seconds=120):
     stale = _is_stale(cache, stale_threshold_seconds)
+    last_refresh_seconds_ago = _last_refresh_seconds_ago(cache)
 
     points_out = []
     for point in session.query(Point).all():
@@ -85,7 +96,12 @@ def build_map_state(session, cache, stale_threshold_seconds=120):
             })
         circuits_out.append({'id': circuit.id, 'name': circuit.name, 'segments': segments_out})
 
-    return {'points': points_out, 'circuits': circuits_out, 'stale': stale}
+    return {
+        'points': points_out,
+        'circuits': circuits_out,
+        'stale': stale,
+        'last_refresh_seconds_ago': last_refresh_seconds_ago,
+    }
 
 
 @map_state_bp.route('/map-state', methods=['GET'])

@@ -14,7 +14,20 @@ body {
 .nav-item.active { background: #3b7ef0; color: #fff; }
 .nav-item:not(.active):hover { background: rgba(255,255,255,0.06); }
 
-#map { flex: 1; }
+.map-area { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+#map { flex: 1; min-height: 0; }
+
+/* Shown by app.js whenever /api/map-state reports stale: true, so an operator
+   can tell "Zabbix is unreachable" apart from "nothing configured yet". */
+.stale-banner {
+  flex-shrink: 0;
+  background: rgba(245,166,35,0.16);
+  border-bottom: 1px solid rgba(245,166,35,0.45);
+  color: #f5c469;
+  font-size: 12.5px;
+  padding: 8px 14px;
+}
+.stale-banner[hidden] { display: none; }
 
 .status-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:7px; }
 .status-dot.up { background:#3ecf6a; }

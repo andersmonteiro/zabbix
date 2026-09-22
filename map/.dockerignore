@@ -1,0 +1,8 @@
+# install.sh writes the real Postgres/Zabbix credentials into map/.env before
+# `docker compose up -d` triggers the build — without this, `COPY . .` would
+# bake those secrets into an image layer.
+.env
+*.db
+__pycache__/
+.pytest_cache/
+test_*.py
