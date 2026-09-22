@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="andersmonteiro/zabbix"
-RELEASE_TAG="${RELEASE_TAG:-latest}"
-INSTALL_DIR="${INSTALL_DIR:-/opt/natverk-noc}"
+# Este repositório é PRIVADO. Este script espera rodar de dentro de um
+# clone já no commit/tag desejado (git clone, não curl) — veja o README
+# para o comando de clone com GITHUB_TOKEN. Ele não baixa mais o
+# código-fonte via curl; git clone já é a forma de obter o código para um
+# repositório privado. O único download HTTP que este script ainda faz é
+# o asset binário de externalscripts, que nunca vai no git (não faz parte
+# de um clone), via a API do GitHub com o mesmo token.
 TZ_VALUE="${TZ:-America/Sao_Paulo}"
 
 log() { echo "[natverk-noc] $*"; }
 die() { echo "[natverk-noc] ERRO: $*" >&2; exit 1; }
+
+: "${GITHUB_TOKEN:?GITHUB_TOKEN não definido. Repositório privado — gere um Personal Access Token (leitura de Contents neste repositório) e rode: GITHUB_TOKEN=ghp_xxx ./install.sh — a partir de um clone já no tag desejado (veja o README).}"
+REPO="andersmonteiro/zabbix"
+GH_AUTH_HEADER="Authorization: Bearer $GITHUB_TOKEN"
+
+[ -f install.sh ] && [ -d stack ] && [ -d whatsapp ] && [ -d tools ] \
+    || die "Rode este script de dentro de um clone do repositório (git clone ...), não isoladamente. Veja o README."
 
 # ── Pré-requisitos ──
 if ! command -v docker >/dev/null 2>&1; then
@@ -17,29 +28,21 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 docker compose version >/dev/null 2>&1 || die "Plugin 'docker compose' não encontrado mesmo após instalar o Docker."
 command -v jq >/dev/null 2>&1 || { log "Instalando jq..."; apt-get update -y && apt-get install -y jq; }
+command -v git >/dev/null 2>&1 || die "git não encontrado."
 command -v curl >/dev/null 2>&1 || die "curl não encontrado."
 command -v openssl >/dev/null 2>&1 || die "openssl não encontrado."
 
-log "Instalando em $INSTALL_DIR (release: $RELEASE_TAG)"
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
+RELEASE_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
+[ -n "$RELEASE_TAG" ] || die "O diretório atual não está numa tag de release (rode 'git checkout <tag>' antes). Nunca instale a partir da branch main."
+log "Instalando release $RELEASE_TAG"
 
-# ── Resolve a tag, se "latest" ──
-if [ "$RELEASE_TAG" = "latest" ]; then
-    RELEASE_TAG=$(curl -sf "https://api.github.com/repos/$REPO/releases/latest" | jq -r '.tag_name')
-    [ -n "$RELEASE_TAG" ] && [ "$RELEASE_TAG" != "null" ] || die "Não consegui resolver a última release."
-fi
-log "Usando release $RELEASE_TAG"
-
-# ── Baixa o código-fonte da tag (nunca a branch main) ──
-log "Baixando código-fonte..."
-curl -sfL "https://github.com/$REPO/archive/refs/tags/$RELEASE_TAG.tar.gz" -o source.tar.gz
-tar xzf source.tar.gz --strip-components=1
-rm source.tar.gz
-
-# ── Baixa e extrai o pacote de externalscripts (asset de release separado) ──
+# ── Baixa e extrai o pacote de externalscripts (asset de release separado — não faz parte do git clone) ──
 log "Baixando externalscripts..."
-curl -sfL "https://github.com/$REPO/releases/download/$RELEASE_TAG/externalscripts-$RELEASE_TAG.tar.gz" -o externalscripts.tar.gz
+EXTERNALSCRIPTS_ASSET_NAME="externalscripts-$RELEASE_TAG.tar.gz"
+RELEASE_JSON=$(curl -sf -H "$GH_AUTH_HEADER" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases/tags/$RELEASE_TAG")
+ASSET_ID=$(echo "$RELEASE_JSON" | jq -r --arg NAME "$EXTERNALSCRIPTS_ASSET_NAME" '.assets[] | select(.name == $NAME) | .id')
+[ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ] || die "Não encontrei o asset $EXTERNALSCRIPTS_ASSET_NAME na release $RELEASE_TAG."
+curl -sfL -H "$GH_AUTH_HEADER" -H "Accept: application/octet-stream" "https://api.github.com/repos/$REPO/releases/assets/$ASSET_ID" -o externalscripts.tar.gz
 mkdir -p stack/externalscripts
 tar xzf externalscripts.tar.gz -C stack/externalscripts --strip-components=1
 rm externalscripts.tar.gz

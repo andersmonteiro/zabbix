@@ -5,7 +5,27 @@ via WhatsApp, instalável com um único comando.
 
 ## Instalação
 
-curl -fsSL https://github.com/andersmonteiro/zabbix/releases/latest/download/install.sh | bash
+Repositório privado — você precisa de um GitHub Personal Access Token com
+permissão de leitura neste repositório (Settings → Developer settings →
+Personal access tokens → escopo "Contents: Read-only" restrito a este
+repositório).
+
+```bash
+export GITHUB_TOKEN=ghp_xxx   # seu token
+git clone "https://$GITHUB_TOKEN@github.com/andersmonteiro/zabbix.git" /opt/natverk-noc
+cd /opt/natverk-noc
+git checkout "$(git tag --sort=-creatordate | head -1)"   # última release estável
+./install.sh
+```
+
+### Atualizar uma instalação existente
+
+```bash
+cd /opt/natverk-noc
+git fetch --tags
+git checkout "$(git tag --sort=-creatordate | head -1)"
+GITHUB_TOKEN=ghp_xxx ./install.sh
+```
 
 ## Componentes
 
