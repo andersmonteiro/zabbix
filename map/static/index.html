@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Natverk NOC — Mapa de Circuitos</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="nav">
+      <div class="nav-title">Natverk NOC</div>
+      <a href="/" class="nav-item active" data-view="inicio">Início</a>
+      <a href="/circuitos.html" class="nav-item" data-view="circuitos">Circuitos</a>
+      <a href="/configuracoes.html" class="nav-item" data-view="configuracoes">Configurações</a>
+    </nav>
+    <main id="map"></main>
+  </div>
+
+  <div class="backdrop" id="backdrop"></div>
+  <div class="detail-modal" id="detail-modal">
+    <div class="modal-photo" id="modal-photo">
+      <span class="close" id="modal-close">&times;</span>
+      <img id="modal-photo-img" src="" alt="" />
+    </div>
+    <h4 id="modal-title"></h4>
+    <table class="detail-table" id="modal-table"></table>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

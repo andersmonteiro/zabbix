@@ -1,0 +1,48 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  background: #141416;
+  color: #e8e8ea;
+}
+
+.app-shell { display: flex; height: 100vh; }
+
+.nav { width: 190px; background: #1e1e20; padding: 16px 10px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; }
+.nav-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.45; padding: 4px 10px 8px; }
+.nav-item { padding: 7px 12px; border-radius: 7px; font-size: 13.5px; color: #d8d8db; cursor: pointer; text-decoration: none; display: block; }
+.nav-item.active { background: #3b7ef0; color: #fff; }
+.nav-item:not(.active):hover { background: rgba(255,255,255,0.06); }
+
+#map { flex: 1; }
+
+.status-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:7px; }
+.status-dot.up { background:#3ecf6a; }
+.status-dot.warn { background:#f5a623; }
+.status-dot.down { background:#e5484d; }
+.status-dot.unknown { background:#888; }
+
+.detail-modal {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: #232326; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px;
+  width: 320px; font-size: 13px; z-index: 1000; box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+  display: none; overflow: hidden;
+}
+.detail-modal.open { display: block; }
+.modal-photo { width: 100%; height: 120px; background: linear-gradient(135deg,#2c2c30,#3a3a40); display:flex; align-items:center; justify-content:center; position:relative; }
+.modal-photo img { width: 92px; height: 92px; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0,0,0,0.5)); }
+.modal-photo .close { position:absolute; top:10px; right:12px; cursor:pointer; opacity:0.7; color:#fff; font-size: 20px; line-height: 1; }
+.detail-modal h4 { margin: 14px 16px 10px; display:flex; align-items:center; font-weight: 600; font-size: 14px; }
+
+.detail-table { width: 100%; border-collapse: collapse; }
+.detail-table tr { border-top: 1px solid rgba(255,255,255,0.07); }
+.detail-table tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
+.detail-table td { padding: 8px 16px; }
+.detail-table td:first-child { opacity: 0.6; width: 46%; }
+.detail-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.detail-table tr:last-child td { padding-bottom: 14px; }
+
+.backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 999; display: none; }
+.backdrop.open { display: block; }
+
+.leaflet-tooltip.mini-tip { background:#232326; color:#eee; border:1px solid rgba(255,255,255,0.12); font-size:11px; padding:6px 8px; line-height:1.5; }

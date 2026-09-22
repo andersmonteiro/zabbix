@@ -6,7 +6,7 @@ from flask import Flask, jsonify
 
 from models import get_engine, get_session_factory, init_db, Point, Segment
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='')
 
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
@@ -79,6 +79,19 @@ app.register_blueprint(map_state_bp)
 @app.route('/health')
 def health():
     return jsonify({'status': 'ok'})
+
+
+@app.route('/')
+def index():
+    return app.send_static_file('index.html')
+
+
+@app.route('/api/config')
+def config():
+    return jsonify({
+        'tile_provider': os.environ.get('TILE_PROVIDER', 'osm'),
+        'mapbox_token': os.environ.get('MAPBOX_TOKEN', ''),
+    })
 
 
 if __name__ == '__main__':
