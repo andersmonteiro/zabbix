@@ -94,6 +94,11 @@ AUTH=$(curl -s -X POST "$ZABBIX_API" -H 'Content-Type: application/json-rpc' -d 
   "id":1
 }' | jq -r '.result // empty')
 
+# Só espelhamos ZABBIX_PASS em map/.env quando temos certeza de que a senha do
+# Admin do Zabbix é de fato $ZABBIX_ADMIN_PASSWORD — caso contrário o poller do
+# mapa falharia na autenticação para sempre, em silêncio, deixando o mapa cinza.
+ZABBIX_PASSWORD_CONFIRMED=0
+
 if [ -n "$AUTH" ]; then
     UPDATE_RESPONSE=$(curl -s -X POST "$ZABBIX_API" \
         -H 'Content-Type: application/json-rpc' \
@@ -102,11 +107,21 @@ if [ -n "$AUTH" ]; then
     UPDATE_ERROR=$(echo "$UPDATE_RESPONSE" | jq -r '.error.data // .error.message // empty')
     if [ -z "$UPDATE_ERROR" ]; then
         log "Senha do Admin do Zabbix atualizada para o padrão Natverk"
+        ZABBIX_PASSWORD_CONFIRMED=1
     else
         log "AVISO: falha ao atualizar a senha do Admin do Zabbix: $UPDATE_ERROR"
     fi
 else
-    log "Login padrão Admin/zabbix já não funciona — Admin já deve estar configurado, pulando"
+    log "Login padrão Admin/zabbix já não funciona — Admin já deve estar configurado"
+    # Pode ser que a senha já seja a nossa (reinstalação) ou que tenha sido
+    # trocada manualmente. Testamos explicitamente antes de confiar nela.
+    EXISTING_AUTH=$(curl -s -X POST "$ZABBIX_API" -H 'Content-Type: application/json-rpc' \
+        -d "{\"jsonrpc\":\"2.0\",\"method\":\"user.login\",\"params\":{\"username\":\"Admin\",\"password\":\"$ZABBIX_ADMIN_PASSWORD\"},\"id\":3}" \
+        | jq -r '.result // empty')
+    if [ -n "$EXISTING_AUTH" ]; then
+        log "Senha do Admin do Zabbix já corresponde ao padrão Natverk"
+        ZABBIX_PASSWORD_CONFIRMED=1
+    fi
 fi
 
 # ── Sobe WhatsApp e Tools ──
@@ -119,7 +134,14 @@ log "Subindo natverk-tools..."
 log "Subindo mapa de circuitos..."
 sed -i "s|^POSTGRES_USER=.*|POSTGRES_USER=$(grep '^POSTGRES_USER=' stack/.env | cut -d= -f2-)|" map/.env
 sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(grep '^POSTGRES_PASSWORD=' stack/.env | cut -d= -f2-)|" map/.env
-sed -i "s|^ZABBIX_PASS=.*|ZABBIX_PASS=$ZABBIX_ADMIN_PASSWORD|" map/.env
+if [ "$ZABBIX_PASSWORD_CONFIRMED" = "1" ]; then
+    sed -i "s|^ZABBIX_PASS=.*|ZABBIX_PASS=$ZABBIX_ADMIN_PASSWORD|" map/.env
+else
+    log "AVISO: a senha do Admin do Zabbix não pôde ser confirmada."
+    log "       ZABBIX_PASS em map/.env NÃO foi alterado — ajuste-o manualmente"
+    log "       com a senha real do Admin, senão o mapa ficará permanentemente cinza:"
+    log "         nano map/.env && (cd map && docker compose restart)"
+fi
 (cd map && docker compose up -d)
 
 IP=$(hostname -I | awk '{print $1}')

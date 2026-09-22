@@ -18,11 +18,26 @@ git checkout "$(git tag --sort=-creatordate | head -1)"   # última release est�
 ./install.sh
 ```
 
+> **Remova o token do repositório clonado.** O `git clone` com o token na URL
+> grava esse token em texto puro em `/opt/natverk-noc/.git/config` — de forma
+> permanente, não só durante o clone. Logo após clonar:
+>
+> ```bash
+> cd /opt/natverk-noc
+> git remote set-url origin https://github.com/andersmonteiro/zabbix.git
+> ```
+>
+> A partir daí o token passa a ser fornecido por invocação (via variável de
+> ambiente), como no fluxo de atualização abaixo.
+
 ### Atualizar uma instalação existente
+
+Como o token não fica mais salvo no `.git/config`, ele precisa ser fornecido
+novamente neste momento:
 
 ```bash
 cd /opt/natverk-noc
-git fetch --tags
+git -c http.extraHeader="Authorization: Bearer $GITHUB_TOKEN" fetch --tags
 git checkout "$(git tag --sort=-creatordate | head -1)"
 GITHUB_TOKEN=ghp_xxx ./install.sh
 ```

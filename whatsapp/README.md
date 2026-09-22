@@ -40,15 +40,25 @@ Este diretório faz parte do repositório `natverk-noc-repo`. O fluxo recomendad
 export GITHUB_TOKEN=ghp_xxx   # repositório privado — veja o README principal
 git clone "https://$GITHUB_TOKEN@github.com/andersmonteiro/zabbix.git" /opt/natverk-noc
 cd /opt/natverk-noc
+git remote set-url origin https://github.com/andersmonteiro/zabbix.git   # tira o token do .git/config
 git checkout "$(git tag --sort=-creatordate | head -1)"
 ./install.sh
 ```
+
+> O `git clone` com o token na URL grava esse token em texto puro em
+> `/opt/natverk-noc/.git/config` permanentemente — por isso o
+> `git remote set-url` logo após clonar. Nas atualizações posteriores o token
+> volta a ser fornecido por invocação:
+> `git -c http.extraHeader="Authorization: Bearer $GITHUB_TOKEN" fetch --tags`
+> (ver README principal).
 
 Para uma instalação manual (apenas este componente, fora do fluxo Docker do `install.sh`):
 
 ```bash
 git clone "https://$GITHUB_TOKEN@github.com/andersmonteiro/zabbix.git" /opt/natverk-noc
-cd /opt/natverk-noc/whatsapp
+cd /opt/natverk-noc
+git remote set-url origin https://github.com/andersmonteiro/zabbix.git   # tira o token do .git/config
+cd whatsapp
 npm install
 ```
 
