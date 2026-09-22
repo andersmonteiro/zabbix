@@ -8,11 +8,20 @@ body {
 
 .app-shell { display: flex; height: 100vh; }
 
-.nav { width: 190px; background: #1e1e20; padding: 16px 10px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; }
+.nav { width: 200px; background: #1e1e20; padding: 16px 10px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; }
 .nav-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.45; padding: 4px 10px 8px; }
-.nav-item { padding: 7px 12px; border-radius: 7px; font-size: 13.5px; color: #d8d8db; cursor: pointer; text-decoration: none; display: block; }
+.nav-item {
+  padding: 8px 12px; border-radius: 7px; font-size: 13.5px; color: #d8d8db; cursor: pointer;
+  text-decoration: none; display: flex; align-items: center; gap: 10px;
+}
+.nav-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.75; }
 .nav-item.active { background: #3b7ef0; color: #fff; }
+.nav-item.active svg { opacity: 1; }
 .nav-item:not(.active):hover { background: rgba(255,255,255,0.06); }
+
+.nav-footer { margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); }
+.nav-user { font-size: 11.5px; opacity: 0.5; padding: 6px 12px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-logout { background: none; border: none; width: 100%; text-align: left; font-family: inherit; }
 
 .map-area { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 #map { flex: 1; min-height: 0; }
@@ -59,3 +68,11 @@ body {
 .backdrop.open { display: block; }
 
 .leaflet-tooltip.mini-tip { background:#232326; color:#eee; border:1px solid rgba(255,255,255,0.12); font-size:11px; padding:6px 8px; line-height:1.5; }
+
+.list-item { padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+.list-item:hover { background: rgba(255,255,255,0.06); }
+.list-item.selected { background: rgba(80,160,255,0.15); }
+form.inline { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+form.inline input, form.inline select { background: #232326; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 6px 8px; color: inherit; font-size: 13px; }
+form.inline button { padding: 7px; border-radius: 6px; border: 1px solid rgba(80,160,255,0.5); background: rgba(80,160,255,0.15); color: inherit; cursor: pointer; }
+.form-status { font-size: 12px; margin: 6px 0 0; min-height: 15px; color: rgba(255,255,255,0.5); }

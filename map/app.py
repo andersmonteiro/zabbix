@@ -3,10 +3,13 @@ import os
 import threading
 
 from flask import Flask, jsonify
+from werkzeug.security import generate_password_hash
 
-from models import get_engine, get_session_factory, init_db, Point, Segment
+from models import get_engine, get_session_factory, init_db, Point, Segment, User
 
 app = Flask(__name__, static_folder='static', static_url_path='')
+app.secret_key = os.environ.get('MAP_SECRET_KEY') or os.urandom(32)
+app.config['PERMANENT_SESSION_LIFETIME'] = 60 * 60 * 24 * 7  # 7 dias
 
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
@@ -20,6 +23,36 @@ DATABASE_URL = os.environ.get(
 engine = get_engine(DATABASE_URL)
 SessionLocal = get_session_factory(engine)
 init_db(engine)
+
+from auth import auth_bp, init_auth, register_auth_guard
+from routes_users import users_bp, init_users_routes
+
+init_auth(SessionLocal)
+init_users_routes(SessionLocal)
+app.register_blueprint(auth_bp)
+app.register_blueprint(users_bp)
+register_auth_guard(app)
+
+
+def _seed_default_admin():
+    """First boot has no users yet, so nobody could ever log in — seed one
+    from env vars (mirrors the WEBHOOK_TOKEN / ZABBIX_PASS pattern install.sh
+    already uses for other components)."""
+    session = SessionLocal()
+    try:
+        if session.query(User).count() > 0:
+            return
+        username = os.environ.get('MAP_ADMIN_USER', 'admin')
+        password = os.environ.get('MAP_ADMIN_PASSWORD')
+        if not password:
+            return
+        session.add(User(username=username, password_hash=generate_password_hash(password)))
+        session.commit()
+    finally:
+        session.close()
+
+
+_seed_default_admin()
 
 from routes_points import points_bp, init_points_routes
 from routes_circuits import circuits_bp, init_circuits_routes
@@ -79,6 +112,11 @@ from routes_equipment_images import equipment_images_bp, init_equipment_images_r
 
 init_equipment_images_routes(os.environ.get('EQUIPMENT_IMAGES_DIR', '/app/equipment-images'))
 app.register_blueprint(equipment_images_bp)
+
+from routes_hosts import hosts_bp, init_hosts_routes
+
+init_hosts_routes(zabbix_client)
+app.register_blueprint(hosts_bp)
 
 
 @app.route('/health')

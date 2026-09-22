@@ -1,7 +1,18 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, JSON
+from datetime import datetime, timezone
+
+from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, JSON, DateTime
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 Base = declarative_base()
+
+
+class User(Base):
+    __tablename__ = 'netmap_users'
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String, nullable=False, unique=True)
+    password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class Point(Base):

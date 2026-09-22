@@ -181,6 +181,17 @@ else
     log "       com a senha real do Admin, senão o mapa ficará permanentemente cinza:"
     log "         nano map/.env && (cd map && docker compose restart)"
 fi
+
+# ── Login do próprio mapa (independente da senha do Zabbix acima) ──
+if ! grep -qE '^MAP_SECRET_KEY=.+' map/.env 2>/dev/null; then
+    sed -i "s|^MAP_SECRET_KEY=.*|MAP_SECRET_KEY=$(openssl rand -hex 32)|" map/.env
+    log "MAP_SECRET_KEY gerado para este cliente"
+fi
+if ! grep -qE '^MAP_ADMIN_PASSWORD=.+' map/.env 2>/dev/null; then
+    sed -i "s|^MAP_ADMIN_PASSWORD=.*|MAP_ADMIN_PASSWORD=$ZABBIX_ADMIN_PASSWORD|" map/.env
+    log "Usuário admin do mapa criado com a senha padrão Natverk (troque em Configurações)"
+fi
+
 (cd map && docker compose up -d)
 
 IP=$(hostname -I | awk '{print $1}')
@@ -188,7 +199,7 @@ log ""
 log "=== Instalação concluída ==="
 log "Zabbix:  http://$IP:8080  (Admin / senha em stack/.env)"
 log "Grafana: http://$IP:3000  (admin / senha em stack/.env)"
-log "Mapa de circuitos: http://$IP:${MAP_PORT:-5002}"
+log "Mapa de circuitos: http://$IP:${MAP_PORT:-5002}  (admin / senha em stack/.env, mesma do Zabbix/Grafana)"
 log ""
 log "Próximo passo manual — configurar o WhatsApp:"
 log "  1. docker logs -f zabbix-whatsapp    # escaneie o QR Code que aparecer"

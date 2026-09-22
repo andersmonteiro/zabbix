@@ -17,13 +17,19 @@ class ZabbixClient:
         headers = {'Content-Type': 'application/json-rpc'}
         if use_auth:
             headers['Authorization'] = f'Bearer {self._auth_token}'
-        resp = requests.post(
-            self.api_url,
-            json={'jsonrpc': '2.0', 'method': method, 'params': params, 'id': request_id},
-            headers=headers, verify=self.verify, timeout=10,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            resp = requests.post(
+                self.api_url,
+                json={'jsonrpc': '2.0', 'method': method, 'params': params, 'id': request_id},
+                headers=headers, verify=self.verify, timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.exceptions.RequestException as e:
+            # Network/timeout/HTTP-status failures reach here as raw requests
+            # exceptions — normalize to ZabbixAPIError so every caller only
+            # has to catch one exception type instead of leaking a 500.
+            raise ZabbixAPIError(f'Falha ao conectar ao Zabbix: {e}') from e
         if 'error' in data:
             raise ZabbixAPIError(data['error'].get('data') or data['error'].get('message'))
         return data['result']
@@ -45,3 +51,15 @@ class ZabbixClient:
             request_id=2, use_auth=True,
         )
         return {item['itemid']: item for item in result}
+
+    def call(self, method, params):
+        """Generic authenticated call for admin operations (host.create,
+        hostgroup.get, template.get, ...). Retries once with a fresh login if
+        the cached session token has expired server-side."""
+        if not self._auth_token:
+            self.login()
+        try:
+            return self._call(method, params, request_id=3, use_auth=True)
+        except ZabbixAPIError:
+            self.login()
+            return self._call(method, params, request_id=3, use_auth=True)
