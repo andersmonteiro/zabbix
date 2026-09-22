@@ -124,6 +124,45 @@ else
     fi
 fi
 
+# ── Importa os templates Zabbix customizados da Natverk (idempotente — updateExisting) ──
+if [ "$ZABBIX_PASSWORD_CONFIRMED" = "1" ] && [ -f stack/templates/natverk-templates.yaml ]; then
+    log "Importando templates Zabbix customizados da Natverk..."
+    IMPORT_AUTH=$(curl -s -X POST "$ZABBIX_API" -H 'Content-Type: application/json-rpc' \
+        -d "{\"jsonrpc\":\"2.0\",\"method\":\"user.login\",\"params\":{\"username\":\"Admin\",\"password\":\"$ZABBIX_ADMIN_PASSWORD\"},\"id\":4}" \
+        | jq -r '.result // empty')
+    if [ -n "$IMPORT_AUTH" ]; then
+        IMPORT_RESPONSE=$(jq -n --rawfile src stack/templates/natverk-templates.yaml '{
+            jsonrpc: "2.0", method: "configuration.import",
+            params: {
+                format: "yaml", source: $src,
+                rules: {
+                    template_groups: {createMissing: true},
+                    host_groups: {createMissing: true},
+                    templates: {createMissing: true, updateExisting: true},
+                    templateLinkage: {createMissing: true, deleteMissing: false},
+                    templateDashboards: {createMissing: true, updateExisting: true, deleteMissing: false},
+                    valueMaps: {createMissing: true, updateExisting: true, deleteMissing: false},
+                    items: {createMissing: true, updateExisting: true, deleteMissing: false},
+                    discoveryRules: {createMissing: true, updateExisting: true, deleteMissing: false},
+                    triggers: {createMissing: true, updateExisting: true, deleteMissing: false},
+                    graphs: {createMissing: true, updateExisting: true, deleteMissing: false},
+                    httptests: {createMissing: true, updateExisting: true, deleteMissing: false}
+                }
+            }, id: 5
+        }' | curl -s -X POST "$ZABBIX_API" -H 'Content-Type: application/json-rpc' -H "Authorization: Bearer $IMPORT_AUTH" -d @-)
+        IMPORT_ERROR=$(echo "$IMPORT_RESPONSE" | jq -r '.error.data // .error.message // empty')
+        if [ -z "$IMPORT_ERROR" ]; then
+            log "Templates Zabbix customizados importados"
+        else
+            log "AVISO: falha ao importar templates Zabbix customizados: $IMPORT_ERROR"
+        fi
+    else
+        log "AVISO: não foi possível autenticar para importar os templates customizados"
+    fi
+else
+    log "Pulando import de templates customizados (senha do Admin não confirmada ou arquivo ausente)"
+fi
+
 # ── Sobe WhatsApp e Tools ──
 log "Subindo serviço WhatsApp..."
 (cd whatsapp && docker compose up -d)
