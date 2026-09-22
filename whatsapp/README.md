@@ -47,7 +47,7 @@ git checkout "$(git tag --sort=-creatordate | head -1)"
 Para uma instalação manual (apenas este componente, fora do fluxo Docker do `install.sh`):
 
 ```bash
-git clone https://github.com/andersmonteiro/zabbix.git /opt/natverk-noc
+git clone "https://$GITHUB_TOKEN@github.com/andersmonteiro/zabbix.git" /opt/natverk-noc
 cd /opt/natverk-noc/whatsapp
 npm install
 ```

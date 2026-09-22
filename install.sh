@@ -39,7 +39,8 @@ log "Instalando release $RELEASE_TAG"
 # ── Baixa e extrai o pacote de externalscripts (asset de release separado — não faz parte do git clone) ──
 log "Baixando externalscripts..."
 EXTERNALSCRIPTS_ASSET_NAME="externalscripts-$RELEASE_TAG.tar.gz"
-RELEASE_JSON=$(curl -sf -H "$GH_AUTH_HEADER" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases/tags/$RELEASE_TAG")
+RELEASE_JSON=$(curl -sf -H "$GH_AUTH_HEADER" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases/tags/$RELEASE_TAG") \
+    || die "Falha ao consultar a release $RELEASE_TAG na API do GitHub — verifique se o GITHUB_TOKEN é válido e tem acesso a este repositório."
 ASSET_ID=$(echo "$RELEASE_JSON" | jq -r --arg NAME "$EXTERNALSCRIPTS_ASSET_NAME" '.assets[] | select(.name == $NAME) | .id')
 [ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ] || die "Não encontrei o asset $EXTERNALSCRIPTS_ASSET_NAME na release $RELEASE_TAG."
 curl -sfL -H "$GH_AUTH_HEADER" -H "Accept: application/octet-stream" "https://api.github.com/repos/$REPO/releases/assets/$ASSET_ID" -o externalscripts.tar.gz
