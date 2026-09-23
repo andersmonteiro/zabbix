@@ -134,7 +134,13 @@ body {
 .alerts-badge.sev-info { background: var(--text-muted); color: #1a1a1a; }
 .alerts-badge[hidden] { display: none; }
 .alerts-panel {
-  position: absolute; top: 38px; right: 0; width: 360px; max-height: 420px; overflow-y: auto;
+  /* position: fixed (not absolute) on purpose -- .topbar-actions' ancestor
+     .topbar carries a clip-path (.notch), which clips ALL descendant boxes
+     to the topbar's own 50px-tall shape. An absolutely-positioned dropdown
+     nested inside it gets silently clipped away; fixed positioning escapes
+     that ancestor entirely, so alerts.js sets top/right from the bell's
+     getBoundingClientRect() on open instead of relying on CSS offsets. */
+  position: fixed; width: 360px; max-height: 420px; overflow-y: auto;
   background: var(--bg-panel); border: 1px solid var(--border-2); box-shadow: var(--shadow-card); z-index: 1200;
 }
 .alerts-panel[hidden] { display: none; }

@@ -80,6 +80,11 @@ async function refreshAlerts() {
   bell.addEventListener('click', (e) => {
     e.stopPropagation();
     panel.hidden = !panel.hidden;
+    if (!panel.hidden) {
+      const rect = bell.getBoundingClientRect();
+      panel.style.top = `${rect.bottom + 8}px`;
+      panel.style.right = `${window.innerWidth - rect.right}px`;
+    }
   });
   document.addEventListener('click', (e) => {
     if (!panel.hidden && !panel.contains(e.target) && e.target !== bell) {
