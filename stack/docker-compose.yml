@@ -16,6 +16,12 @@ services:
       POSTGRES_DB: ${POSTGRES_DB-zabbix}
       MIBS: ALL
       MIBDIRS: /usr/share/snmp/mibs
+      # Sem isso, externalscripts que lidam com texto acentuado (nomes de
+      # interface, alertas em pt-BR) quebram com UnicodeEncodeError — o
+      # locale padrão do container é POSIX/ASCII. C.utf8 já vem no Alpine
+      # base, não precisa instalar pacote de locale.
+      LANG: C.utf8
+      LC_ALL: C.utf8
     depends_on:
       - postgres
     volumes:

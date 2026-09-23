@@ -47,6 +47,10 @@ curl -sfL -H "$GH_AUTH_HEADER" -H "Accept: application/octet-stream" "https://ap
 mkdir -p stack/externalscripts
 tar xzf externalscripts.tar.gz -C stack/externalscripts --strip-components=1
 rm externalscripts.tar.gz
+# O pacote é gerado num ambiente Windows e o tar de lá não preserva o bit de
+# execução — sem isso, o Zabbix falha com "Permission denied" em toda
+# verificação externa (SFP, health, etc.), silenciosamente.
+chmod -R +x stack/externalscripts
 
 # ── Gera .env de cada componente (idempotente — não sobrescreve se já existir) ──
 for comp in stack whatsapp tools map; do
