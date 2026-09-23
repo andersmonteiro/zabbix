@@ -108,6 +108,24 @@ atexit.register(_poller_stop_event.set)
 init_map_routes(SessionLocal, status_cache, STALE_THRESHOLD_SECONDS)
 app.register_blueprint(map_state_bp)
 
+from alert_poller import AlertCache, alert_poll_loop
+from routes_alerts import alerts_bp, init_alerts_routes
+
+ALERT_POLL_INTERVAL_SECONDS = int(os.environ.get('ALERT_POLL_INTERVAL_SECONDS', '30'))
+alert_cache = AlertCache()
+_alert_poller_stop_event = threading.Event()
+_alert_poller_thread = threading.Thread(
+    target=alert_poll_loop,
+    args=(zabbix_client, alert_cache),
+    kwargs={'interval_seconds': ALERT_POLL_INTERVAL_SECONDS, 'stop_event': _alert_poller_stop_event},
+    daemon=True,
+)
+_alert_poller_thread.start()
+atexit.register(_alert_poller_stop_event.set)
+
+init_alerts_routes(alert_cache, STALE_THRESHOLD_SECONDS)
+app.register_blueprint(alerts_bp)
+
 from routes_equipment_images import equipment_images_bp, init_equipment_images_routes
 
 init_equipment_images_routes(os.environ.get('EQUIPMENT_IMAGES_DIR', '/app/equipment-images'))
