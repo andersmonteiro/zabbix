@@ -30,13 +30,12 @@ class AlertCache:
             self._last_refresh = time.time()
 
 
-def _serialize_problem(raw):
-    hosts = raw.get('hosts') or []
+def _serialize_problem(raw, host_by_triggerid):
     severity = int(raw.get('severity', 0))
     return {
         'eventid': raw.get('eventid'),
         'name': raw.get('name'),
-        'host': hosts[0]['name'] if hosts else '—',
+        'host': host_by_triggerid.get(raw.get('objectid'), '—'),
         'severity': severity,
         'severity_label': SEVERITY_LABELS.get(severity, 'Desconhecida'),
         'clock': int(raw.get('clock', 0)),
@@ -46,15 +45,32 @@ def _serialize_problem(raw):
 
 def fetch_problems(zabbix_client):
     """Currently unresolved Zabbix problems (recent=False excludes ones that
-    already recovered), newest+most severe first."""
+    already recovered), newest+most severe first. problem.get has no
+    selectHosts of its own -- the host lives on the trigger, so problems
+    whose object is a trigger (object=='0', the vast majority) get a
+    follow-up trigger.get to resolve host names."""
     raw = zabbix_client.call('problem.get', {
         'output': 'extend',
-        'selectHosts': ['hostid', 'name'],
         'sortfield': ['eventid'],
         'sortorder': 'DESC',
         'recent': False,
     })
-    problems = [_serialize_problem(p) for p in raw]
+    if not raw:
+        return []
+
+    triggerids = sorted({p['objectid'] for p in raw if p.get('object') == '0' and p.get('objectid')})
+    host_by_triggerid = {}
+    if triggerids:
+        triggers = zabbix_client.call('trigger.get', {
+            'triggerids': triggerids,
+            'output': ['triggerid'],
+            'selectHosts': ['name'],
+        })
+        for t in triggers:
+            hosts = t.get('hosts') or []
+            host_by_triggerid[t['triggerid']] = hosts[0]['name'] if hosts else '—'
+
+    problems = [_serialize_problem(p, host_by_triggerid) for p in raw]
     problems.sort(key=lambda p: (-p['severity'], -p['clock']))
     return problems
 
