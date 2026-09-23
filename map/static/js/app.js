@@ -13,7 +13,8 @@ function esc(str) {
   }[c]));
 }
 
-const map = L.map('map').setView([-23.5629, -46.6544], 13);
+// Corredor BR-163 (PA/MT) — região de cobertura do cliente.
+const map = L.map('map').setView([-8.3, -55.4], 7);
 
 async function addTileLayer() {
   let cfg = { tile_provider: 'osm', mapbox_token: '' };
@@ -62,6 +63,31 @@ function drawGlowLine(latlngs, color, dashed) {
   if (dashed) opts.dashArray = '1 10';
   L.polyline(latlngs, { weight: 14, color, opacity: 0.18, lineCap: 'round', lineJoin: 'round', smoothFactor: 3 }).addTo(lineLayer);
   return L.polyline(latlngs, opts).addTo(lineLayer);
+}
+
+// Small triangular warning badge dropped at a segment's midpoint when SNMP
+// isn't answering for that link — deliberately a different shape from the
+// round status glow, so it reads as "monitoring degraded" rather than
+// restating the line's own up/down color.
+function warningIcon() {
+  return L.divIcon({
+    className: '',
+    html:
+      '<div style="position:relative;width:20px;height:20px;display:flex;align-items:center;justify-content:center;">'
+      + '<div style="position:absolute;inset:0;border-radius:50%;background:#e5484d;opacity:0.3;filter:blur(3px)"></div>'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="#e5484d" stroke="#fff" stroke-width="1.2">'
+      + '<path d="M12 2 L22 20 L2 20 Z"/><line x1="12" y1="9" x2="12" y2="14" stroke="#fff" stroke-width="2"/>'
+      + '<circle cx="12" cy="17" r="1.2" fill="#fff"/></svg>'
+      + '</div>',
+    iconSize: [20, 20], iconAnchor: [10, 10],
+  });
+}
+
+function midpoint(latlngs) {
+  const mid = Math.floor((latlngs.length - 1) / 2);
+  const [lat1, lng1] = latlngs[mid];
+  const [lat2, lng2] = latlngs[Math.min(mid + 1, latlngs.length - 1)];
+  return [(lat1 + lat2) / 2, (lng1 + lng2) / 2];
 }
 
 function fmt(value, unit) {
@@ -142,9 +168,10 @@ async function refresh() {
       const color = STATUS_COLOR[segment.status] || STATUS_COLOR.unknown;
       const line = drawGlowLine(latlngs, color, segment.status === 'down');
 
+      const snmpNote = segment.snmp_offline ? ' · ⚠ SNMP indisponível (status por ping)' : '';
       line.bindTooltip(
         `${esc(circuit.name)}<br>${esc(segment.status)} · sinal ${esc(fmt(segment.optical_rx_dbm, ' dBm'))} · ` +
-        `${esc(fmt(segment.throughput_in_mbps, ' Mbps'))} / ${esc(fmt(segment.throughput_out_mbps, ' Mbps'))}`,
+        `${esc(fmt(segment.throughput_in_mbps, ' Mbps'))} / ${esc(fmt(segment.throughput_out_mbps, ' Mbps'))}${esc(snmpNote)}`,
         { className: 'mini-tip', sticky: true },
       );
       line.on('click', () => openModal({
@@ -153,6 +180,7 @@ async function refresh() {
         statusClass: segment.status,
         rows: [
           ['Status', segment.status],
+          ['SNMP', segment.snmp_offline ? 'indisponível — status por ping' : 'OK'],
           ['Velocidade', fmt(segment.speed_mbps, ' Mbps')],
           ['Throughput', `${fmt(segment.throughput_in_mbps, ' Mbps')} ↓ / ${fmt(segment.throughput_out_mbps, ' Mbps')} ↑`],
           ['Sinal óptico', fmt(segment.optical_rx_dbm, ' dBm')],
@@ -160,6 +188,12 @@ async function refresh() {
           ['Erros', fmt(segment.error_count, '')],
         ],
       }));
+
+      if (segment.snmp_offline) {
+        L.marker(midpoint(latlngs), { icon: warningIcon(), zIndexOffset: 500 })
+          .addTo(markerLayer)
+          .bindTooltip(`${esc(circuit.name)}: SNMP indisponível — status exibido por ping`, { className: 'mini-tip' });
+      }
     });
   });
 

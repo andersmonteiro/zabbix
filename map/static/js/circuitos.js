@@ -1,4 +1,5 @@
-const editorMap = L.map('editor-map').setView([-23.5629, -46.6544], 13);
+// Corredor BR-163 (PA/MT) — região de cobertura do cliente.
+const editorMap = L.map('editor-map').setView([-8.3, -55.4], 7);
 
 async function addTileLayer() {
   let cfg = { tile_provider: 'osm', mapbox_token: '' };
@@ -167,6 +168,7 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     destination_point_id: Number(form.get('destination_point_id')),
     waypoint_ids: [],
     zabbix_operstatus_itemid: form.get('zabbix_operstatus_itemid') || null,
+    zabbix_snmp_available_itemid: form.get('zabbix_snmp_available_itemid') || null,
     zabbix_speed_itemid: form.get('zabbix_speed_itemid') || null,
     zabbix_throughput_in_itemid: form.get('zabbix_throughput_in_itemid') || null,
     zabbix_throughput_out_itemid: form.get('zabbix_throughput_out_itemid') || null,

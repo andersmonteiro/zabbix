@@ -55,6 +55,11 @@ class Segment(Base):
     zabbix_optical_rx_itemid = Column(String, nullable=True)
     zabbix_error_itemid = Column(String, nullable=True)
     zabbix_operstatus_itemid = Column(String, nullable=True)
+    # Separate from operstatus on purpose: a host can be alive (ping up) while
+    # SNMP itself is unreachable, in which case the link should still read
+    # "up" (driven by ping) but flagged so an operator knows the interface
+    # detail (traffic, real port state) isn't trustworthy right now.
+    zabbix_snmp_available_itemid = Column(String, nullable=True)
     signal_warn_threshold_dbm = Column(Float, nullable=True)
 
     circuit = relationship('Circuit', backref='segments')

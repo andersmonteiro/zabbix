@@ -138,3 +138,58 @@ def test_build_map_state_last_refresh_age_is_none_when_never_refreshed(session):
     state = build_map_state(session, cache, stale_threshold_seconds=120)
     assert state['stale'] is True
     assert state['last_refresh_seconds_ago'] is None
+
+
+# --- snmp_offline: SNMP down but the link is still reachable by ping --------
+
+def test_segment_reports_up_via_ping_when_snmp_is_offline(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    segment.zabbix_snmp_available_itemid = '60013'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'},
+        '60010': {'lastvalue': '1'},  # operstatus driven by ping -- still up
+        '60013': {'lastvalue': '0'},  # SNMP itself is down
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['status'] == 'up'
+    assert seg['snmp_offline'] is True
+
+
+def test_segment_snmp_offline_is_false_when_snmp_responds(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    segment.zabbix_snmp_available_itemid = '60013'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'},
+        '60010': {'lastvalue': '1'}, '60013': {'lastvalue': '1'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['snmp_offline'] is False
+
+
+def test_segment_snmp_offline_is_false_when_field_not_configured(session):
+    _seed_circuit(session)  # no zabbix_snmp_available_itemid set
+    cache = StatusCache()
+    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'}})
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['snmp_offline'] is False
+
+
+def test_segment_snmp_offline_is_false_when_stale(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    segment.zabbix_snmp_available_itemid = '60013'
+    session.commit()
+    cache = StatusCache()  # never updated -> stale
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['snmp_offline'] is False

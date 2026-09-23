@@ -34,6 +34,7 @@ def _serialize_segment(segment):
         'zabbix_optical_rx_itemid': segment.zabbix_optical_rx_itemid,
         'zabbix_error_itemid': segment.zabbix_error_itemid,
         'zabbix_operstatus_itemid': segment.zabbix_operstatus_itemid,
+        'zabbix_snmp_available_itemid': segment.zabbix_snmp_available_itemid,
         'signal_warn_threshold_dbm': segment.signal_warn_threshold_dbm,
     }
 
@@ -111,7 +112,7 @@ SEGMENT_REQUIRED_FIELDS = ('order_index', 'origin_point_id', 'destination_point_
 SEGMENT_OPTIONAL_FIELDS = (
     'waypoint_ids', 'zabbix_speed_itemid', 'zabbix_throughput_in_itemid',
     'zabbix_throughput_out_itemid', 'zabbix_optical_rx_itemid', 'zabbix_error_itemid',
-    'zabbix_operstatus_itemid', 'signal_warn_threshold_dbm',
+    'zabbix_operstatus_itemid', 'zabbix_snmp_available_itemid', 'signal_warn_threshold_dbm',
 )
 
 
@@ -144,6 +145,7 @@ def create_segment(circuit_id):
             zabbix_optical_rx_itemid=data.get('zabbix_optical_rx_itemid'),
             zabbix_error_itemid=data.get('zabbix_error_itemid'),
             zabbix_operstatus_itemid=data.get('zabbix_operstatus_itemid'),
+            zabbix_snmp_available_itemid=data.get('zabbix_snmp_available_itemid'),
             signal_warn_threshold_dbm=data.get('signal_warn_threshold_dbm'),
         )
         session.add(segment)

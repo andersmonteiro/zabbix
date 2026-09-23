@@ -74,6 +74,13 @@ def build_map_state(session, cache, stale_threshold_seconds=120):
             operstatus = None if stale else _lastvalue(cache, segment.zabbix_operstatus_itemid, int)
             optical_rx = None if stale else _lastvalue(cache, segment.zabbix_optical_rx_itemid, float)
             error_count = None if stale else _lastvalue(cache, segment.zabbix_error_itemid, float)
+            snmp_available = None if stale else _lastvalue(cache, segment.zabbix_snmp_available_itemid, int)
+            # snmp_available is a separate signal from operstatus on purpose: a
+            # segment can be genuinely up (ping/agent reachable) while SNMP
+            # itself doesn't answer, in which case the line should still read
+            # "up" but the operator needs a visible cue that the interface
+            # detail (traffic, real port state) isn't trustworthy right now.
+            snmp_offline = segment.zabbix_snmp_available_itemid is not None and snmp_available == 0
 
             segments_out.append({
                 'id': segment.id,
@@ -93,6 +100,7 @@ def build_map_state(session, cache, stale_threshold_seconds=120):
                 'optical_rx_dbm': optical_rx,
                 'error_count': error_count,
                 'signal_warn_threshold_dbm': segment.signal_warn_threshold_dbm,
+                'snmp_offline': snmp_offline,
             })
         circuits_out.append({'id': circuit.id, 'name': circuit.name, 'segments': segments_out})
 
