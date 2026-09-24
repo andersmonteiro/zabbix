@@ -198,6 +198,10 @@ async function refresh() {
   });
 
   state.points.forEach((point) => {
+    // route_point é só geometria da linha (gerada a partir da rota real da
+    // estrada) -- não é infraestrutura física, então não vira marcador.
+    // waypoint é o poste/caixa que o operador cadastra manualmente.
+    if (point.point_type === 'route_point') return;
     if (point.point_type === 'waypoint') {
       L.circleMarker([point.lat, point.lng], { radius: 4, color: '#888', fillOpacity: 1 })
         .addTo(markerLayer)

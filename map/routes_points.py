@@ -100,8 +100,8 @@ def create_point():
     missing = [f for f in REQUIRED_FIELDS if f not in data]
     if missing:
         return jsonify({'error': f"Campos obrigatórios ausentes: {', '.join(missing)}"}), 400
-    if data['point_type'] not in ('waypoint', 'equipment'):
-        return jsonify({'error': "point_type deve ser 'waypoint' ou 'equipment'"}), 400
+    if data['point_type'] not in ('waypoint', 'equipment', 'route_point'):
+        return jsonify({'error': "point_type deve ser 'waypoint', 'equipment' ou 'route_point'"}), 400
 
     coordinates, error = _validate_coordinates(data)
     if error is not None:
