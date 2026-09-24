@@ -21,19 +21,32 @@ const MAP_LABELS_STORAGE_KEY = 'natverk-map-labels';
 const labelLayer = L.layerGroup();
 
 // Rótulo fixo com o nome do ponto (não é o tooltip de hover, que continua
-// existindo separado no marker) -- overlay opcional "Nomes dos locais",
-// só some/aparece conforme o operador marca a caixinha no seletor.
-function labelTooltip(lat, lng, text) {
-  return L.tooltip({ permanent: true, direction: 'right', offset: [12, 0], className: 'map-label', interactive: false })
-    .setLatLng([lat, lng])
-    .setContent(esc(text));
+// existindo separado no marker) -- overlay opcional "Nomes dos locais".
+// Callout tipo "plaquinha": uma linha fina sai do ponto exato do host e
+// termina na caixa com o nome, deslocada na diagonal para não tampar o
+// próprio marcador. Um L.marker com divIcon (não L.tooltip) porque
+// precisamos desenhar essa linha nós mesmos dentro do ícone.
+const LABEL_DX = 20;
+const LABEL_DY = -13;
+
+function labelMarker(lat, lng, text) {
+  const html =
+    `<svg width="160" height="46" viewBox="-4 -27 160 46" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none;">` +
+    `<line x1="0" y1="0" x2="${LABEL_DX}" y2="${LABEL_DY}" stroke="rgba(255,255,255,0.55)" stroke-width="1.2"/>` +
+    `<circle cx="0" cy="0" r="2" fill="rgba(255,255,255,0.85)"/>` +
+    `</svg>` +
+    `<div class="map-label" style="position:absolute;left:${LABEL_DX + 5}px;top:${LABEL_DY - 9}px;">${esc(text)}</div>`;
+  return L.marker([lat, lng], {
+    icon: L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] }),
+    interactive: false, keyboard: false,
+  });
 }
 
 function renderLabels(points) {
   labelLayer.clearLayers();
   points.forEach((p) => {
     if (p.point_type !== 'equipment') return;
-    labelTooltip(p.lat, p.lng, p.name).addTo(labelLayer);
+    labelMarker(p.lat, p.lng, p.name).addTo(labelLayer);
   });
 }
 
@@ -271,8 +284,91 @@ function openModal({ photoUrl, title, statusClass, kicker, rows, utilizationPct 
     barWrap.innerHTML = '';
   }
 
+  // Só a linha de circuito popula isso (renderSegmentChart, chamado depois
+  // de openModal no handler de clique) -- reseta aqui pra não sobrar o
+  // gráfico do último segmento aberto quando o clique agora é num ponto.
+  const chartWrap = document.getElementById('modal-chart');
+  chartWrap.hidden = true;
+  chartWrap.innerHTML = '';
+
   document.getElementById('backdrop').classList.add('open');
   document.getElementById('detail-modal').classList.add('open');
+}
+
+// Gráfico de histórico de tráfego (SVG desenhado à mão, sem lib de chart)
+// -- estilo inspirado no motion.dev: fundo escuro, grid sutil, linha fina
+// com um ponto de destaque na ponta mais recente. Todos os valores vêm
+// computados do backend (timestamps/Mbps numéricos), nunca texto livre de
+// usuário, então entram direto no SVG sem passar por esc().
+function buildSparkline(seriesIn, seriesOut) {
+  const width = 292, height = 118;
+  const pad = { top: 10, right: 8, bottom: 8, left: 8 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+
+  const allPoints = [...seriesIn, ...seriesOut];
+  if (allPoints.length < 2) {
+    return '<div class="chart-empty">Sem histórico suficiente para este período.</div>';
+  }
+
+  const maxV = Math.max(...allPoints.map((p) => p[1]), 0.01);
+  const times = allPoints.map((p) => p[0]);
+  const minT = Math.min(...times);
+  const spanT = Math.max(Math.max(...times) - minT, 1);
+
+  function project(series) {
+    return series.map(([t, v]) => [
+      pad.left + ((t - minT) / spanT) * plotW,
+      pad.top + (1 - v / maxV) * plotH,
+    ]);
+  }
+
+  function pathFor(pts) {
+    return pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+  }
+
+  const inPts = project(seriesIn);
+  const outPts = project(seriesOut);
+  const gridY = [0.25, 0.5, 0.75].map((f) => pad.top + f * plotH);
+
+  const lastDot = (pts, cls) => pts.length
+    ? `<circle cx="${pts[pts.length - 1][0].toFixed(1)}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="2.6" class="chart-dot ${cls}"/>`
+    : '';
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" class="chart-svg" preserveAspectRatio="none">
+      ${gridY.map((y) => `<line x1="${pad.left}" y1="${y.toFixed(1)}" x2="${width - pad.right}" y2="${y.toFixed(1)}" class="chart-grid"/>`).join('')}
+      ${inPts.length ? `<path d="${pathFor(inPts)}" class="chart-line chart-line-in" fill="none"/>` : ''}
+      ${outPts.length ? `<path d="${pathFor(outPts)}" class="chart-line chart-line-out" fill="none"/>` : ''}
+      ${lastDot(inPts, 'chart-dot-in')}
+      ${lastDot(outPts, 'chart-dot-out')}
+    </svg>
+    <div class="chart-footer">
+      <span class="chart-legend-item"><span class="chart-swatch chart-swatch-in"></span>Entrada</span>
+      <span class="chart-legend-item"><span class="chart-swatch chart-swatch-out"></span>Saída</span>
+      <span class="chart-max">pico ${esc(fmtThroughput(maxV))}</span>
+    </div>
+  `;
+}
+
+async function renderSegmentChart(segmentId) {
+  const container = document.getElementById('modal-chart');
+  container.hidden = false;
+  container.innerHTML = '<div class="chart-title">Tráfego</div><div class="chart-loading">Carregando histórico…</div>';
+  try {
+    const resp = await fetch(`/api/segments/${segmentId}/history?hours=6`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    // O modal pode ter sido fechado/trocado enquanto o fetch corria.
+    if (container.hidden) return;
+    container.innerHTML =
+      `<div class="chart-title">Tráfego — últimas ${esc(data.hours)}h</div>` +
+      buildSparkline(data.throughput_in_mbps || [], data.throughput_out_mbps || []);
+  } catch (err) {
+    console.error('Falha ao carregar histórico do segmento', err);
+    if (container.hidden) return;
+    container.innerHTML = '<div class="chart-title">Tráfego</div><div class="chart-empty">Não foi possível carregar o histórico.</div>';
+  }
 }
 
 function closeModal() {
@@ -405,25 +501,28 @@ async function refresh() {
         ]),
         { className: 'mini-tip', sticky: true },
       );
-      line.on('click', () => openModal({
-        photoUrl: equipmentPhotoUrl(null),
-        title: `${origin.name} ↔ ${dest.name}`,
-        statusClass: segment.status,
-        kicker: 'Circuito',
-        utilizationPct: utilPct,
-        rows: [
-          ['Circuito', circuit.name],
-          ['Porta', segment.port_name || '—'],
-          ['Status', segment.status],
-          ['SNMP', segment.snmp_offline ? 'indisponível — status por ping' : 'OK'],
-          ['Velocidade', fmtThroughput(segment.speed_mbps)],
-          ['Throughput', `${fmtThroughput(segment.throughput_in_mbps)} ↓ / ${fmtThroughput(segment.throughput_out_mbps)} ↑`],
-          ['Sinal óptico RX', fmt(segment.optical_rx_dbm, ' dBm')],
-          ['Sinal óptico TX', fmt(segment.optical_tx_dbm, ' dBm')],
-          ['Limiar configurado', fmt(segment.signal_warn_threshold_dbm, ' dBm')],
-          ['Erros', fmt(segment.error_count, '')],
-        ],
-      }));
+      line.on('click', () => {
+        openModal({
+          photoUrl: equipmentPhotoUrl(null),
+          title: `${origin.name} ↔ ${dest.name}`,
+          statusClass: segment.status,
+          kicker: 'Circuito',
+          utilizationPct: utilPct,
+          rows: [
+            ['Circuito', circuit.name],
+            ['Porta', segment.port_name || '—'],
+            ['Status', segment.status],
+            ['SNMP', segment.snmp_offline ? 'indisponível — status por ping' : 'OK'],
+            ['Velocidade', fmtThroughput(segment.speed_mbps)],
+            ['Throughput', `${fmtThroughput(segment.throughput_in_mbps)} ↓ / ${fmtThroughput(segment.throughput_out_mbps)} ↑`],
+            ['Sinal óptico RX', fmt(segment.optical_rx_dbm, ' dBm')],
+            ['Sinal óptico TX', fmt(segment.optical_tx_dbm, ' dBm')],
+            ['Limiar configurado', fmt(segment.signal_warn_threshold_dbm, ' dBm')],
+            ['Erros', fmt(segment.error_count, '')],
+          ],
+        });
+        renderSegmentChart(segment.id);
+      });
 
       if (segment.snmp_offline) {
         L.marker(midpoint(latlngs), { icon: warningIcon(), zIndexOffset: 500 })

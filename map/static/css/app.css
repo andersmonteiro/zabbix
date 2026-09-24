@@ -280,14 +280,14 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .leaflet-control-layers-separator { border-top: 1px solid var(--border); margin: 6px 0; }
 
 /* Rótulo fixo com o nome do ponto -- overlay opcional "Nomes dos locais".
-   Sem seta/padding do tooltip padrão do Leaflet, só um chip compacto e
-   legível sobre qualquer basemap (claro, escuro ou satélite). */
-.leaflet-tooltip.map-label {
-  background: rgba(14,19,18,0.82); color: var(--text-primary); border: 1px solid var(--border-2);
-  box-shadow: none; padding: 2px 6px; font-family: var(--mono); font-size: 10.5px; font-weight: 600;
-  letter-spacing: 0.01em; white-space: nowrap;
+   Chip "plaquinha" na ponta da linha conectora desenhada em app.js
+   (labelMarker), legível sobre qualquer basemap (claro, escuro ou
+   satélite). */
+.map-label {
+  background: rgba(14,19,18,0.85); color: var(--text-primary); border: 1px solid var(--border-2);
+  padding: 2px 6px; font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.01em; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
-.leaflet-tooltip.map-label::before { display: none; }
 
 .stale-banner {
   flex-shrink: 0; display: flex; align-items: center; gap: 9px;
@@ -437,6 +437,31 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .util-bar-fill.ok { background: var(--green); }
 .util-bar-fill.warn { background: var(--yellow); }
 .util-bar-fill.crit { background: var(--red); }
+
+/* ── Gráfico de histórico de tráfego (modal do segmento) ──────────────
+   SVG desenhado à mão (sem lib de chart), estilo motion.dev: fundo
+   escuro, grid horizontal fino, linha com leve glow e um ponto de
+   destaque no valor mais recente de cada série. */
+.chart-wrap { margin: 0 16px 12px; background: var(--bg-canvas); border: 1px solid var(--border-2); padding: 10px 10px 8px; }
+.chart-title {
+  font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+}
+.chart-svg { width: 100%; height: 118px; display: block; }
+.chart-grid { stroke: var(--border); stroke-width: 1; }
+.chart-line { stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.chart-line-in { stroke: var(--accent); filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 55%, transparent)); }
+.chart-line-out { stroke: var(--blue); filter: drop-shadow(0 0 3px color-mix(in srgb, var(--blue) 55%, transparent)); }
+.chart-dot { stroke: rgba(255,255,255,0.9); stroke-width: 1; }
+.chart-dot-in { fill: var(--accent); }
+.chart-dot-out { fill: var(--blue); }
+.chart-footer { display: flex; align-items: center; gap: 12px; margin-top: 4px; font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
+.chart-legend-item { display: flex; align-items: center; gap: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.chart-swatch { width: 8px; height: 8px; flex-shrink: 0; }
+.chart-swatch-in { background: var(--accent); }
+.chart-swatch-out { background: var(--blue); }
+.chart-max { margin-left: auto; text-transform: uppercase; letter-spacing: 0.04em; }
+.chart-loading, .chart-empty { padding: 30px 0; text-align: center; color: var(--text-muted); font-family: var(--mono); font-size: 11px; }
 
 .detail-table { width: 100%; border-collapse: collapse; }
 .detail-table tr { border-top: 1px solid var(--border); }

@@ -77,6 +77,11 @@ zabbix_client = ZabbixClient(
 )
 status_cache = StatusCache()
 
+from routes_history import history_bp, init_history_routes
+
+init_history_routes(SessionLocal, zabbix_client)
+app.register_blueprint(history_bp)
+
 
 def _collect_itemids():
     session = SessionLocal()
