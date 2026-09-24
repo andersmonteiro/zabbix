@@ -333,6 +333,9 @@ app.get('/groups', authMiddleware, async (req, res) => {
 app.get('/health', (req, res) => {
     res.json({
         status:  clientReady ? 'ready' : 'initializing',
+        // Número vinculado a esta sessão -- útil pra confirmar de qual chip
+        // adicionar aos grupos antes de rodar GET /groups.
+        phone:   clientReady ? (client.info?.wid?.user || null) : null,
         zabbix:  !!ZABBIX_URL,
         groups:  GROUP_IDS.length,
         uptime:  process.uptime(),
