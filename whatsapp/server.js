@@ -316,8 +316,12 @@ app.get('/groups', authMiddleware, async (req, res) => {
         // modelos direto e extraindo só os campos que precisamos evita o
         // serializador problemático.
         const groups = await client.pupPage.evaluate(() => {
+            // c.isGroup não aparece como propriedade própria enumerável nos
+            // modelos deste build (confirmado inspecionando Object.keys) --
+            // o sufixo do id é o sinal confiável: grupos terminam em
+            // "@g.us", contatos em "@c.us"/"@lid".
             return window.require('WAWebCollections').Chat.getModelsArray()
-                .filter((c) => c.isGroup)
+                .filter((c) => c.id?._serialized?.endsWith('@g.us'))
                 .map((c) => ({
                     id:           c.id._serialized,
                     name:         c.formattedTitle || c.name || '',
