@@ -132,6 +132,16 @@ function fmtUpDown(value) {
   return value ? 'up' : 'down';
 }
 
+// Tooltip como mini-tabela label/valor em vez de texto corrido com "·" --
+// o texto corrido quebrava linha no meio de uma métrica e ficava
+// desalinhado. `cls` opcional ('crit'/'warn'/'ok') colore só o valor.
+function tipTable(title, rows) {
+  const body = rows
+    .map(([label, value, cls]) => `<tr><td>${esc(label)}</td><td class="${esc(cls || '')}">${esc(value)}</td></tr>`)
+    .join('');
+  return `<div class="tip-table-title">${esc(title)}</div><table class="tip-table">${body}</table>`;
+}
+
 function openModal({ photoUrl, title, statusClass, rows }) {
   document.getElementById('modal-photo-img').src = photoUrl;
   const titleEl = document.getElementById('modal-title');
@@ -178,6 +188,56 @@ function updateStaleBanner(state) {
   }
 }
 
+// Painel lateral: lista de circuitos e de hosts, cada host com um badge
+// numérico refletindo os mesmos alertas reais do Zabbix usados no pulso do
+// mapa (vermelho >=4, laranja 2-3) -- clicar num host centraliza o mapa nele.
+function renderOpsPanel(state) {
+  const circuitsList = document.getElementById('ops-circuits-list');
+  const hostsList = document.getElementById('ops-hosts-list');
+  if (!circuitsList || !hostsList) return;
+
+  circuitsList.innerHTML = state.circuits.length === 0
+    ? '<div class="ops-empty">Nenhum circuito cadastrado.</div>'
+    : state.circuits.map((c) => `
+        <div class="ops-circuit-item">${esc(c.name)}<br><small>${esc(c.segments.length)} segmento(s)</small></div>
+      `).join('');
+
+  const hosts = state.points.filter((p) => p.point_type === 'equipment');
+  if (hosts.length === 0) {
+    hostsList.innerHTML = '<div class="ops-empty">Nenhum host cadastrado.</div>';
+    return;
+  }
+
+  // Pior primeiro (crítico > aviso > sem alerta), depois por nome.
+  const sorted = [...hosts].sort((a, b) => {
+    const sevA = a.alert_severity ?? -1;
+    const sevB = b.alert_severity ?? -1;
+    if (sevA !== sevB) return sevB - sevA;
+    return a.name.localeCompare(b.name);
+  });
+
+  hostsList.innerHTML = sorted.map((h) => {
+    const hasAlert = h.alert_severity !== null && h.alert_severity !== undefined;
+    const badge = hasAlert
+      ? `<span class="ops-host-badge ${h.alert_severity >= 4 ? 'crit' : 'warn'}">${esc(h.alert_count)}</span>`
+      : '';
+    return `
+      <div class="ops-host-item" data-id="${esc(h.id)}">
+        <span class="ops-host-dot ${esc(h.status || 'unknown')}"></span>
+        <span class="ops-host-name">${esc(h.name)}</span>
+        ${badge}
+      </div>
+    `;
+  }).join('');
+
+  hostsList.querySelectorAll('.ops-host-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      const host = hosts.find((h) => String(h.id) === el.dataset.id);
+      if (host) map.setView([host.lat, host.lng], 12);
+    });
+  });
+}
+
 async function refresh() {
   let state;
   try {
@@ -189,6 +249,7 @@ async function refresh() {
   }
 
   updateStaleBanner(state);
+  renderOpsPanel(state);
 
   markerLayer.clearLayers();
   lineLayer.clearLayers();
@@ -205,13 +266,17 @@ async function refresh() {
       const color = STATUS_COLOR[segment.status] || STATUS_COLOR.unknown;
       const line = drawGlowLine(latlngs, color, segment.status === 'down');
 
-      const linkLabel = `${esc(origin.name)} ↔ ${esc(dest.name)}`;
-      const portLabel = segment.port_name ? ` · porta ${esc(segment.port_name)}` : '';
-      const snmpNote = segment.snmp_offline ? ' · ⚠ SNMP indisponível (status por ping)' : '';
+      const statusCls = segment.status === 'down' ? 'crit' : segment.status === 'warn' ? 'warn' : 'ok';
       line.bindTooltip(
-        `<b>${linkLabel}</b>${portLabel}<br>${esc(segment.status)} · ` +
-        `RX ${esc(fmt(segment.optical_rx_dbm, ' dBm'))} / TX ${esc(fmt(segment.optical_tx_dbm, ' dBm'))} · ` +
-        `${esc(fmtThroughput(segment.throughput_in_mbps))} ↓ / ${esc(fmtThroughput(segment.throughput_out_mbps))} ↑${esc(snmpNote)}`,
+        tipTable(`${origin.name} ↔ ${dest.name}`, [
+          ...(segment.port_name ? [['Porta', segment.port_name]] : []),
+          ['Status', segment.status, statusCls],
+          ['Sinal RX', fmt(segment.optical_rx_dbm, ' dBm')],
+          ['Sinal TX', fmt(segment.optical_tx_dbm, ' dBm')],
+          ['Entrada', fmtThroughput(segment.throughput_in_mbps)],
+          ['Saída', fmtThroughput(segment.throughput_out_mbps)],
+          ...(segment.snmp_offline ? [['SNMP', 'indisponível', 'warn']] : []),
+        ]),
         { className: 'mini-tip', sticky: true },
       );
       line.on('click', () => openModal({
@@ -253,13 +318,17 @@ async function refresh() {
     }
     const { color, pulseClass } = alertVisual(point.status, point.alert_severity);
     const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color, pulseClass) }).addTo(markerLayer);
-    const alertNote = point.alert_severity !== null && point.alert_severity !== undefined
-      ? ` · ⚠ ${point.alert_count} alerta(s) aberto(s)`
-      : '';
+    const pingUp = point.status === 'unknown' ? null : point.status !== 'down';
     marker.bindTooltip(
-      `<b>${esc(point.name)}</b><br>${esc(point.equipment_ip || '')}<br>` +
-      `ping ${esc(fmtUpDown(point.status === 'unknown' ? null : point.status !== 'down'))} · ` +
-      `SNMP ${esc(point.snmp_offline ? 'down' : 'up')} · uptime ${esc(fmtUptime(point.uptime_seconds))}${esc(alertNote)}`,
+      tipTable(point.name, [
+        ['IP', point.equipment_ip || '—'],
+        ['Ping', fmtUpDown(pingUp), pingUp === false ? 'crit' : pingUp === true ? 'ok' : ''],
+        ['SNMP', point.snmp_offline ? 'down' : 'up', point.snmp_offline ? 'crit' : 'ok'],
+        ['Uptime', fmtUptime(point.uptime_seconds)],
+        ...(point.alert_severity !== null && point.alert_severity !== undefined
+          ? [['Alertas', `${point.alert_count} aberto(s)`, point.alert_severity >= 4 ? 'crit' : 'warn']]
+          : []),
+      ]),
       { className: 'mini-tip' },
     );
     marker.on('click', () => openModal({
