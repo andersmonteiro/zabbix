@@ -27,6 +27,13 @@ def _lastvalue(cache, itemid, cast=str):
     item = cache.get(itemid)
     if item is None:
         return None
+    # lastclock == '0' means Zabbix has never actually collected this item
+    # (common for trapper items fed by an external script that hasn't run
+    # successfully yet) -- item.get still returns it with lastvalue '0',
+    # which would otherwise render as a real zero reading (e.g. "0 dBm"
+    # optical signal) instead of "no data".
+    if item.get('lastclock', '0') == '0':
+        return None
     try:
         return cast(item['lastvalue'])
     except (TypeError, ValueError):

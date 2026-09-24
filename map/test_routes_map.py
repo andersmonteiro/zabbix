@@ -46,8 +46,8 @@ def test_build_map_state_reports_up_when_cache_fresh_and_healthy(session):
     origin, dest, waypoint, circuit, segment = _seed_circuit(session)
     cache = StatusCache()
     cache.update({
-        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'},
-        '60010': {'lastvalue': '1'}, '60011': {'lastvalue': '-19.4'}, '60012': {'lastvalue': '0'},
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'}, '60011': {'lastvalue': '-19.4', 'lastclock': '9999999999'}, '60012': {'lastvalue': '0', 'lastclock': '9999999999'},
     })
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
@@ -64,8 +64,8 @@ def test_build_map_state_marks_segment_warn_below_threshold(session):
     origin, dest, waypoint, circuit, segment = _seed_circuit(session)
     cache = StatusCache()
     cache.update({
-        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'},
-        '60010': {'lastvalue': '1'}, '60011': {'lastvalue': '-27.0'}, '60012': {'lastvalue': '0'},
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'}, '60011': {'lastvalue': '-27.0', 'lastclock': '9999999999'}, '60012': {'lastvalue': '0', 'lastclock': '9999999999'},
     })
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
@@ -75,7 +75,7 @@ def test_build_map_state_marks_segment_warn_below_threshold(session):
 def test_build_map_state_marks_everything_unknown_when_cache_stale(session):
     _seed_circuit(session)
     cache = StatusCache()
-    cache.update({'60001': {'lastvalue': '1'}})
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}})
     # Force staleness: pretend the cache was last refreshed long ago
     cache._last_refresh = time.time() - 999
 
@@ -100,8 +100,8 @@ def test_build_map_state_unknown_when_never_refreshed(session):
 def test_build_map_state_waypoints_have_no_status_field(session):
     origin, dest, waypoint, circuit, segment = _seed_circuit(session)
     cache = StatusCache()
-    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'},
-                   '60010': {'lastvalue': '1'}, '60011': {'lastvalue': '-19.4'}, '60012': {'lastvalue': '0'}})
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+                   '60010': {'lastvalue': '1', 'lastclock': '9999999999'}, '60011': {'lastvalue': '-19.4', 'lastclock': '9999999999'}, '60012': {'lastvalue': '0', 'lastclock': '9999999999'}})
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
     wp = next(p for p in state['points'] if p['id'] == waypoint.id)
@@ -114,7 +114,7 @@ def test_build_map_state_waypoints_have_no_status_field(session):
 def test_build_map_state_reports_last_refresh_age_when_fresh(session):
     _seed_circuit(session)
     cache = StatusCache()
-    cache.update({'60001': {'lastvalue': '1'}})
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}})
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
     assert state['last_refresh_seconds_ago'] is not None
@@ -124,7 +124,7 @@ def test_build_map_state_reports_last_refresh_age_when_fresh(session):
 def test_build_map_state_reports_last_refresh_age_when_stale(session):
     _seed_circuit(session)
     cache = StatusCache()
-    cache.update({'60001': {'lastvalue': '1'}})
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}})
     cache._last_refresh = time.time() - 600
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
@@ -149,9 +149,9 @@ def test_segment_reports_up_via_ping_when_snmp_is_offline(session):
     session.commit()
     cache = StatusCache()
     cache.update({
-        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'},
-        '60010': {'lastvalue': '1'},  # operstatus driven by ping -- still up
-        '60013': {'lastvalue': '0'},  # SNMP itself is down
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'},  # operstatus driven by ping -- still up
+        '60013': {'lastvalue': '0', 'lastclock': '9999999999'},  # SNMP itself is down
     })
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
@@ -166,8 +166,8 @@ def test_segment_snmp_offline_is_false_when_snmp_responds(session):
     session.commit()
     cache = StatusCache()
     cache.update({
-        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'},
-        '60010': {'lastvalue': '1'}, '60013': {'lastvalue': '1'},
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'}, '60013': {'lastvalue': '1', 'lastclock': '9999999999'},
     })
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
@@ -178,7 +178,7 @@ def test_segment_snmp_offline_is_false_when_snmp_responds(session):
 def test_segment_snmp_offline_is_false_when_field_not_configured(session):
     _seed_circuit(session)  # no zabbix_snmp_available_itemid set
     cache = StatusCache()
-    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'}})
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'}})
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
     seg = state['circuits'][0]['segments'][0]
@@ -206,10 +206,10 @@ def test_throughput_and_speed_are_converted_from_bps_to_mbps(session):
     session.commit()
     cache = StatusCache()
     cache.update({
-        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'},
-        '60020': {'lastvalue': '3491629016'},  # ~3.49 Gbps raw bps
-        '60021': {'lastvalue': '1529953112'},
-        '60022': {'lastvalue': '100000000000'},  # 100 Gbps port speed
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60020': {'lastvalue': '3491629016', 'lastclock': '9999999999'},  # ~3.49 Gbps raw bps
+        '60021': {'lastvalue': '1529953112', 'lastclock': '9999999999'},
+        '60022': {'lastvalue': '100000000000', 'lastclock': '9999999999'},  # 100 Gbps port speed
     })
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
@@ -227,8 +227,8 @@ def test_point_reports_snmp_offline_independent_of_ping(session):
     session.commit()
     cache = StatusCache()
     cache.update({
-        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'},
-        '60030': {'lastvalue': '0'},
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60030': {'lastvalue': '0', 'lastclock': '9999999999'},
     })
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
@@ -243,8 +243,8 @@ def test_point_exposes_uptime_seconds(session):
     session.commit()
     cache = StatusCache()
     cache.update({
-        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'},
-        '60031': {'lastvalue': '864000'},
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60031': {'lastvalue': '864000', 'lastclock': '9999999999'},
     })
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
@@ -257,7 +257,7 @@ def test_point_alert_severity_from_matching_open_problem(session):
     origin.zabbix_hostid = '10500'
     session.commit()
     cache = StatusCache()
-    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'}})
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'}})
     alert_cache = AlertCache()
     alert_cache.update([
         {'eventid': '1', 'hostid': '10500', 'severity': 2, 'name': 'Atenção'},
@@ -276,7 +276,7 @@ def test_point_alert_severity_is_none_without_open_problems(session):
     origin.zabbix_hostid = '10500'
     session.commit()
     cache = StatusCache()
-    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'}})
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'}})
     alert_cache = AlertCache()
     alert_cache.update([])
 
@@ -291,7 +291,7 @@ def test_point_alert_severity_is_none_when_no_alert_cache_wired(session):
     origin.zabbix_hostid = '10500'
     session.commit()
     cache = StatusCache()
-    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'}})
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'}})
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)  # no alert_cache passed
     origin_point = next(p for p in state['points'] if p['id'] == origin.id)
@@ -304,7 +304,7 @@ def test_point_alert_severity_is_none_when_no_alert_cache_wired(session):
 def test_segment_includes_origin_and_destination_names(session):
     origin, dest, waypoint, circuit, segment = _seed_circuit(session)
     cache = StatusCache()
-    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'}})
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'}})
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
     seg = state['circuits'][0]['segments'][0]
@@ -319,11 +319,30 @@ def test_segment_exposes_port_name_and_optical_tx(session):
     session.commit()
     cache = StatusCache()
     cache.update({
-        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'},
-        '60040': {'lastvalue': '-3.2'},
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60040': {'lastvalue': '-3.2', 'lastclock': '9999999999'},
     })
 
     state = build_map_state(session, cache, stale_threshold_seconds=120)
     seg = state['circuits'][0]['segments'][0]
     assert seg['port_name'] == '100GE0/0/1 - KM30-40G'
     assert seg['optical_tx_dbm'] == -3.2
+
+
+# --- lastclock == '0' means Zabbix never actually collected the item -------
+# (common for trapper items fed by an external script that hasn't run yet:
+# item.get still returns lastvalue '0', which must not render as a real
+# zero reading, e.g. "0 dBm" optical signal looking like a perfect link).
+
+def test_never_collected_trapper_item_reads_as_no_data_not_zero(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60011': {'lastvalue': '0', 'lastclock': '0'},  # never collected
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['optical_rx_dbm'] is None
