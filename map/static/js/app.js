@@ -16,6 +16,77 @@ function esc(str) {
 // Corredor BR-163 (PA/MT) — região de cobertura do cliente.
 const map = L.map('map').setView([-8.3, -55.4], 7);
 
+const MAP_LAYER_STORAGE_KEY = 'natverk-map-layer';
+const MAP_LABELS_STORAGE_KEY = 'natverk-map-labels';
+const labelLayer = L.layerGroup();
+
+// Rótulo fixo com o nome do ponto (não é o tooltip de hover, que continua
+// existindo separado no marker) -- overlay opcional "Nomes dos locais",
+// só some/aparece conforme o operador marca a caixinha no seletor.
+function labelTooltip(lat, lng, text) {
+  return L.tooltip({ permanent: true, direction: 'right', offset: [12, 0], className: 'map-label', interactive: false })
+    .setLatLng([lat, lng])
+    .setContent(esc(text));
+}
+
+function renderLabels(points) {
+  labelLayer.clearLayers();
+  points.forEach((p) => {
+    if (p.point_type !== 'equipment') return;
+    labelTooltip(p.lat, p.lng, p.name).addTo(labelLayer);
+  });
+}
+
+// Três opções sempre disponíveis, todas grátis/sem conta/sem API key (ver
+// o comentário histórico abaixo sobre CARTO). "Escuro" reaproveita o
+// próprio tile server OSM só com um filtro CSS (.tiles-dark em app.css),
+// então continua sendo o mesmo provedor -- não é um serviço à parte.
+function initTileLayers(cfg) {
+  const layers = {
+    'Claro': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors', maxZoom: 19, subdomains: 'abc', className: 'tiles-light',
+    }),
+    'Escuro': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors', maxZoom: 19, subdomains: 'abc', className: 'tiles-dark',
+    }),
+    'Satélite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics', maxZoom: 19,
+    }),
+  };
+
+  // Mapbox Dark só aparece quando o cliente configurou um token -- opção
+  // extra, não obrigatória (ver comentário "grátis, sem conta" acima).
+  if (cfg.tile_provider === 'mapbox' && cfg.mapbox_token) {
+    layers['Mapbox Dark'] = L.tileLayer(
+      `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${cfg.mapbox_token}`,
+      { attribution: '&copy; Mapbox &copy; OpenStreetMap', maxZoom: 20 },
+    );
+  }
+
+  let savedName = null;
+  try { savedName = localStorage.getItem(MAP_LAYER_STORAGE_KEY); } catch (err) { /* private mode etc. */ }
+  (layers[savedName] || layers['Escuro']).addTo(map);
+
+  // "Nomes dos locais" é um overlay (não um basemap) -- fica marcável
+  // independente de qual basemap está ativo, mostrando o nome de cada
+  // equipamento como rótulo fixo ao lado do ponto (ver labelLayer/
+  // renderLabels), não só ao passar o mouse.
+  const overlays = { 'Nomes dos locais': labelLayer };
+  L.control.layers(layers, overlays, { position: 'topright' }).addTo(map);
+
+  let labelsOn = false;
+  try { labelsOn = localStorage.getItem(MAP_LABELS_STORAGE_KEY) === '1'; } catch (err) { /* private mode etc. */ }
+  if (labelsOn) labelLayer.addTo(map);
+
+  map.on('baselayerchange', (e) => {
+    try { localStorage.setItem(MAP_LAYER_STORAGE_KEY, e.name); } catch (err) { /* private mode etc. */ }
+  });
+  map.on('overlayadd overlayremove', (e) => {
+    if (e.name !== 'Nomes dos locais') return;
+    try { localStorage.setItem(MAP_LABELS_STORAGE_KEY, e.type === 'overlayadd' ? '1' : '0'); } catch (err) { /* private mode etc. */ }
+  });
+}
+
 async function addTileLayer() {
   let cfg = { tile_provider: 'osm', mapbox_token: '' };
   try {
@@ -23,23 +94,11 @@ async function addTileLayer() {
   } catch (err) {
     console.error('Falha ao buscar /api/config, usando OpenStreetMap', err);
   }
-
-  if (cfg.tile_provider === 'mapbox' && cfg.mapbox_token) {
-    L.tileLayer(
-      `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${cfg.mapbox_token}`,
-      { attribution: '&copy; Mapbox &copy; OpenStreetMap', maxZoom: 20 },
-    ).addTo(map);
-  } else {
-    // Genuine OpenStreetMap tile server — no account, no API key, no quota
-    // risk, matching the spec's "grátis, sem conta" requirement for the
-    // default path. (CARTO's basemaps, used here in earlier drafts, now
-    // require a registered API key even for their free tier — that would
-    // have silently broken the "no account needed" default for every new
-    // client install, so it was replaced with the real OSM tile server.)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors', maxZoom: 19, subdomains: 'abc',
-    }).addTo(map);
-  }
+  // Nenhuma opção padrão precisa de conta/API key/quota -- CARTO's
+  // basemaps, usados aqui em rascunhos anteriores, passaram a exigir
+  // chave registrada até no tier grátis, o que quebraria silenciosamente
+  // a instalação "sem conta" para todo cliente novo.
+  initTileLayers(cfg);
 }
 addTileLayer();
 
@@ -60,26 +119,26 @@ function alertVisual(status, alertSeverity) {
   return { color: STATUS_COLOR[status] || STATUS_COLOR.unknown, pulseClass: '' };
 }
 
-// Ícone de transmissão (wifi) dentro do glow em vez de um círculo vazio --
-// reconhecível como "equipamento de rede ativo" mesmo em 16px, com stroke
-// escuro que contrasta em qualquer cor de status (verde/amarelo/vermelho).
+// Switch de rede (retângulo com 3 portas) em vez do glifo de wifi anterior
+// -- o wifi em 9px virava um borrão irreconhecível; um retângulo com
+// divisórias grossas lê como "equipamento com portas" mesmo pequeno, e
+// combina com os cantos retos do resto da UI (nada de curvas finas).
 const EQUIPMENT_GLYPH =
-  '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#00110a" stroke-width="3.4" ' +
-  'stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/>' +
-  '<path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>' +
-  '<line x1="12" y1="20" x2="12.01" y2="20"/></svg>';
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00110a" stroke-width="2.6" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12"/>' +
+  '<line x1="8.5" y1="6" x2="8.5" y2="18"/><line x1="15.5" y1="6" x2="15.5" y2="18"/></svg>';
 
 function glowIcon(color, pulseClass) {
   return L.divIcon({
     className: '',
     html:
-      '<div class="glow-marker ' + (pulseClass || '') + '" style="position:relative;width:26px;height:26px;">' +
-        '<div class="glow-halo" style="position:absolute;inset:0;border-radius:50%;background:' + color + ';opacity:0.35;filter:blur(4px)"></div>' +
-        '<div style="position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:50%;background:' + color + ';border:2px solid rgba(255,255,255,0.85);box-shadow:0 0 4px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">' +
+      '<div class="glow-marker ' + (pulseClass || '') + '" style="position:relative;width:34px;height:34px;">' +
+        '<div class="glow-halo" style="position:absolute;inset:0;background:' + color + ';opacity:0.35;filter:blur(4px)"></div>' +
+        '<div style="position:absolute;top:6px;left:6px;width:22px;height:22px;background:' + color + ';border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">' +
           EQUIPMENT_GLYPH +
         '</div>' +
       '</div>',
-    iconSize: [26, 26], iconAnchor: [13, 13],
+    iconSize: [34, 34], iconAnchor: [17, 17],
   });
 }
 
@@ -112,7 +171,7 @@ function warningIcon() {
     className: '',
     html:
       '<div style="position:relative;width:20px;height:20px;display:flex;align-items:center;justify-content:center;">'
-      + '<div style="position:absolute;inset:0;border-radius:50%;background:#e5484d;opacity:0.3;filter:blur(3px)"></div>'
+      + '<div style="position:absolute;inset:0;background:#e5484d;opacity:0.3;filter:blur(3px)"></div>'
       + '<svg width="14" height="14" viewBox="0 0 24 24" fill="#e5484d" stroke="#fff" stroke-width="1.2">'
       + '<path d="M12 2 L22 20 L2 20 Z"/><line x1="12" y1="9" x2="12" y2="14" stroke="#fff" stroke-width="2"/>'
       + '<circle cx="12" cy="17" r="1.2" fill="#fff"/></svg>'
@@ -312,6 +371,7 @@ async function refresh() {
 
   updateStaleBanner(state);
   renderOpsPanel(state);
+  renderLabels(state.points);
 
   markerLayer.clearLayers();
   lineLayer.clearLayers();
