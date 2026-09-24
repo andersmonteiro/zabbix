@@ -1,21 +1,26 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&display=swap');
 
 * { box-sizing: border-box; }
 
 :root {
-  --bg-canvas:   #020202;
-  --bg-panel:    #1a1a1a;
-  --bg-panel-2:  #222222;
-  --bg-hover:    #222222;
+  /* Fundo em petróleo escuro (oklch, mesma base do motion.dev) em vez de
+     preto neutro puro -- dá mais profundidade sem mudar a marca. */
+  --bg-canvas:   oklch(0.145 0.01 148);
+  --bg-panel:    oklch(0.19 0.012 155);
+  --bg-panel-2:  oklch(0.23 0.012 155);
+  --bg-hover:    oklch(0.23 0.012 155);
   --border:      rgba(255,255,255,0.06);
   --border-2:    rgba(255,255,255,0.10);
   --border-dim:  rgba(255,255,255,0.03);
   --shadow-card: 0 4px 24px rgba(0,0,0,0.8), 0 1px 4px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04);
 
-  --text-primary:   #ffffff;
+  --text-primary:   oklch(0.94 0.008 96);
   --text-secondary: #b0b0b0;
   --text-muted:     #787878;
 
+  /* Verde Natverk mantido como cor de marca -- os acentos extras abaixo
+     seguem o mesmo sistema oklch do motion.dev (croma/luminosidade
+     equivalentes, só o matiz muda), usados como acentos pontuais. */
   --accent:      #91dc0a;
   --accent-dim:  #1a2a04;
   --accent-fg:   #000000;
@@ -23,9 +28,12 @@
   --yellow:      #f5a623;
   --red:         #e5484d;
   --red-dim:     #450a0a;
+  --gold:        oklch(0.88 0.18 96);
+  --purple:      oklch(0.64 0.18 302);
+  --blue:        oklch(0.68 0.18 255);
 
-  --mono: 'JetBrains Mono', monospace;
-  --sans: 'Space Grotesk', system-ui, sans-serif;
+  --mono: 'Geist Mono', 'JetBrains Mono', monospace;
+  --sans: 'Geist', 'Space Grotesk', system-ui, sans-serif;
 
   font-family: var(--sans);
   font-size: 14px;
@@ -82,8 +90,17 @@ body {
   width: 100%; text-align: left;
 }
 .nav-item svg { width: 13px; height: 13px; flex-shrink: 0; opacity: 0.9; }
-.nav-item:hover { background: rgba(145,220,10,0.10); color: var(--accent); }
-.nav-item.active { background: var(--accent); color: #000; }
+
+/* Cada seção do menu com sua própria cor de destaque -- mesmo truque do
+   motion.dev, onde cada feature/CTA tem uma cor própria dentro da mesma
+   família tonal (oklch, croma/luminosidade equivalentes). nth-of-type
+   conta só entre <a>/<button> do mesmo pai .nav-section, ignorando as
+   divs de section-label intercaladas. */
+.nav-item:nth-of-type(1):hover, .nav-item:nth-of-type(1).active { background: var(--accent); color: var(--bg-canvas); }
+.nav-item:nth-of-type(2):hover, .nav-item:nth-of-type(2).active { background: var(--gold); color: var(--bg-canvas); }
+.nav-item:nth-of-type(3):hover, .nav-item:nth-of-type(3).active { background: var(--purple); color: var(--bg-canvas); }
+.nav-item:nth-of-type(4):hover, .nav-item:nth-of-type(4).active { background: var(--blue); color: var(--bg-canvas); }
+.nav-item:hover { opacity: 1; }
 
 .nav-footer { border-top: 1px solid var(--border); padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
 .nav-avatar {
@@ -106,25 +123,28 @@ body {
 /* ── Main column + topbar ─────────────────────────────────────────── */
 .main-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 .topbar-wrap { margin: 16px 24px 8px; flex-shrink: 0; filter: drop-shadow(0 4px 16px rgba(0,0,0,0.6)); }
+/* Barra dourada vibrante -- a "faixa" de topo do motion.dev (mesmo
+   oklch(0.88 0.18 96) da nav deles) trazida pra nossa topbar, com texto
+   escuro por cima em vez do painel neutro que tínhamos antes. */
 .topbar {
-  height: 50px; background: var(--bg-panel); display: flex; align-items: center;
-  padding: 0 24px; gap: 14px;
+  height: 58px; background: var(--gold); display: flex; align-items: center;
+  padding: 0 24px; gap: 14px; color: var(--bg-canvas);
 }
 .topbar-title-row { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
-.topbar-slash { font-size: 13px; font-weight: 700; color: var(--accent); font-family: var(--mono); flex-shrink: 0; }
+.topbar-slash { font-size: 13px; font-weight: 700; color: var(--bg-canvas); opacity: 0.55; font-family: var(--mono); flex-shrink: 0; }
 .topbar h1 {
-  font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text-primary);
-  letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap; margin: 0; flex-shrink: 0;
+  font-family: var(--sans); font-size: 16px; font-weight: 700; color: var(--bg-canvas);
+  letter-spacing: 0; text-transform: none; white-space: nowrap; margin: 0; flex-shrink: 0;
 }
-.topbar-rule { flex: 1; height: 1px; background: var(--border-2); margin-left: 4px; }
+.topbar-rule { flex: 1; height: 1px; background: rgba(14,19,18,0.2); margin-left: 4px; }
 
 /* ── Notification bell ────────────────────────────────────────────── */
 .topbar-actions { position: relative; display: flex; align-items: center; flex-shrink: 0; }
 .alerts-bell {
-  position: relative; background: none; border: none; color: var(--text-secondary);
-  cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center;
+  position: relative; background: none; border: none; color: var(--bg-canvas);
+  opacity: 0.7; cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center;
 }
-.alerts-bell:hover { color: var(--text-primary); }
+.alerts-bell:hover { opacity: 1; }
 .alerts-badge {
   position: absolute; top: 1px; right: 1px; min-width: 15px; height: 15px; padding: 0 3px;
   border-radius: 8px; background: var(--red); color: #fff; font-size: 9.5px; font-weight: 800;
