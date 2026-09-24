@@ -33,6 +33,7 @@ class Point(Base):
     # SNMP itself is down, and the tooltip needs to show both independently.
     zabbix_snmp_available_itemid = Column(String, nullable=True)
     zabbix_uptime_itemid = Column(String, nullable=True)  # sysUpTime, in seconds
+    zabbix_latency_itemid = Column(String, nullable=True)  # icmppingsec, in seconds
     equipment_model = Column(String, nullable=True)  # used to look up the photo
     equipment_ip = Column(String, nullable=True)
 

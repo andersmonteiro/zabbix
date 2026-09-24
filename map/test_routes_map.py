@@ -346,3 +346,82 @@ def test_never_collected_trapper_item_reads_as_no_data_not_zero(session):
     state = build_map_state(session, cache, stale_threshold_seconds=120)
     seg = state['circuits'][0]['segments'][0]
     assert seg['optical_rx_dbm'] is None
+
+
+# --- Point latency (RTT) and Segment utilization_pct ------------------------
+
+def test_point_exposes_latency_in_milliseconds(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    origin.zabbix_latency_itemid = '60050'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60050': {'lastvalue': '0.0123', 'lastclock': '9999999999'},  # icmppingsec, seconds
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    origin_point = next(p for p in state['points'] if p['id'] == origin.id)
+    assert origin_point['latency_ms'] == pytest.approx(12.3)
+
+
+def test_point_latency_is_none_when_not_configured(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    cache = StatusCache()
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'}})
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    origin_point = next(p for p in state['points'] if p['id'] == origin.id)
+    assert origin_point['latency_ms'] is None
+
+
+def test_segment_utilization_pct_from_throughput_and_speed(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    segment.zabbix_throughput_in_itemid = '60060'
+    segment.zabbix_throughput_out_itemid = '60061'
+    segment.zabbix_speed_itemid = '60062'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60060': {'lastvalue': '40000000000', 'lastclock': '9999999999'},  # 40 Gbps in
+        '60061': {'lastvalue': '10000000000', 'lastclock': '9999999999'},  # 10 Gbps out
+        '60062': {'lastvalue': '100000000000', 'lastclock': '9999999999'},  # 100 Gbps port
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['utilization_pct'] == pytest.approx(40.0)  # busiest direction (in) / speed
+
+
+def test_segment_utilization_pct_is_capped_at_100(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    segment.zabbix_throughput_in_itemid = '60060'
+    segment.zabbix_speed_itemid = '60062'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60060': {'lastvalue': '120000000000', 'lastclock': '9999999999'},  # over-reporting past nominal speed
+        '60062': {'lastvalue': '100000000000', 'lastclock': '9999999999'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['utilization_pct'] == 100.0
+
+
+def test_segment_utilization_pct_is_none_without_speed_configured(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    segment.zabbix_throughput_in_itemid = '60060'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60060': {'lastvalue': '40000000000', 'lastclock': '9999999999'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['utilization_pct'] is None

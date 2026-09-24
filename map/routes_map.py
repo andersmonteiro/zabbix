@@ -108,6 +108,8 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
                 point.zabbix_snmp_available_itemid is not None and snmp_available == 0
             )
             entry['uptime_seconds'] = None if stale else _lastvalue(cache, point.zabbix_uptime_itemid, float)
+            latency_seconds = None if stale else _lastvalue(cache, point.zabbix_latency_itemid, float)
+            entry['latency_ms'] = None if latency_seconds is None else latency_seconds * 1000
 
             alert = alerts_by_hostid.get(point.zabbix_hostid)
             entry['alert_severity'] = alert['severity'] if alert else None
@@ -139,6 +141,14 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
             throughput_out_raw = None if stale else _lastvalue(cache, segment.zabbix_throughput_out_itemid, float)
             speed_raw = None if stale else _lastvalue(cache, segment.zabbix_speed_itemid, float)
 
+            throughput_in_mbps = _bps_to_mbps(throughput_in_raw)
+            throughput_out_mbps = _bps_to_mbps(throughput_out_raw)
+            speed_mbps = _bps_to_mbps(speed_raw)
+            utilization_pct = None
+            if speed_mbps and (throughput_in_mbps is not None or throughput_out_mbps is not None):
+                busiest = max(throughput_in_mbps or 0, throughput_out_mbps or 0)
+                utilization_pct = min(100.0, (busiest / speed_mbps) * 100)
+
             segments_out.append({
                 'id': segment.id,
                 'circuit_id': segment.circuit_id,
@@ -156,9 +166,13 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
                 ),
                 # Zabbix's ifHCIn/OutOctets items here are pre-processed to
                 # bits/second (units: "bps") -- /1e6 to get Mbps for display.
-                'speed_mbps': _bps_to_mbps(speed_raw),
-                'throughput_in_mbps': _bps_to_mbps(throughput_in_raw),
-                'throughput_out_mbps': _bps_to_mbps(throughput_out_raw),
+                'speed_mbps': speed_mbps,
+                'throughput_in_mbps': throughput_in_mbps,
+                'throughput_out_mbps': throughput_out_mbps,
+                # % of the port's own nominal speed the busiest direction is
+                # using right now -- only computable when speed_mbps is
+                # configured, which most DTC/Datacom segments don't have yet.
+                'utilization_pct': utilization_pct,
                 'optical_rx_dbm': optical_rx,
                 'optical_tx_dbm': optical_tx,
                 'error_count': error_count,

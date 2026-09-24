@@ -132,6 +132,18 @@ function fmtUpDown(value) {
   return value ? 'up' : 'down';
 }
 
+function fmtLatency(ms) {
+  if (ms === null || ms === undefined) return '—';
+  return `${ms.toFixed(1)} ms`;
+}
+
+// >85% do link = crítico (perto de saturar), >60% = atenção.
+function utilizationClass(pct) {
+  if (pct >= 85) return 'crit';
+  if (pct >= 60) return 'warn';
+  return 'ok';
+}
+
 // Tooltip como mini-tabela label/valor em vez de texto corrido com "·" --
 // o texto corrido quebrava linha no meio de uma métrica e ficava
 // desalinhado. `cls` opcional ('crit'/'warn'/'ok') colore só o valor.
@@ -142,7 +154,7 @@ function tipTable(title, rows) {
   return `<div class="tip-table-title">${esc(title)}</div><table class="tip-table">${body}</table>`;
 }
 
-function openModal({ photoUrl, title, statusClass, rows }) {
+function openModal({ photoUrl, title, statusClass, rows, utilizationPct }) {
   document.getElementById('modal-photo-img').src = photoUrl;
   const titleEl = document.getElementById('modal-title');
   titleEl.innerHTML = `<span class="status-dot ${esc(statusClass)}"></span>${esc(title)}`;
@@ -150,6 +162,21 @@ function openModal({ photoUrl, title, statusClass, rows }) {
   table.innerHTML = rows
     .map(([label, value]) => `<tr><td>${esc(label)}</td><td>${esc(value)}</td></tr>`)
     .join('');
+
+  const barWrap = document.getElementById('modal-utilization');
+  if (utilizationPct !== null && utilizationPct !== undefined) {
+    // pct vem do backend já como número calculado (0-100), nunca de input
+    // do usuário -- clamp por segurança, sem precisar de esc().
+    const pct = Math.max(0, Math.min(100, utilizationPct));
+    barWrap.hidden = false;
+    barWrap.innerHTML =
+      `<div class="util-bar-label">Utilização do link <span>${pct.toFixed(0)}%</span></div>` +
+      `<div class="util-bar-track"><div class="util-bar-fill ${utilizationClass(pct)}" style="width:${pct}%"></div></div>`;
+  } else {
+    barWrap.hidden = true;
+    barWrap.innerHTML = '';
+  }
+
   document.getElementById('backdrop').classList.add('open');
   document.getElementById('detail-modal').classList.add('open');
 }
@@ -267,6 +294,7 @@ async function refresh() {
       const line = drawGlowLine(latlngs, color, segment.status === 'down');
 
       const statusCls = segment.status === 'down' ? 'crit' : segment.status === 'warn' ? 'warn' : 'ok';
+      const utilPct = segment.utilization_pct;
       line.bindTooltip(
         tipTable(`${origin.name} ↔ ${dest.name}`, [
           ...(segment.port_name ? [['Porta', segment.port_name]] : []),
@@ -275,6 +303,9 @@ async function refresh() {
           ['Sinal TX', fmt(segment.optical_tx_dbm, ' dBm')],
           ['Entrada', fmtThroughput(segment.throughput_in_mbps)],
           ['Saída', fmtThroughput(segment.throughput_out_mbps)],
+          ...(utilPct !== null && utilPct !== undefined
+            ? [['Utilização', `${utilPct.toFixed(0)}%`, utilizationClass(utilPct)]]
+            : []),
           ...(segment.snmp_offline ? [['SNMP', 'indisponível', 'warn']] : []),
         ]),
         { className: 'mini-tip', sticky: true },
@@ -283,6 +314,7 @@ async function refresh() {
         photoUrl: equipmentPhotoUrl(null),
         title: `${origin.name} ↔ ${dest.name}`,
         statusClass: segment.status,
+        utilizationPct: utilPct,
         rows: [
           ['Circuito', circuit.name],
           ['Porta', segment.port_name || '—'],
@@ -324,6 +356,7 @@ async function refresh() {
         ['IP', point.equipment_ip || '—'],
         ['Ping', fmtUpDown(pingUp), pingUp === false ? 'crit' : pingUp === true ? 'ok' : ''],
         ['SNMP', point.snmp_offline ? 'down' : 'up', point.snmp_offline ? 'crit' : 'ok'],
+        ['Latência', fmtLatency(point.latency_ms)],
         ['Uptime', fmtUptime(point.uptime_seconds)],
         ...(point.alert_severity !== null && point.alert_severity !== undefined
           ? [['Alertas', `${point.alert_count} aberto(s)`, point.alert_severity >= 4 ? 'crit' : 'warn']]
@@ -341,6 +374,7 @@ async function refresh() {
         ['Status', point.status],
         ['Ping', fmtUpDown(point.status === 'unknown' ? null : point.status !== 'down')],
         ['SNMP', point.snmp_offline ? 'indisponível' : 'OK'],
+        ['Latência (RTT)', fmtLatency(point.latency_ms)],
         ['Uptime', fmtUptime(point.uptime_seconds)],
         ['CPU', fmt(point.cpu_percent, '%')],
         ['Alertas abertos', point.alert_severity !== null && point.alert_severity !== undefined

@@ -131,6 +131,7 @@ document.getElementById('point-form').addEventListener('submit', async (e) => {
     zabbix_status_itemid: form.get('zabbix_status_itemid') || null,
     zabbix_snmp_available_itemid: form.get('zabbix_snmp_available_itemid') || null,
     zabbix_uptime_itemid: form.get('zabbix_uptime_itemid') || null,
+    zabbix_latency_itemid: form.get('zabbix_latency_itemid') || null,
     zabbix_cpu_itemid: form.get('zabbix_cpu_itemid') || null,
     equipment_model: form.get('equipment_model') || null,
     equipment_ip: form.get('equipment_ip') || null,

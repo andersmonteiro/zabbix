@@ -315,6 +315,18 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .modal-photo .close { position:absolute; top:10px; right:12px; cursor:pointer; opacity:0.7; color:#fff; font-size: 20px; line-height: 1; }
 .detail-modal h4 { margin: 14px 16px 10px; display:flex; align-items:center; font-weight: 700; font-size: 13px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
 
+.util-bar-wrap { margin: 0 16px 12px; }
+.util-bar-label {
+  display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 4px;
+}
+.util-bar-label span { color: var(--text-primary); font-weight: 700; }
+.util-bar-track { height: 6px; background: var(--bg-canvas); border: 1px solid var(--border-2); overflow: hidden; }
+.util-bar-fill { height: 100%; transition: width .3s ease; }
+.util-bar-fill.ok { background: var(--green); }
+.util-bar-fill.warn { background: var(--yellow); }
+.util-bar-fill.crit { background: var(--red); }
+
 .detail-table { width: 100%; border-collapse: collapse; }
 .detail-table tr { border-top: 1px solid var(--border); }
 .detail-table tr:nth-child(odd) { background: rgba(255,255,255,0.02); }

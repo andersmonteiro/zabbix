@@ -25,6 +25,7 @@ def _serialize(point):
         'zabbix_cpu_itemid': point.zabbix_cpu_itemid,
         'zabbix_snmp_available_itemid': point.zabbix_snmp_available_itemid,
         'zabbix_uptime_itemid': point.zabbix_uptime_itemid,
+        'zabbix_latency_itemid': point.zabbix_latency_itemid,
         'equipment_model': point.equipment_model,
         'equipment_ip': point.equipment_ip,
     }
@@ -119,6 +120,7 @@ def create_point():
             zabbix_cpu_itemid=data.get('zabbix_cpu_itemid'),
             zabbix_snmp_available_itemid=data.get('zabbix_snmp_available_itemid'),
             zabbix_uptime_itemid=data.get('zabbix_uptime_itemid'),
+            zabbix_latency_itemid=data.get('zabbix_latency_itemid'),
             equipment_model=data.get('equipment_model'),
             equipment_ip=data.get('equipment_ip'),
         )
@@ -144,7 +146,7 @@ def update_point(point_id):
         for field in (
             'name', 'lat', 'lng', 'point_type', 'zabbix_hostid',
             'zabbix_status_itemid', 'zabbix_cpu_itemid', 'zabbix_snmp_available_itemid',
-            'zabbix_uptime_itemid', 'equipment_model', 'equipment_ip',
+            'zabbix_uptime_itemid', 'zabbix_latency_itemid', 'equipment_model', 'equipment_ip',
         ):
             if field in data:
                 setattr(point, field, coordinates.get(field, data[field]))

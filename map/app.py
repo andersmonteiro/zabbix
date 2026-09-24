@@ -86,6 +86,7 @@ def _collect_itemids():
             itemids.update(filter(None, [
                 point.zabbix_status_itemid, point.zabbix_cpu_itemid,
                 point.zabbix_snmp_available_itemid, point.zabbix_uptime_itemid,
+                point.zabbix_latency_itemid,
             ]))
         for segment in session.query(Segment):
             itemids.update(filter(None, [
