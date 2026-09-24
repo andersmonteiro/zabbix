@@ -24,14 +24,14 @@ def test_fetch_problems_serializes_host_and_severity_label(zabbix_client, reques
             'acknowledged': '0', 'object': '0', 'objectid': '77',
         }]}},
         {'json': {'jsonrpc': '2.0', 'id': 3, 'result': [
-            {'triggerid': '77', 'hosts': [{'name': 'DTC - CARACOL - 6'}]},
+            {'triggerid': '77', 'hosts': [{'name': 'DTC - CARACOL - 6', 'hostid': '10066'}]},
         ]}},
     ])
 
     problems = fetch_problems(zabbix_client)
 
     assert problems == [{
-        'eventid': '501', 'name': 'Link down', 'host': 'DTC - CARACOL - 6',
+        'eventid': '501', 'name': 'Link down', 'host': 'DTC - CARACOL - 6', 'hostid': '10066',
         'severity': 4, 'severity_label': 'Alta', 'clock': 1700000000, 'acknowledged': False,
     }]
 
@@ -64,6 +64,7 @@ def test_fetch_problems_defaults_host_to_dash_when_trigger_has_no_host(zabbix_cl
 
     problems = fetch_problems(zabbix_client)
     assert problems[0]['host'] == '—'
+    assert problems[0]['hostid'] is None
     assert problems[0]['acknowledged'] is True
 
 

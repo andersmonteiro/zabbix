@@ -2,6 +2,7 @@ import time
 
 import pytest
 
+from alert_poller import AlertCache
 from models import Base, Point, Circuit, Segment, get_engine, get_session_factory
 from poller import StatusCache
 from routes_map import build_map_state
@@ -193,3 +194,136 @@ def test_segment_snmp_offline_is_false_when_stale(session):
     state = build_map_state(session, cache, stale_threshold_seconds=120)
     seg = state['circuits'][0]['segments'][0]
     assert seg['snmp_offline'] is False
+
+
+# --- throughput/speed: raw Zabbix items are bps, UI needs Mbps -------------
+
+def test_throughput_and_speed_are_converted_from_bps_to_mbps(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    segment.zabbix_throughput_in_itemid = '60020'
+    segment.zabbix_throughput_out_itemid = '60021'
+    segment.zabbix_speed_itemid = '60022'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'},
+        '60020': {'lastvalue': '3491629016'},  # ~3.49 Gbps raw bps
+        '60021': {'lastvalue': '1529953112'},
+        '60022': {'lastvalue': '100000000000'},  # 100 Gbps port speed
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['throughput_in_mbps'] == pytest.approx(3491.629016)
+    assert seg['throughput_out_mbps'] == pytest.approx(1529.953112)
+    assert seg['speed_mbps'] == pytest.approx(100000.0)
+
+
+# --- equipment Point: SNMP-offline flag, uptime, real Zabbix alerts --------
+
+def test_point_reports_snmp_offline_independent_of_ping(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    origin.zabbix_snmp_available_itemid = '60030'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'},
+        '60030': {'lastvalue': '0'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    origin_point = next(p for p in state['points'] if p['id'] == origin.id)
+    assert origin_point['status'] == 'up'
+    assert origin_point['snmp_offline'] is True
+
+
+def test_point_exposes_uptime_seconds(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    origin.zabbix_uptime_itemid = '60031'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'},
+        '60031': {'lastvalue': '864000'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    origin_point = next(p for p in state['points'] if p['id'] == origin.id)
+    assert origin_point['uptime_seconds'] == 864000.0
+
+
+def test_point_alert_severity_from_matching_open_problem(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    origin.zabbix_hostid = '10500'
+    session.commit()
+    cache = StatusCache()
+    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'}})
+    alert_cache = AlertCache()
+    alert_cache.update([
+        {'eventid': '1', 'hostid': '10500', 'severity': 2, 'name': 'Atenção'},
+        {'eventid': '2', 'hostid': '10500', 'severity': 4, 'name': 'Problema grave'},
+        {'eventid': '3', 'hostid': '99999', 'severity': 5, 'name': 'outro host'},
+    ])
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=alert_cache)
+    origin_point = next(p for p in state['points'] if p['id'] == origin.id)
+    assert origin_point['alert_severity'] == 4  # worst of the two open problems on this host
+    assert origin_point['alert_count'] == 2
+
+
+def test_point_alert_severity_is_none_without_open_problems(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    origin.zabbix_hostid = '10500'
+    session.commit()
+    cache = StatusCache()
+    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'}})
+    alert_cache = AlertCache()
+    alert_cache.update([])
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=alert_cache)
+    origin_point = next(p for p in state['points'] if p['id'] == origin.id)
+    assert origin_point['alert_severity'] is None
+    assert origin_point['alert_count'] == 0
+
+
+def test_point_alert_severity_is_none_when_no_alert_cache_wired(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    origin.zabbix_hostid = '10500'
+    session.commit()
+    cache = StatusCache()
+    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'}})
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)  # no alert_cache passed
+    origin_point = next(p for p in state['points'] if p['id'] == origin.id)
+    assert origin_point['alert_severity'] is None
+    assert origin_point['alert_count'] == 0
+
+
+# --- Segment: origin/destination names, port name, optical TX -------------
+
+def test_segment_includes_origin_and_destination_names(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    cache = StatusCache()
+    cache.update({'60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'}})
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['origin_name'] == 'POP Centro'
+    assert seg['destination_name'] == 'Cliente'
+
+
+def test_segment_exposes_port_name_and_optical_tx(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    segment.port_name = '100GE0/0/1 - KM30-40G'
+    segment.zabbix_optical_tx_itemid = '60040'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1'}, '60002': {'lastvalue': '1'}, '60010': {'lastvalue': '1'},
+        '60040': {'lastvalue': '-3.2'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['port_name'] == '100GE0/0/1 - KM30-40G'
+    assert seg['optical_tx_dbm'] == -3.2

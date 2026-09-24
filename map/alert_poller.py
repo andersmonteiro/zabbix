@@ -32,10 +32,12 @@ class AlertCache:
 
 def _serialize_problem(raw, host_by_triggerid):
     severity = int(raw.get('severity', 0))
+    host_name, host_id = host_by_triggerid.get(raw.get('objectid'), ('—', None))
     return {
         'eventid': raw.get('eventid'),
         'name': raw.get('name'),
-        'host': host_by_triggerid.get(raw.get('objectid'), '—'),
+        'host': host_name,
+        'hostid': host_id,
         'severity': severity,
         'severity_label': SEVERITY_LABELS.get(severity, 'Desconhecida'),
         'clock': int(raw.get('clock', 0)),
@@ -48,7 +50,9 @@ def fetch_problems(zabbix_client):
     already recovered), newest+most severe first. problem.get has no
     selectHosts of its own -- the host lives on the trigger, so problems
     whose object is a trigger (object=='0', the vast majority) get a
-    follow-up trigger.get to resolve host names."""
+    follow-up trigger.get to resolve host names. hostid travels alongside the
+    name so the map can match problems to Points reliably (host names can
+    collide or get renamed; hostid doesn't)."""
     raw = zabbix_client.call('problem.get', {
         'output': 'extend',
         'sortfield': ['eventid'],
@@ -64,11 +68,13 @@ def fetch_problems(zabbix_client):
         triggers = zabbix_client.call('trigger.get', {
             'triggerids': triggerids,
             'output': ['triggerid'],
-            'selectHosts': ['name'],
+            'selectHosts': ['hostid', 'name'],
         })
         for t in triggers:
             hosts = t.get('hosts') or []
-            host_by_triggerid[t['triggerid']] = hosts[0]['name'] if hosts else '—'
+            host_by_triggerid[t['triggerid']] = (
+                (hosts[0]['name'], hosts[0]['hostid']) if hosts else ('—', None)
+            )
 
     problems = [_serialize_problem(p, host_by_triggerid) for p in raw]
     problems.sort(key=lambda p: (-p['severity'], -p['clock']))

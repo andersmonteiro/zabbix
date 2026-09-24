@@ -89,7 +89,9 @@
               <option value="equipment">Equipamento (host do Zabbix)</option>
             </select>
             <input name="zabbix_hostid" placeholder="Zabbix hostid (equipamento)" />
-            <input name="zabbix_status_itemid" placeholder="Zabbix itemid — status" />
+            <input name="zabbix_status_itemid" placeholder="Zabbix itemid — status (ping)" />
+            <input name="zabbix_snmp_available_itemid" placeholder="Zabbix itemid — disponibilidade SNMP (opcional)" />
+            <input name="zabbix_uptime_itemid" placeholder="Zabbix itemid — uptime (opcional)" />
             <input name="zabbix_cpu_itemid" placeholder="Zabbix itemid — CPU (opcional)" />
             <input name="equipment_model" placeholder="Modelo do equipamento (opcional)" />
             <input name="equipment_ip" placeholder="IP (opcional)" />
@@ -109,12 +111,14 @@
             <form class="inline" id="segment-form">
               <select name="origin_point_id" id="origin-select"></select>
               <select name="destination_point_id" id="destination-select"></select>
+              <input name="port_name" placeholder="Nome da porta (ex: 100GE0/0/1 - KM30-40G)" />
               <input name="zabbix_operstatus_itemid" placeholder="itemid — status da porta" />
               <input name="zabbix_snmp_available_itemid" placeholder="itemid — disponibilidade SNMP (opcional)" />
               <input name="zabbix_speed_itemid" placeholder="itemid — velocidade" />
               <input name="zabbix_throughput_in_itemid" placeholder="itemid — throughput entrada" />
               <input name="zabbix_throughput_out_itemid" placeholder="itemid — throughput saída" />
               <input name="zabbix_optical_rx_itemid" placeholder="itemid — sinal óptico RX" />
+              <input name="zabbix_optical_tx_itemid" placeholder="itemid — sinal óptico TX" />
               <input name="zabbix_error_itemid" placeholder="itemid — contador de erros" />
               <input name="signal_warn_threshold_dbm" placeholder="Limiar de sinal (dBm), ex: -25" />
               <button class="btn-primary" type="submit">Adicionar segmento</button>

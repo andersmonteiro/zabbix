@@ -83,12 +83,16 @@ def _collect_itemids():
     try:
         itemids = set()
         for point in session.query(Point).filter(Point.point_type == 'equipment'):
-            itemids.update(filter(None, [point.zabbix_status_itemid, point.zabbix_cpu_itemid]))
+            itemids.update(filter(None, [
+                point.zabbix_status_itemid, point.zabbix_cpu_itemid,
+                point.zabbix_snmp_available_itemid, point.zabbix_uptime_itemid,
+            ]))
         for segment in session.query(Segment):
             itemids.update(filter(None, [
                 segment.zabbix_speed_itemid, segment.zabbix_throughput_in_itemid,
                 segment.zabbix_throughput_out_itemid, segment.zabbix_optical_rx_itemid,
-                segment.zabbix_error_itemid, segment.zabbix_operstatus_itemid,
+                segment.zabbix_optical_tx_itemid, segment.zabbix_error_itemid,
+                segment.zabbix_operstatus_itemid, segment.zabbix_snmp_available_itemid,
             ]))
         return list(itemids)
     finally:
@@ -104,9 +108,6 @@ _poller_thread = threading.Thread(
 )
 _poller_thread.start()
 atexit.register(_poller_stop_event.set)
-
-init_map_routes(SessionLocal, status_cache, STALE_THRESHOLD_SECONDS)
-app.register_blueprint(map_state_bp)
 
 from alert_poller import AlertCache, alert_poll_loop
 from routes_alerts import alerts_bp, init_alerts_routes
@@ -125,6 +126,12 @@ atexit.register(_alert_poller_stop_event.set)
 
 init_alerts_routes(alert_cache, STALE_THRESHOLD_SECONDS)
 app.register_blueprint(alerts_bp)
+
+# alert_cache feeds both the notification bell (above) and each equipment
+# Point's alert_severity/alert_count on the map -- a real Zabbix problem
+# open on that host, not just the raw ping/SNMP items.
+init_map_routes(SessionLocal, status_cache, STALE_THRESHOLD_SECONDS, alert_cache=alert_cache)
+app.register_blueprint(map_state_bp)
 
 from routes_equipment_images import equipment_images_bp, init_equipment_images_routes
 

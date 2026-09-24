@@ -46,12 +46,26 @@ addTileLayer();
 let markerLayer = L.layerGroup().addTo(map);
 let lineLayer = L.layerGroup().addTo(map);
 
-function glowIcon(color) {
+// alert_severity vem de problemas REAIS abertos no Zabbix para aquele host
+// (não do item de ping/SNMP) -- 4-5 = vermelho, 2-3 = amarelo, sobrepõe a
+// cor normal de status quando presente. pulseClass ativa a animação CSS
+// (.pulse-warn / .pulse-down em app.css) para chamar atenção no mapa.
+function alertVisual(status, alertSeverity) {
+  if (alertSeverity !== null && alertSeverity !== undefined) {
+    if (alertSeverity >= 4) return { color: STATUS_COLOR.down, pulseClass: 'pulse-down' };
+    if (alertSeverity >= 2) return { color: STATUS_COLOR.warn, pulseClass: 'pulse-warn' };
+  }
+  if (status === 'down') return { color: STATUS_COLOR.down, pulseClass: 'pulse-down' };
+  if (status === 'warn') return { color: STATUS_COLOR.warn, pulseClass: 'pulse-warn' };
+  return { color: STATUS_COLOR[status] || STATUS_COLOR.unknown, pulseClass: '' };
+}
+
+function glowIcon(color, pulseClass) {
   return L.divIcon({
     className: '',
     html:
-      '<div style="position:relative;width:26px;height:26px;">' +
-        '<div style="position:absolute;inset:0;border-radius:50%;background:' + color + ';opacity:0.35;filter:blur(4px)"></div>' +
+      '<div class="glow-marker ' + (pulseClass || '') + '" style="position:relative;width:26px;height:26px;">' +
+        '<div class="glow-halo" style="position:absolute;inset:0;border-radius:50%;background:' + color + ';opacity:0.35;filter:blur(4px)"></div>' +
         '<div style="position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:50%;background:' + color + ';border:2px solid rgba(255,255,255,0.85);box-shadow:0 0 4px rgba(0,0,0,0.4)"></div>' +
       '</div>',
     iconSize: [26, 26], iconAnchor: [13, 13],
@@ -93,6 +107,29 @@ function midpoint(latlngs) {
 function fmt(value, unit) {
   if (value === null || value === undefined) return '—';
   return `${value}${unit || ''}`;
+}
+
+// Mbps cru vira Gbps acima de 1000 -- em enlaces de 40G/100G um número em
+// Mbps de 5 dígitos é mais difícil de ler rápido do que "3.49 Gbps".
+function fmtThroughput(mbps) {
+  if (mbps === null || mbps === undefined) return '—';
+  if (mbps >= 1000) return `${(mbps / 1000).toFixed(2)} Gbps`;
+  return `${mbps.toFixed(1)} Mbps`;
+}
+
+function fmtUptime(seconds) {
+  if (seconds === null || seconds === undefined) return '—';
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}min`;
+  return `${minutes}min`;
+}
+
+function fmtUpDown(value) {
+  if (value === null || value === undefined) return '—';
+  return value ? 'up' : 'down';
 }
 
 function openModal({ photoUrl, title, statusClass, rows }) {
@@ -168,22 +205,28 @@ async function refresh() {
       const color = STATUS_COLOR[segment.status] || STATUS_COLOR.unknown;
       const line = drawGlowLine(latlngs, color, segment.status === 'down');
 
+      const linkLabel = `${esc(origin.name)} ↔ ${esc(dest.name)}`;
+      const portLabel = segment.port_name ? ` · porta ${esc(segment.port_name)}` : '';
       const snmpNote = segment.snmp_offline ? ' · ⚠ SNMP indisponível (status por ping)' : '';
       line.bindTooltip(
-        `${esc(circuit.name)}<br>${esc(segment.status)} · sinal ${esc(fmt(segment.optical_rx_dbm, ' dBm'))} · ` +
-        `${esc(fmt(segment.throughput_in_mbps, ' Mbps'))} / ${esc(fmt(segment.throughput_out_mbps, ' Mbps'))}${esc(snmpNote)}`,
+        `<b>${linkLabel}</b>${portLabel}<br>${esc(segment.status)} · ` +
+        `RX ${esc(fmt(segment.optical_rx_dbm, ' dBm'))} / TX ${esc(fmt(segment.optical_tx_dbm, ' dBm'))} · ` +
+        `${esc(fmtThroughput(segment.throughput_in_mbps))} ↓ / ${esc(fmtThroughput(segment.throughput_out_mbps))} ↑${esc(snmpNote)}`,
         { className: 'mini-tip', sticky: true },
       );
       line.on('click', () => openModal({
         photoUrl: equipmentPhotoUrl(null),
-        title: circuit.name,
+        title: `${origin.name} ↔ ${dest.name}`,
         statusClass: segment.status,
         rows: [
+          ['Circuito', circuit.name],
+          ['Porta', segment.port_name || '—'],
           ['Status', segment.status],
           ['SNMP', segment.snmp_offline ? 'indisponível — status por ping' : 'OK'],
-          ['Velocidade', fmt(segment.speed_mbps, ' Mbps')],
-          ['Throughput', `${fmt(segment.throughput_in_mbps, ' Mbps')} ↓ / ${fmt(segment.throughput_out_mbps, ' Mbps')} ↑`],
-          ['Sinal óptico', fmt(segment.optical_rx_dbm, ' dBm')],
+          ['Velocidade', fmtThroughput(segment.speed_mbps)],
+          ['Throughput', `${fmtThroughput(segment.throughput_in_mbps)} ↓ / ${fmtThroughput(segment.throughput_out_mbps)} ↑`],
+          ['Sinal óptico RX', fmt(segment.optical_rx_dbm, ' dBm')],
+          ['Sinal óptico TX', fmt(segment.optical_tx_dbm, ' dBm')],
           ['Limiar configurado', fmt(segment.signal_warn_threshold_dbm, ' dBm')],
           ['Erros', fmt(segment.error_count, '')],
         ],
@@ -208,10 +251,15 @@ async function refresh() {
         .bindTooltip('Poste / caixa (só trajeto)', { className: 'mini-tip' });
       return;
     }
-    const color = STATUS_COLOR[point.status] || STATUS_COLOR.unknown;
-    const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color) }).addTo(markerLayer);
+    const { color, pulseClass } = alertVisual(point.status, point.alert_severity);
+    const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color, pulseClass) }).addTo(markerLayer);
+    const alertNote = point.alert_severity !== null && point.alert_severity !== undefined
+      ? ` · ⚠ ${point.alert_count} alerta(s) aberto(s)`
+      : '';
     marker.bindTooltip(
-      `<b>${esc(point.name)}</b><br>${esc(point.equipment_ip || '')} · ${esc(point.status)}`,
+      `<b>${esc(point.name)}</b><br>${esc(point.equipment_ip || '')}<br>` +
+      `ping ${esc(fmtUpDown(point.status === 'unknown' ? null : point.status !== 'down'))} · ` +
+      `SNMP ${esc(point.snmp_offline ? 'down' : 'up')} · uptime ${esc(fmtUptime(point.uptime_seconds))}${esc(alertNote)}`,
       { className: 'mini-tip' },
     );
     marker.on('click', () => openModal({
@@ -222,7 +270,13 @@ async function refresh() {
         ['Modelo', point.equipment_model || '—'],
         ['IP', point.equipment_ip || '—'],
         ['Status', point.status],
+        ['Ping', fmtUpDown(point.status === 'unknown' ? null : point.status !== 'down')],
+        ['SNMP', point.snmp_offline ? 'indisponível' : 'OK'],
+        ['Uptime', fmtUptime(point.uptime_seconds)],
         ['CPU', fmt(point.cpu_percent, '%')],
+        ['Alertas abertos', point.alert_severity !== null && point.alert_severity !== undefined
+          ? `${point.alert_count} (severidade máxima: ${point.alert_severity})`
+          : 'nenhum'],
       ],
     }));
   });

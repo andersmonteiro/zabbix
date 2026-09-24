@@ -28,6 +28,11 @@ class Point(Base):
     zabbix_hostid = Column(String, nullable=True)
     zabbix_status_itemid = Column(String, nullable=True)  # e.g. ICMP ping / agent availability item
     zabbix_cpu_itemid = Column(String, nullable=True)
+    # Separate from zabbix_status_itemid (ping) on purpose -- same reasoning
+    # as Segment.zabbix_snmp_available_itemid: a host can answer ping while
+    # SNMP itself is down, and the tooltip needs to show both independently.
+    zabbix_snmp_available_itemid = Column(String, nullable=True)
+    zabbix_uptime_itemid = Column(String, nullable=True)  # sysUpTime, in seconds
     equipment_model = Column(String, nullable=True)  # used to look up the photo
     equipment_ip = Column(String, nullable=True)
 
@@ -53,7 +58,12 @@ class Segment(Base):
     zabbix_throughput_in_itemid = Column(String, nullable=True)
     zabbix_throughput_out_itemid = Column(String, nullable=True)
     zabbix_optical_rx_itemid = Column(String, nullable=True)
+    zabbix_optical_tx_itemid = Column(String, nullable=True)
     zabbix_error_itemid = Column(String, nullable=True)
+    # Free-text label (e.g. "100GE0/0/1 - KM30-40G"), not an itemid -- the
+    # port name is stable and Zabbix has no single item that returns just
+    # the friendly name, so it's filled in once when the segment is wired up.
+    port_name = Column(String, nullable=True)
     zabbix_operstatus_itemid = Column(String, nullable=True)
     # Separate from operstatus on purpose: a host can be alive (ping up) while
     # SNMP itself is unreachable, in which case the link should still read

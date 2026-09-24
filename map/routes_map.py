@@ -9,14 +9,16 @@ map_state_bp = Blueprint('map_state', __name__, url_prefix='/api')
 
 _session_factory = None
 _cache = None
+_alert_cache = None
 _stale_threshold_seconds = 120
 
 
-def init_map_routes(session_factory, cache, stale_threshold_seconds=120):
-    global _session_factory, _cache, _stale_threshold_seconds
+def init_map_routes(session_factory, cache, stale_threshold_seconds=120, alert_cache=None):
+    global _session_factory, _cache, _stale_threshold_seconds, _alert_cache
     _session_factory = session_factory
     _cache = cache
     _stale_threshold_seconds = stale_threshold_seconds
+    _alert_cache = alert_cache
 
 
 def _lastvalue(cache, itemid, cast=str):
@@ -29,6 +31,16 @@ def _lastvalue(cache, itemid, cast=str):
         return cast(item['lastvalue'])
     except (TypeError, ValueError):
         return None
+
+
+def _bps_to_mbps(value):
+    """Zabbix's ifHCInOctets/ifHCOutOctets items in these templates are
+    pre-processed to bits/second (units: "bps"), not megabits -- dividing
+    raw bytes-per-second-turned-bits here was missing entirely before, so
+    the UI showed e.g. 3491629016 "Mbps" instead of 3491.63 Mbps."""
+    if value is None:
+        return None
+    return value / 1_000_000
 
 
 def _is_stale(cache, stale_threshold_seconds):
@@ -48,9 +60,27 @@ def _last_refresh_seconds_ago(cache):
     return max(0, int(time.time() - last_refresh))
 
 
-def build_map_state(session, cache, stale_threshold_seconds=120):
+def _worst_alert_by_hostid(alert_cache):
+    """{hostid: {severity, count}} for the single worst open problem per
+    host. None entries (host unresolved when the alert was polled) are
+    skipped -- they can't be matched to a Point anyway."""
+    if alert_cache is None:
+        return {}
+    worst = {}
+    for problem in alert_cache.get_all():
+        hostid = problem.get('hostid')
+        if hostid is None:
+            continue
+        entry = worst.setdefault(hostid, {'severity': 0, 'count': 0})
+        entry['count'] += 1
+        entry['severity'] = max(entry['severity'], problem['severity'])
+    return worst
+
+
+def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=None):
     stale = _is_stale(cache, stale_threshold_seconds)
     last_refresh_seconds_ago = _last_refresh_seconds_ago(cache)
+    alerts_by_hostid = _worst_alert_by_hostid(alert_cache)
 
     points_out = []
     for point in session.query(Point).all():
@@ -65,7 +95,19 @@ def build_map_state(session, cache, stale_threshold_seconds=120):
             entry['equipment_ip'] = point.equipment_ip
             cpu = None if stale else _lastvalue(cache, point.zabbix_cpu_itemid, float)
             entry['cpu_percent'] = cpu
+
+            snmp_available = None if stale else _lastvalue(cache, point.zabbix_snmp_available_itemid, int)
+            entry['snmp_offline'] = (
+                point.zabbix_snmp_available_itemid is not None and snmp_available == 0
+            )
+            entry['uptime_seconds'] = None if stale else _lastvalue(cache, point.zabbix_uptime_itemid, float)
+
+            alert = alerts_by_hostid.get(point.zabbix_hostid)
+            entry['alert_severity'] = alert['severity'] if alert else None
+            entry['alert_count'] = alert['count'] if alert else 0
         points_out.append(entry)
+
+    points_by_id = {p.id: p for p in session.query(Point).all()}
 
     circuits_out = []
     for circuit in session.query(Circuit).all():
@@ -73,6 +115,7 @@ def build_map_state(session, cache, stale_threshold_seconds=120):
         for segment in sorted(circuit.segments, key=lambda s: s.order_index):
             operstatus = None if stale else _lastvalue(cache, segment.zabbix_operstatus_itemid, int)
             optical_rx = None if stale else _lastvalue(cache, segment.zabbix_optical_rx_itemid, float)
+            optical_tx = None if stale else _lastvalue(cache, segment.zabbix_optical_tx_itemid, float)
             error_count = None if stale else _lastvalue(cache, segment.zabbix_error_itemid, float)
             snmp_available = None if stale else _lastvalue(cache, segment.zabbix_snmp_available_itemid, int)
             # snmp_available is a separate signal from operstatus on purpose: a
@@ -82,22 +125,35 @@ def build_map_state(session, cache, stale_threshold_seconds=120):
             # detail (traffic, real port state) isn't trustworthy right now.
             snmp_offline = segment.zabbix_snmp_available_itemid is not None and snmp_available == 0
 
+            origin = points_by_id.get(segment.origin_point_id)
+            destination = points_by_id.get(segment.destination_point_id)
+
+            throughput_in_raw = None if stale else _lastvalue(cache, segment.zabbix_throughput_in_itemid, float)
+            throughput_out_raw = None if stale else _lastvalue(cache, segment.zabbix_throughput_out_itemid, float)
+            speed_raw = None if stale else _lastvalue(cache, segment.zabbix_speed_itemid, float)
+
             segments_out.append({
                 'id': segment.id,
                 'circuit_id': segment.circuit_id,
                 'order_index': segment.order_index,
                 'origin_point_id': segment.origin_point_id,
                 'destination_point_id': segment.destination_point_id,
+                'origin_name': origin.name if origin else None,
+                'destination_name': destination.name if destination else None,
                 'waypoint_ids': segment.waypoint_ids or [],
+                'port_name': segment.port_name,
                 'status': compute_status(
                     operstatus=operstatus, optical_rx_dbm=optical_rx,
                     signal_warn_threshold_dbm=segment.signal_warn_threshold_dbm,
                     error_count=error_count,
                 ),
-                'speed_mbps': None if stale else _lastvalue(cache, segment.zabbix_speed_itemid, float),
-                'throughput_in_mbps': None if stale else _lastvalue(cache, segment.zabbix_throughput_in_itemid, float),
-                'throughput_out_mbps': None if stale else _lastvalue(cache, segment.zabbix_throughput_out_itemid, float),
+                # Zabbix's ifHCIn/OutOctets items here are pre-processed to
+                # bits/second (units: "bps") -- /1e6 to get Mbps for display.
+                'speed_mbps': _bps_to_mbps(speed_raw),
+                'throughput_in_mbps': _bps_to_mbps(throughput_in_raw),
+                'throughput_out_mbps': _bps_to_mbps(throughput_out_raw),
                 'optical_rx_dbm': optical_rx,
+                'optical_tx_dbm': optical_tx,
                 'error_count': error_count,
                 'signal_warn_threshold_dbm': segment.signal_warn_threshold_dbm,
                 'snmp_offline': snmp_offline,
@@ -116,6 +172,6 @@ def build_map_state(session, cache, stale_threshold_seconds=120):
 def map_state():
     session = _session_factory()
     try:
-        return jsonify(build_map_state(session, _cache, _stale_threshold_seconds))
+        return jsonify(build_map_state(session, _cache, _stale_threshold_seconds, _alert_cache))
     finally:
         session.close()

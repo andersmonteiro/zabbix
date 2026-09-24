@@ -28,10 +28,12 @@ def _serialize_segment(segment):
         'origin_point_id': segment.origin_point_id,
         'destination_point_id': segment.destination_point_id,
         'waypoint_ids': segment.waypoint_ids or [],
+        'port_name': segment.port_name,
         'zabbix_speed_itemid': segment.zabbix_speed_itemid,
         'zabbix_throughput_in_itemid': segment.zabbix_throughput_in_itemid,
         'zabbix_throughput_out_itemid': segment.zabbix_throughput_out_itemid,
         'zabbix_optical_rx_itemid': segment.zabbix_optical_rx_itemid,
+        'zabbix_optical_tx_itemid': segment.zabbix_optical_tx_itemid,
         'zabbix_error_itemid': segment.zabbix_error_itemid,
         'zabbix_operstatus_itemid': segment.zabbix_operstatus_itemid,
         'zabbix_snmp_available_itemid': segment.zabbix_snmp_available_itemid,
@@ -110,9 +112,10 @@ def delete_circuit(circuit_id):
 
 SEGMENT_REQUIRED_FIELDS = ('order_index', 'origin_point_id', 'destination_point_id')
 SEGMENT_OPTIONAL_FIELDS = (
-    'waypoint_ids', 'zabbix_speed_itemid', 'zabbix_throughput_in_itemid',
-    'zabbix_throughput_out_itemid', 'zabbix_optical_rx_itemid', 'zabbix_error_itemid',
-    'zabbix_operstatus_itemid', 'zabbix_snmp_available_itemid', 'signal_warn_threshold_dbm',
+    'waypoint_ids', 'port_name', 'zabbix_speed_itemid', 'zabbix_throughput_in_itemid',
+    'zabbix_throughput_out_itemid', 'zabbix_optical_rx_itemid', 'zabbix_optical_tx_itemid',
+    'zabbix_error_itemid', 'zabbix_operstatus_itemid', 'zabbix_snmp_available_itemid',
+    'signal_warn_threshold_dbm',
 )
 
 
@@ -139,10 +142,12 @@ def create_segment(circuit_id):
             origin_point_id=data['origin_point_id'],
             destination_point_id=data['destination_point_id'],
             waypoint_ids=data.get('waypoint_ids', []),
+            port_name=data.get('port_name'),
             zabbix_speed_itemid=data.get('zabbix_speed_itemid'),
             zabbix_throughput_in_itemid=data.get('zabbix_throughput_in_itemid'),
             zabbix_throughput_out_itemid=data.get('zabbix_throughput_out_itemid'),
             zabbix_optical_rx_itemid=data.get('zabbix_optical_rx_itemid'),
+            zabbix_optical_tx_itemid=data.get('zabbix_optical_tx_itemid'),
             zabbix_error_itemid=data.get('zabbix_error_itemid'),
             zabbix_operstatus_itemid=data.get('zabbix_operstatus_itemid'),
             zabbix_snmp_available_itemid=data.get('zabbix_snmp_available_itemid'),

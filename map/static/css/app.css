@@ -274,3 +274,19 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .backdrop.open { display: block; }
 
 .leaflet-tooltip.mini-tip { background: var(--bg-panel); color: var(--text-primary); border: 1px solid var(--border-2); font-size: 11px; padding: 6px 8px; line-height: 1.5; font-family: var(--mono); }
+
+/* ── Pulso de alerta nos pontos do mapa ──────────────────────────────
+   Disparado por um problema REAL aberto no Zabbix para aquele host
+   (alert_severity), não pelo item cru de ping/SNMP -- o halo (já
+   desenhado em app.js) ganha um anel que expande e desaparece,
+   repetindo, para chamar atenção sem precisar reler o mapa inteiro. */
+.glow-marker.pulse-warn .glow-halo,
+.glow-marker.pulse-down .glow-halo {
+  animation: glow-pulse 1.6s ease-out infinite;
+}
+.glow-marker.pulse-down .glow-halo { animation-duration: 1s; }
+@keyframes glow-pulse {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  70%  { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
