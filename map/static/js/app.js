@@ -60,23 +60,47 @@ function alertVisual(status, alertSeverity) {
   return { color: STATUS_COLOR[status] || STATUS_COLOR.unknown, pulseClass: '' };
 }
 
+// Ícone de transmissão (wifi) dentro do glow em vez de um círculo vazio --
+// reconhecível como "equipamento de rede ativo" mesmo em 16px, com stroke
+// escuro que contrasta em qualquer cor de status (verde/amarelo/vermelho).
+const EQUIPMENT_GLYPH =
+  '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#00110a" stroke-width="3.4" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/>' +
+  '<path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>' +
+  '<line x1="12" y1="20" x2="12.01" y2="20"/></svg>';
+
 function glowIcon(color, pulseClass) {
   return L.divIcon({
     className: '',
     html:
       '<div class="glow-marker ' + (pulseClass || '') + '" style="position:relative;width:26px;height:26px;">' +
         '<div class="glow-halo" style="position:absolute;inset:0;border-radius:50%;background:' + color + ';opacity:0.35;filter:blur(4px)"></div>' +
-        '<div style="position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:50%;background:' + color + ';border:2px solid rgba(255,255,255,0.85);box-shadow:0 0 4px rgba(0,0,0,0.4)"></div>' +
+        '<div style="position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:50%;background:' + color + ';border:2px solid rgba(255,255,255,0.85);box-shadow:0 0 4px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">' +
+          EQUIPMENT_GLYPH +
+        '</div>' +
       '</div>',
     iconSize: [26, 26], iconAnchor: [13, 13],
   });
 }
 
-function drawGlowLine(latlngs, color, dashed) {
+// O trecho "up" ganha uma camada extra de tracinhos brancos que correm ao
+// longo da linha (.flow-line, animação em app.css) -- lê como dado fluindo
+// pela fibra em tempo real, e some sozinho quando o link cai (nada flui
+// por um link down). É o único elemento animado do mapa que se move em
+// linha reta ao longo do traçado, então fica reconhecível como "assinatura".
+function drawGlowLine(latlngs, color, status) {
   const opts = { weight: 5, color, opacity: 0.95, lineCap: 'round', lineJoin: 'round', smoothFactor: 3 };
-  if (dashed) opts.dashArray = '1 10';
+  if (status === 'down') opts.dashArray = '1 10';
   L.polyline(latlngs, { weight: 14, color, opacity: 0.18, lineCap: 'round', lineJoin: 'round', smoothFactor: 3 }).addTo(lineLayer);
-  return L.polyline(latlngs, opts).addTo(lineLayer);
+  const line = L.polyline(latlngs, opts).addTo(lineLayer);
+
+  if (status === 'up') {
+    L.polyline(latlngs, {
+      weight: 2.5, color: '#ffffff', opacity: 0.85, lineCap: 'round', lineJoin: 'round',
+      smoothFactor: 3, dashArray: '1 15', className: 'flow-line',
+    }).addTo(lineLayer);
+  }
+  return line;
 }
 
 // Small triangular warning badge dropped at a segment's midpoint when SNMP
@@ -154,10 +178,21 @@ function tipTable(title, rows) {
   return `<div class="tip-table-title">${esc(title)}</div><table class="tip-table">${body}</table>`;
 }
 
-function openModal({ photoUrl, title, statusClass, rows, utilizationPct }) {
+const STATUS_LABEL_PT = { up: 'Operacional', warn: 'Atenção', down: 'Crítico', unknown: 'Sem dados' };
+
+function openModal({ photoUrl, title, statusClass, kicker, rows, utilizationPct }) {
   document.getElementById('modal-photo-img').src = photoUrl;
-  const titleEl = document.getElementById('modal-title');
-  titleEl.innerHTML = `<span class="status-dot ${esc(statusClass)}"></span>${esc(title)}`;
+
+  const modal = document.getElementById('detail-modal');
+  const cls = STATUS_COLOR[statusClass] ? statusClass : 'unknown';
+  modal.classList.remove('status-up', 'status-warn', 'status-down', 'status-unknown');
+  modal.classList.add(`status-${cls}`);
+
+  document.getElementById('modal-kicker').textContent = kicker
+    ? `${kicker} · ${STATUS_LABEL_PT[cls]}`
+    : STATUS_LABEL_PT[cls];
+  document.getElementById('modal-title').textContent = title;
+
   const table = document.getElementById('modal-table');
   table.innerHTML = rows
     .map(([label, value]) => `<tr><td>${esc(label)}</td><td>${esc(value)}</td></tr>`)
@@ -291,7 +326,7 @@ async function refresh() {
       const waypoints = segment.waypoint_ids.map((id) => pointsById[id]).filter(Boolean);
       const latlngs = [origin, ...waypoints, dest].map((p) => [p.lat, p.lng]);
       const color = STATUS_COLOR[segment.status] || STATUS_COLOR.unknown;
-      const line = drawGlowLine(latlngs, color, segment.status === 'down');
+      const line = drawGlowLine(latlngs, color, segment.status);
 
       const statusCls = segment.status === 'down' ? 'crit' : segment.status === 'warn' ? 'warn' : 'ok';
       const utilPct = segment.utilization_pct;
@@ -314,6 +349,7 @@ async function refresh() {
         photoUrl: equipmentPhotoUrl(null),
         title: `${origin.name} ↔ ${dest.name}`,
         statusClass: segment.status,
+        kicker: 'Circuito',
         utilizationPct: utilPct,
         rows: [
           ['Circuito', circuit.name],
@@ -368,6 +404,7 @@ async function refresh() {
       photoUrl: equipmentPhotoUrl(point.equipment_model),
       title: point.name,
       statusClass: point.status,
+      kicker: 'Equipamento',
       rows: [
         ['Modelo', point.equipment_model || '—'],
         ['IP', point.equipment_ip || '—'],
