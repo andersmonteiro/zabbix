@@ -306,13 +306,17 @@ app.get('/test-chart', authMiddleware, async (req, res) => {
 app.get('/groups', authMiddleware, async (req, res) => {
     if (!clientReady) return res.status(503).json({ error: 'WhatsApp não está pronto ainda' });
     try {
-        // client.getChats() vem quebrando (erro serializado ilegível, ex:
-        // "r") em builds recentes do WhatsApp Web -- a própria whatsapp-web.js
-        // 1.23.x não acompanhou uma mudança no Store interno. Lendo
-        // window.Store.Chat direto no contexto da página evita o wrapper
-        // problemático da lib sem precisar trocar de versão.
+        // client.getChats() (== window.WWebJS.getChats() no navegador) vem
+        // quebrando com um erro serializado ilegível ("r") -- o crash está no
+        // getChatModel() interno da lib ao serializar cada chat (provavelmente
+        // um getter lazy incompatível com esta versão do WhatsApp Web), não no
+        // acesso aos dados em si. window.require('WAWebCollections').Chat é a
+        // mesma coleção que getChats() usa por baixo (ver
+        // node_modules/whatsapp-web.js/src/util/Injected/Utils.js) -- lendo os
+        // modelos direto e extraindo só os campos que precisamos evita o
+        // serializador problemático.
         const groups = await client.pupPage.evaluate(() => {
-            return window.Store.Chat.getModelsArray()
+            return window.require('WAWebCollections').Chat.getModelsArray()
                 .filter((c) => c.isGroup)
                 .map((c) => ({
                     id:           c.id._serialized,
