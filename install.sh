@@ -69,6 +69,15 @@ if ! grep -qE '^WEBHOOK_TOKEN=.+' whatsapp/.env 2>/dev/null; then
     log "WEBHOOK_TOKEN gerado para este cliente"
 fi
 
+# ── Garante ZABBIX_WEBHOOK_URL (instalações antigas podem não ter a linha) ──
+if ! grep -qE '^ZABBIX_WEBHOOK_URL=.+' whatsapp/.env 2>/dev/null; then
+    if grep -qE '^ZABBIX_WEBHOOK_URL=' whatsapp/.env 2>/dev/null; then
+        sed -i "s|^ZABBIX_WEBHOOK_URL=.*|ZABBIX_WEBHOOK_URL=http://172.17.0.1:8765/webhook|" whatsapp/.env
+    else
+        echo "ZABBIX_WEBHOOK_URL=http://172.17.0.1:8765/webhook" >> whatsapp/.env
+    fi
+fi
+
 # ── Ajusta TZ ──
 sed -i "s|^TZ=.*|TZ=$TZ_VALUE|" stack/.env
 
@@ -165,6 +174,34 @@ if [ "$ZABBIX_PASSWORD_CONFIRMED" = "1" ] && [ -f stack/templates/natverk-templa
     fi
 else
     log "Pulando import de templates customizados (senha do Admin não confirmada ou arquivo ausente)"
+fi
+
+# ── Importa o media type "WhatsApp Webhook" com o token e a URL desta instalação ──
+if [ "$ZABBIX_PASSWORD_CONFIRMED" = "1" ] && [ -f whatsapp/zabbix/whatsapp-mediatype.yaml ]; then
+    log "Importando media type Zabbix 'WhatsApp Webhook'..."
+    MT_WEBHOOK_TOKEN=$(grep -E '^WEBHOOK_TOKEN=' whatsapp/.env | cut -d= -f2-)
+    MT_WEBHOOK_URL=$(grep -E '^ZABBIX_WEBHOOK_URL=' whatsapp/.env | cut -d= -f2-)
+    MT_AUTH=$(curl -s -X POST "$ZABBIX_API" -H 'Content-Type: application/json-rpc' \
+        -d "{\"jsonrpc\":\"2.0\",\"method\":\"user.login\",\"params\":{\"username\":\"Admin\",\"password\":\"$ZABBIX_ADMIN_PASSWORD\"},\"id\":6}" \
+        | jq -r '.result // empty')
+    if [ -n "$MT_AUTH" ] && [ -n "$MT_WEBHOOK_TOKEN" ]; then
+        MT_YAML=$(sed -e "s|__WEBHOOK_TOKEN__|$MT_WEBHOOK_TOKEN|" -e "s|__WEBHOOK_URL__|$MT_WEBHOOK_URL|" whatsapp/zabbix/whatsapp-mediatype.yaml)
+        MT_RESPONSE=$(jq -n --arg src "$MT_YAML" '{
+            jsonrpc: "2.0", method: "configuration.import",
+            params: {
+                format: "yaml", source: $src,
+                rules: { mediaTypes: {createMissing: true, updateExisting: true} }
+            }, id: 7
+        }' | curl -s -X POST "$ZABBIX_API" -H 'Content-Type: application/json-rpc' -H "Authorization: Bearer $MT_AUTH" -d @-)
+        MT_ERROR=$(echo "$MT_RESPONSE" | jq -r '.error.data // .error.message // empty')
+        if [ -z "$MT_ERROR" ]; then
+            log "Media type 'WhatsApp Webhook' importado (token e URL preenchidos automaticamente)"
+        else
+            log "AVISO: falha ao importar o media type 'WhatsApp Webhook': $MT_ERROR"
+        fi
+    else
+        log "AVISO: não foi possível autenticar ou não há WEBHOOK_TOKEN para importar o media type"
+    fi
 fi
 
 # ── Sobe WhatsApp e Tools ──

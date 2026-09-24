@@ -1,0 +1,101 @@
+zabbix_export:
+  version: '7.4'
+  media_types:
+    - name: 'WhatsApp Webhook'
+      type: WEBHOOK
+      parameters:
+        - name: event_id
+          value: '{EVENT.ID}'
+        - name: group_id
+          value: '{ALERT.SENDTO}'
+        - name: host
+          value: '{HOST.NAME}'
+        - name: itemid
+          value: '{ITEM.ID1}'
+        - name: message
+          value: '{ALERT.MESSAGE}'
+        - name: severity
+          value: '{TRIGGER.SEVERITY}'
+        - name: status
+          value: '{TRIGGER.STATUS}'
+        - name: subject
+          value: '{ALERT.SUBJECT}'
+        - name: timestamp
+          value: '{EVENT.DATE} {EVENT.TIME}'
+        - name: trigger_name
+          value: '{TRIGGER.NAME}'
+        - name: value
+          value: '{ITEM.VALUE1}'
+        - name: webhook_token
+          value: __WEBHOOK_TOKEN__
+        - name: webhook_url
+          value: '__WEBHOOK_URL__'
+      script: |
+        try {
+            var params = JSON.parse(value);
+
+            var webhookUrl   = params.webhook_url;
+            var webhookToken = params.webhook_token;
+
+            delete params.webhook_url;
+            delete params.webhook_token;
+
+            params.status   = params.status   || 'PROBLEM';
+            params.severity = params.severity || 'average';
+            params.subject  = params.subject  || params.trigger_name || 'Alerta Zabbix';
+
+            var request = new HttpRequest();
+            request.addHeader('Content-Type: application/json');
+            request.addHeader('X-Webhook-Token: ' + webhookToken);
+
+            Zabbix.log(4, '[WhatsApp Webhook] Enviando para: ' + webhookUrl);
+            Zabbix.log(4, '[WhatsApp Webhook] Payload: ' + JSON.stringify(params));
+
+            var response = request.post(webhookUrl, JSON.stringify(params));
+            var status   = request.getStatus();
+
+            Zabbix.log(4, '[WhatsApp Webhook] HTTP ' + status + ' — Resposta: ' + response);
+
+            if (status !== 200 && status !== 207) {
+                throw 'Webhook retornou HTTP ' + status + ': ' + response;
+            }
+
+            return response;
+
+        } catch (error) {
+            Zabbix.log(3, '[WhatsApp Webhook] Erro: ' + error);
+            throw 'Falha ao enviar para o webhook: ' + error;
+        }
+      message_templates:
+        - event_source: TRIGGERS
+          operation_mode: PROBLEM
+          subject: '🛑 Problema Detectado - {EVENT.NAME} ({HOST.NAME})'
+          message: |
+            🚨 ALERTA! Um problema foi detectado!
+            📅 Data: {EVENT.DATE} ⏰ Hora: {EVENT.TIME}
+            🖥 Host: {HOST.NAME} ({HOST.IP})
+            📌 Item afetado: {EVENT.NAME}
+            📊 Status atual: {ITEM.LASTVALUE}
+            ⚠ Severidade: {EVENT.SEVERITY}
+            🔍 Monitoramento ativo. Aguardando resolução.
+        - event_source: TRIGGERS
+          operation_mode: RECOVERY
+          subject: '✅ Problema Resolvido - {EVENT.NAME} ({HOST.NAME})'
+          message: |
+            🎉 Ótima notícia! O problema foi resolvido!
+            🖥 Host: {HOST.NAME} ({HOST.IP})
+            📌 Item monitorado: {EVENT.NAME}
+            📊 Status Atual: {ITEM.LASTVALUE}
+            ⚠ Severidade: {EVENT.SEVERITY}
+            ⏳ Duração: {EVENT.AGE}
+            📅 Data: {EVENT.RECOVERY.DATE} ⏰ Hora: {EVENT.RECOVERY.TIME}
+            🟢 Tudo voltou ao normal! Seguimos monitorando.
+        - event_source: TRIGGERS
+          operation_mode: UPDATE
+          subject: '⚠️ Problema atualizado: {EVENT.NAME}'
+          message: |
+            O incidente foi RECONHECIDO às {EVENT.UPDATE.TIME} em {EVENT.UPDATE.DATE}.
+            Host: {HOST.NAME} [{HOST.IP}]
+            Item: {EVENT.NAME}
+            Status atual: {ITEM.LASTVALUE}
+            Severidade: {EVENT.SEVERITY}
