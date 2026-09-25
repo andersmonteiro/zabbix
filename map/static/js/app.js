@@ -349,11 +349,14 @@ function utilizationClass(pct) {
 // Tooltip como mini-tabela label/valor em vez de texto corrido com "·" --
 // o texto corrido quebrava linha no meio de uma métrica e ficava
 // desalinhado. `cls` opcional ('crit'/'warn'/'ok') colore só o valor.
-function tipTable(title, rows) {
+// `photoUrl` opcional (só pontos de equipamento) mostra o mesmo logo do
+// popup já ao passar o mouse, sem precisar clicar.
+function tipTable(title, rows, photoUrl) {
   const body = rows
     .map(([label, value, cls]) => `<tr><td>${esc(label)}</td><td class="${esc(cls || '')}">${esc(value)}</td></tr>`)
     .join('');
-  return `<div class="tip-table-title">${esc(title)}</div><table class="tip-table">${body}</table>`;
+  const photo = photoUrl ? `<img class="tip-photo" src="${esc(photoUrl)}" alt="" />` : '';
+  return `${photo}<div class="tip-table-title">${esc(title)}</div><table class="tip-table">${body}</table>`;
 }
 
 const STATUS_LABEL_PT = { up: 'Operacional', warn: 'Atenção', down: 'Crítico', unknown: 'Sem dados' };
@@ -819,7 +822,7 @@ async function refresh() {
         ...(point.alert_severity !== null && point.alert_severity !== undefined
           ? [['Alertas', `${point.alert_count} aberto(s)`, point.alert_severity >= 4 ? 'crit' : 'warn']]
           : []),
-      ]),
+      ], equipmentPhotoUrl(point.equipment_model)),
       { className: 'mini-tip' },
     );
     const hasAlert = point.alert_severity !== null && point.alert_severity !== undefined;

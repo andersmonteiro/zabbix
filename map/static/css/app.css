@@ -379,6 +379,14 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 /* ── Tooltips em tabela (ponto/segmento) ─────────────────────────────
    Substitui o texto corrido "a · b · c" (quebrava feio em duas linhas
    sem alinhamento) por uma mini-tabela label/valor. */
+/* Fundo claro atrás da foto/logo -- muitos logos de fabricante (Huawei,
+   Datacom) usam texto/traço escuro, ilegível sobre o painel escuro do
+   tooltip e do popup. Mesmo tratamento nos dois lugares. */
+.tip-photo {
+  display: block; width: 100%; height: 42px; object-fit: contain;
+  background: #f4f4f2; border-radius: 6px; padding: 6px; box-sizing: border-box;
+  margin-bottom: 8px;
+}
 .tip-table { border-collapse: collapse; }
 .tip-table-title {
   font-family: var(--mono); font-weight: 700; color: var(--text-primary); font-size: 11.5px;
@@ -443,7 +451,11 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
     linear-gradient(135deg, #1a1a1a, #232323);
   border-bottom: 1px solid var(--border);
 }
-.modal-photo img { width: 88px; height: 88px; object-fit: contain; filter: drop-shadow(0 8px 14px rgba(0,0,0,0.55)); position: relative; z-index: 1; }
+.modal-photo img {
+  width: 88px; height: 88px; object-fit: contain; position: relative; z-index: 1;
+  background: #f4f4f2; border-radius: 12px; padding: 10px; box-sizing: border-box;
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,0.55));
+}
 .modal-photo .close {
   position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; display: flex; align-items: center;
   justify-content: center; cursor: pointer; color: var(--text-secondary); font-size: 18px; line-height: 1;

@@ -18,7 +18,11 @@ DEFAULT_BRAND_IMAGES_DIR = os.path.join(os.path.dirname(__file__), 'default_bran
 
 GENERIC_FALLBACK_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" '
-    'fill="none" stroke="#aaaaaa" stroke-width="1.5">'
+    # #6b6b6b, não o #aaaaaa mais claro de antes -- o frontend agora poe um
+    # fundo claro atras de toda imagem de equipamento (pros logos de
+    # fabricante com texto escuro nao sumirem), e cinza claro sobre esse
+    # mesmo fundo claro ficava com contraste ruim.
+    'fill="none" stroke="#6b6b6b" stroke-width="1.5">'
     '<rect x="3" y="8" width="18" height="8" rx="1.5"/>'
     '<circle cx="7" cy="12" r="1"/><circle cx="10.5" cy="12" r="1"/>'
     '<path d="M14 12h6"/></svg>'
