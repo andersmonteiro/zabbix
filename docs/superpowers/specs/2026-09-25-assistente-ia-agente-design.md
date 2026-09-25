@@ -50,6 +50,16 @@ desde o desenho inicial, não só para o cliente atual.
 - **Sem áudio no MVP.** Mencionado na ideia original, mas é uma camada de
   complexidade separada (Web Speech API ou upload+transcrição) que não
   bloqueia nenhum caso de uso real — fica para depois do MVP validado.
+- **Consulta ao Zabbix via servidor MCP (protocolo padrão), não código
+  customizado nosso.** Existe um servidor MCP maduro para Zabbix
+  (open-source, referenciado pelo próprio Zabbix, compatível com Claude),
+  com modo read-only, expondo toda a API dele — hosts, items, problems,
+  histórico. Em vez de escrever integração Zabbix própria por capacidade,
+  o agente ganha acesso a esse servidor como mais um conjunto de
+  ferramentas, e o **modelo decide sozinho** se o dado já existe no
+  Zabbix ou se precisa ir via SSH — nenhuma regra "tenta Zabbix, cai pra
+  SSH" hardcoded por nós. Nosso código customizado fica 100% dedicado ao
+  que o Zabbix não cobre: o acesso SSH direto ao equipamento.
 
 ## Por que centralizado (ao contrário do mapa/Zabbix, que é descentralizado)
 
@@ -89,25 +99,29 @@ cliente).
 Dois lados, dois repositórios/deploys diferentes:
 
 ```
-┌─────────────────────────────┐         ┌──────────────────────────────┐
-│  VM do Cliente (ex: WNP)     │         │  VM da Natverk (nova)         │
-│  já rodando via install.sh   │         │  agente-central/               │
-│                               │         │                                │
-│  map/                        │         │  chat.py                      │
-│    static/assistente.html    │◄───────►│    -- recebe pergunta,        │
-│    (tela de chat, novo)      │  HTTPS  │       identifica cliente pelo  │
-│                               │ +token  │       AGENT_TOKEN             │
-│  agent_tools/ (novo)         │         │  claude_agent.py               │
-│    ssh_catalog.py            │◄───────►│    -- roda o tool-calling do   │
-│    ssh_client.py             │  HTTPS  │       Claude (única chave,     │
-│    routes_agent_tools.py     │ +token  │       só existe aqui)          │
-│    (POST /api/agent-tools/*) │         │  clients.py                   │
-│                               │         │    -- registro: URL + token   │
-│  (credenciais SSH/Zabbix      │         │       de cada cliente         │
-│   nunca saem daqui)           │         │  audit.py                     │
-│                               │         │    -- log agregado de todos   │
-└─────────────────────────────┘         │       os clientes             │
-                                          └──────────────────────────────┘
+┌──────────────────────────────┐         ┌──────────────────────────────┐
+│  VM do Cliente (ex: WNP)      │         │  VM da Natverk (nova)         │
+│  já rodando via install.sh    │         │  agente-central/               │
+│                                │         │                                │
+│  map/                         │         │  chat.py                      │
+│    static/assistente.html     │◄───────►│    -- recebe pergunta,        │
+│    (tela de chat, novo)       │  HTTPS  │       identifica cliente pelo  │
+│                                │ +token  │       AGENT_TOKEN             │
+│  agent_tools/ (novo)          │         │  claude_agent.py               │
+│    ssh_catalog.py             │◄───────►│    -- roda o tool-calling:    │
+│    ssh_client.py              │  HTTPS  │       nossas tools (SSH) +    │
+│    routes_agent_tools.py      │ +token  │       o Zabbix MCP Server do  │
+│    (POST /api/agent-tools/*)  │         │       cliente, lado a lado    │
+│                                │         │       (única chave Claude,    │
+│  zabbix-mcp-server (novo       │         │       só existe aqui)         │
+│  container, modo read-only)   │◄───────►│  clients.py                   │
+│    -- já existe pronto,        │  HTTPS  │    -- registro: URL + token   │
+│       só aponta pro Zabbix     │ +token  │       de cada cliente         │
+│       local do cliente         │         │  audit.py                     │
+│                                │         │    -- log agregado de todos   │
+│  (credenciais SSH/Zabbix       │         │       os clientes             │
+│   nunca saem daqui)            │         │                                │
+└──────────────────────────────┘         └──────────────────────────────┘
 ```
 
 ### Fluxo de uma pergunta
@@ -117,80 +131,82 @@ Dois lados, dois repositórios/deploys diferentes:
    (`POST https://agente.natverk.com.br/chat`), com o `AGENT_TOKEN`
    daquele cliente identificando quem está perguntando.
 3. O serviço central roda `client.beta.messages.tool_runner(...)`
-   (Claude Sonnet 5, tools = catálogo de capacidades) — única chave,
-   mora só aqui.
-4. Quando o modelo decide chamar uma ferramenta (ex: `sinal_optico`,
-   `porta=3`), o serviço central chama de volta
-   `https://vm-cliente.natverk.com.br/api/agent-tools/sinal_optico?porta=3`,
-   autenticado com o **token daquele cliente especificamente** — o
-   serviço central só consegue rodar ferramentas na VM de quem já tem
-   token cadastrado, nunca em outra.
-5. A VM do cliente roda o comando SSH real (ou consulta o Zabbix local
-   primeiro, se o dado já estiver fresco lá — ver "Ordem de fontes"),
-   devolve o resultado ao serviço central.
+   (Claude Sonnet 5) com duas famílias de ferramentas ao mesmo tempo:
+   nossas tools de SSH (`agent_tools/`) e o Zabbix MCP Server **daquele
+   cliente específico**, conectado via `mcp_servers` apontando pra URL
+   da VM dele. Única chave Claude, mora só aqui.
+4. O modelo decide sozinho a fonte: se a pergunta é "qual o sinal da
+   porta 3 do DTC-CARACOL" e o Zabbix desse host não tem esse dado (caso
+   real, visto nesta sessão), o modelo tenta o MCP primeiro, não acha, e
+   cai para a tool SSH `sinal_optico`. Nenhuma regra "tenta Zabbix, cai
+   pra SSH" hardcoded por nós — é o próprio comportamento de tool-calling
+   do modelo.
+5. Toda chamada de ferramenta (SSH ou MCP) volta pra
+   `https://vm-cliente.natverk.com.br/...`, autenticada com o **token
+   daquele cliente especificamente** — o serviço central só alcança a VM
+   de quem já tem token cadastrado, nunca outra.
 6. O serviço central formata a resposta em português e transmite de
    volta ao chat via streaming (Server-Sent Events).
 
-### Ordem de fontes por ferramenta
-
-Cada ferramenta primeiro tenta o Zabbix local do cliente (rápido, já
-coletado); só cai para SSH direto no equipamento quando o dado não existe
-ou está manifestamente obsoleto (mesma lógica de `lastclock == '0'` já
-usada no mapa para trapper items nunca coletados). Isso significa que a
-"VM do cliente" no diagrama acima, ao receber uma chamada de ferramenta,
-decide internamente Zabbix-ou-SSH — o serviço central não precisa saber
-qual fonte foi usada, só recebe o resultado.
-
 ## Catálogo de ferramentas (capacidades × fabricantes)
 
-Baseado nos exemplos concretos dados ao longo desta conversa:
+Só entram aqui capacidades que o **Zabbix MCP Server não cobre** — dado
+que não está coletado hoje (a lacuna real que motivou este projeto) ou
+que só existe consultando o equipamento ao vivo:
 
 | Capacidade | Huawei VRP | Mikrotik RouterOS |
 |---|---|---|
 | `sinal_optico(porta)` | `display interface {porta} optical-info` | `/interface ethernet monitor {porta} once` |
-| `status_interface(porta)` | `display interface {porta}` | `/interface print detail where name={porta}` |
-| `uptime_equipamento()` | `display device` | `/system resource print` |
-| `erros_interface(porta)` | `display interface {porta} \| include error` | `/interface print stats where name={porta}` |
 | `pppoe_online()` | `display access-user online-total-number` | `/ppp active print count-only` |
 | `prefixos_bgp(vizinho_ip)` | `display bgp routing-table peer {ip} advertised-routes` | `/routing bgp advertisements print peer={ip}` |
 | `ip_vlan(vlan_id)` | `display interface Vlanif{vlan_id}` | `/ip address print where interface=vlan{vlan_id}` |
 | `logs_equipamento(data)` | `display logbuffer` (filtrado por data) | `/log print where time>={data}` |
-| `ultimo_status_interface(porta)` | `display trap-buffer \| include {porta}` | `/log print where topics~"interface" and message~"{porta}"` |
-| `historico_trafego(porta, horas)` | reaproveita `GET /api/segments/<id>/history` já existente no mapa (Zabbix) | idem |
-| `grafico_trafego(porta, horas)` | reaproveita o sparkline SVG já construído no mapa, renderizado como PNG | idem |
 
 Cada linha desta tabela precisa ser validada manualmente contra um
 equipamento real antes de entrar em produção — os comandos acima são o
 ponto de partida, não comandos já testados.
 
-**Nota técnica em aberto:** `grafico_trafego` precisa converter o
-sparkline (hoje um `<svg>` gerado em JS, renderizado no navegador) em uma
-imagem PNG enviável dentro da conversa — isso roda no serviço central ou
-no lado do cliente, e a técnica exata (ex: renderizar o mesmo SVG
-server-side com uma lib Python, ou gerar o gráfico direto em Python sem
-reaproveitar o JS) fica para o plano de implementação decidir.
+**O que saiu da tabela e por quê:** `status_interface`, `uptime_equipamento`,
+`erros_interface`, `ultimo_status_interface`, `historico_trafego` e
+`grafico_trafego` normalmente já existem como item no Zabbix (ping,
+`sysUpTime`, contadores de erro, histórico de throughput — tudo que o
+mapa já usa hoje) — o Zabbix MCP Server responde essas consultas direto,
+sem precisar de tool SSH nossa. Se, na prática, algum host específico não
+tiver um desses itens coletado (mesmo caso dos switches DTC sem sinal
+óptico), o modelo tenta o MCP, não acha, e esse buraco vira candidato a
+entrar nesta tabela como tool SSH — a lista cresce sob demanda, guiada
+por lacuna real, não por adivinhação prévia.
 
 ## Modelo de segurança
 
-1. **Sem geração de comando pelo modelo** (já coberto acima).
-2. **Usuário SSH read-only dedicado**, separado do usuário administrativo
+1. **Sem geração de comando pelo modelo** (já coberto acima) — vale tanto
+   para nossas tools SSH quanto para o Zabbix MCP Server, que expõe
+   operações já definidas pelo protocolo, nunca comando livre.
+2. **Zabbix MCP Server configurado em modo read-only.** Ele nativamente
+   suporta operações de escrita (reconhecer alerta, criar janela de
+   manutenção, até importar/editar template) com um fluxo de aprovação
+   próprio (`action_prepare`/`action_confirm`) — no MVP, isso fica
+   **desligado** na configuração do servidor, não só "não usado" pelo
+   agente. Reavaliar junto com a decisão de permitir alterações via IA
+   (fora de escopo, ver seção seguinte).
+3. **Usuário SSH read-only dedicado**, separado do usuário administrativo
    já cadastrado, quando o equipamento suportar perfil de só-leitura.
-3. **Auditoria centralizada**: toda chamada de ferramenta grava, no
-   serviço central, quem perguntou (usuário + cliente), qual ferramenta,
-   host/porta, comando exato executado do lado do cliente, resposta
-   resumida, timestamp.
-4. **Timeout e rate limit por host**, evitando que uma conversa abra
+4. **Auditoria centralizada**: toda chamada de ferramenta (SSH ou MCP)
+   grava, no serviço central, quem perguntou (usuário + cliente), qual
+   ferramenta, host/porta, comando/consulta exata executada do lado do
+   cliente, resposta resumida, timestamp.
+5. **Timeout e rate limit por host**, evitando que uma conversa abra
    muitas conexões SSH simultâneas no mesmo equipamento.
-5. **Token por cliente** (`AGENT_TOKEN`, gerado pelo `install.sh` do
+6. **Token por cliente** (`AGENT_TOKEN`, gerado pelo `install.sh` do
    mesmo jeito que `WEBHOOK_TOKEN` já é hoje) — o serviço central mantém
    um cadastro simples de `cliente → (URL da VM, token)`; sem esse
    cadastro, nenhuma VM de cliente aceita chamada do serviço central.
-6. **Escopo por usuário (Fase 2)**: usuários do tipo `usuario_cliente` só
+7. **Escopo por usuário (Fase 2)**: usuários do tipo `usuario_cliente` só
    podem perguntar sobre hosts associados a eles (reaproveitando os
    `hostgroups` do Zabbix ou uma tabela de associação nova); usuários
-   `equipe_natverk` não têm essa restrição. Toda ferramenta recebe o
-   usuário autor da pergunta e valida escopo antes de rodar qualquer
-   coisa.
+   `equipe_natverk` não têm essa restrição. Toda ferramenta e toda
+   consulta MCP recebem o usuário autor da pergunta e validam escopo
+   antes de rodar qualquer coisa.
 
 ## Interface de chat
 
@@ -252,6 +268,13 @@ foi discutido:
 
 ## Dados/schema necessários
 
+Novo serviço, em **cada VM de cliente** (mais um container no
+`stack/docker-compose.yml`, ao lado do que já existe):
+
+- `zabbix-mcp-server`: servidor MCP pronto (open-source), configurado em
+  modo read-only, apontando pro Zabbix local daquele cliente. Não é
+  código nosso — só configuração e integração ao `install.sh`.
+
 Novas tabelas, no banco de **cada cliente** (mesmo Postgres do `map/`):
 
 - `agent_messages`: histórico de conversa (usuário, papel, texto,
@@ -260,8 +283,8 @@ Novas tabelas, no banco de **cada cliente** (mesmo Postgres do `map/`):
 Nova tabela, no banco do **serviço central**:
 
 - `agent_clients`: cadastro de clientes (nome, URL da VM, `AGENT_TOKEN`).
-- `agent_audit_log`: log agregado de todas as chamadas de ferramenta, de
-  todos os clientes.
+- `agent_audit_log`: log agregado de todas as chamadas de ferramenta (SSH
+  e MCP), de todos os clientes.
 
 Novo campo em `whatsapp/.env`-equivalente de cada cliente (ou
 `map/.env`): `AGENT_TOKEN`, gerado pelo `install.sh` do mesmo jeito que
