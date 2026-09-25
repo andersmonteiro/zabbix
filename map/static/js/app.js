@@ -22,20 +22,23 @@ const labelLayer = L.layerGroup();
 
 // Rótulo fixo com o nome do ponto (não é o tooltip de hover, que continua
 // existindo separado no marker) -- overlay opcional "Nomes dos locais".
-// Callout tipo "plaquinha": uma linha fina sai do ponto exato do host e
-// termina na caixa com o nome, deslocada na diagonal para não tampar o
-// próprio marcador. Um L.marker com divIcon (não L.tooltip) porque
-// precisamos desenhar essa linha nós mesmos dentro do ícone.
-const LABEL_DX = 20;
-const LABEL_DY = -13;
+// Callout tipo "plaquinha": uma linha reta e horizontal sai do ponto exato
+// do host e termina na caixa com o nome, alinhada na mesma altura -- não na
+// diagonal, pra ficar limpa em qualquer densidade de pontos. Um L.marker
+// com divIcon (não L.tooltip) porque precisamos desenhar essa linha nós
+// mesmos dentro do ícone.
+const LABEL_DX = 22;
+// Metade da altura aproximada do .map-label (fonte 10.5px + padding 2px +
+// borda 1px de cada lado) -- centraliza a caixa verticalmente na linha.
+const LABEL_BOX_HALF_HEIGHT = 11;
 
 function labelMarker(lat, lng, text) {
   const html =
-    `<svg width="160" height="46" viewBox="-4 -27 160 46" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none;">` +
-    `<line x1="0" y1="0" x2="${LABEL_DX}" y2="${LABEL_DY}" stroke="rgba(255,255,255,0.55)" stroke-width="1.2"/>` +
+    `<svg width="160" height="40" viewBox="-4 -20 160 40" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none;">` +
+    `<line x1="0" y1="0" x2="${LABEL_DX}" y2="0" stroke="rgba(255,255,255,0.55)" stroke-width="1.2"/>` +
     `<circle cx="0" cy="0" r="2" fill="rgba(255,255,255,0.85)"/>` +
     `</svg>` +
-    `<div class="map-label" style="position:absolute;left:${LABEL_DX + 5}px;top:${LABEL_DY - 9}px;">${esc(text)}</div>`;
+    `<div class="map-label" style="position:absolute;left:${LABEL_DX + 5}px;top:${-LABEL_BOX_HALF_HEIGHT}px;">${esc(text)}</div>`;
   return L.marker([lat, lng], {
     icon: L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] }),
     interactive: false, keyboard: false,
@@ -62,8 +65,15 @@ function initTileLayers(cfg) {
     'Escuro': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors', maxZoom: 19, subdomains: 'abc', className: 'tiles-dark',
     }),
+    // maxNativeZoom limitado: a imagem de satélite da Esri não tem cobertura
+    // detalhada pra área rural do corredor BR-163 além desse nível -- sem
+    // isso, o Leaflet pede tiles de zoom que não existem aí e a Esri devolve
+    // um tile de erro ("Map data not yet available"). Com maxNativeZoom, o
+    // Leaflet simplesmente amplia o último tile real em vez de pedir um que
+    // não existe -- o usuário ainda pode dar zoom (imagem mais pixelada),
+    // só não vê mais o erro.
     'Satélite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics', maxZoom: 19,
+      attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics', maxZoom: 19, maxNativeZoom: 16,
     }),
   };
 
