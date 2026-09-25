@@ -2,26 +2,49 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Natverk NOC — Adicionar hosts</title>
+  <title>Natverk NOC — Agente</title>
   <link rel="stylesheet" href="css/app.css" />
   <style>
-    .hosts-toolbar { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--border); }
-    .hosts-toolbar input {
-      flex: 1; background: var(--bg-canvas); border: 1px solid var(--border-2); color: var(--text-primary);
-      padding: 8px 10px; font-size: 12.5px; font-family: var(--mono); outline: none;
+    .agente-shell { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-canvas); }
+    .agente-messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+    .agente-welcome { margin: auto; text-align: center; max-width: 520px; }
+    .agente-welcome-icon {
+      width: 56px; height: 56px; margin: 0 auto 18px; display: flex; align-items: center; justify-content: center;
+      background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent);
     }
-    .hosts-toolbar input:focus { border-color: var(--accent); }
-    .hosts-table-wrap { max-height: calc(100vh - 220px); overflow: auto; }
+    .agente-welcome h2 {
+      font-family: var(--mono); font-size: 18px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.02em; color: var(--text-primary); margin: 0 0 8px;
+    }
+    .agente-welcome p {
+      font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.01em;
+      color: var(--text-muted); margin: 0 0 22px; line-height: 1.6;
+    }
+    .agente-suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .agente-suggestion-chip {
+      background: var(--bg-panel); border: 1px solid var(--border-2); color: var(--text-secondary);
+      font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.02em;
+      padding: 8px 14px; cursor: pointer; transition: border-color .12s, color .12s;
+    }
+    .agente-suggestion-chip:hover { border-color: var(--accent); color: var(--accent); }
 
-    .modal-form { width: 440px; max-height: 84vh; overflow-y: auto; }
-    .modal-form-body { padding: 14px 20px 20px; display: flex; flex-direction: column; gap: 10px; }
-    .modal-form-body .row2 { display: flex; gap: 8px; }
-    .modal-form-body .row2 > * { flex: 1; }
-    .modal-form-body summary {
-      cursor: pointer; color: var(--text-muted); font-size: 11.5px; font-family: var(--mono);
-      text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px;
+    .agente-msg {
+      max-width: 68%; padding: 10px 14px; font-family: var(--mono); font-size: 12.5px;
+      letter-spacing: 0.01em; line-height: 1.5; white-space: pre-wrap;
     }
-    .modal-form-body summary:hover { color: var(--accent); }
+    .agente-msg.user {
+      align-self: flex-end; background: var(--accent-dim); border: 1px solid var(--accent); color: var(--text-primary);
+      text-transform: uppercase;
+    }
+    .agente-msg.assistant { align-self: flex-start; background: var(--bg-panel); border: 1px solid var(--border-2); color: var(--text-secondary); }
+    .agente-msg.assistant.notice { color: var(--text-muted); font-style: normal; }
+
+    .agente-input-row { display: flex; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--border); background: var(--bg-panel); flex-shrink: 0; }
+    .agente-input-row input {
+      flex: 1; background: var(--bg-canvas); border: 1px solid var(--border-2); color: var(--text-primary);
+      padding: 10px 12px; font-size: 12.5px; font-family: var(--mono); outline: none;
+    }
+    .agente-input-row input:focus { border-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -38,11 +61,11 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             Início
           </a>
-          <a href="/agente.html" class="nav-item">
+          <a href="/agente.html" class="nav-item active">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
             Agente
           </a>
-          <a href="/hosts.html" class="nav-item active">
+          <a href="/hosts.html" class="nav-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>
             Adicionar hosts
           </a>
@@ -74,7 +97,7 @@
         <header class="topbar notch">
           <div class="topbar-title-row">
             <span class="topbar-slash">//</span>
-            <h1>Adicionar hosts</h1>
+            <h1>Agente</h1>
             <div class="topbar-rule"></div>
           </div>
           <div class="topbar-actions">
@@ -83,26 +106,27 @@
               <span class="alerts-badge" id="alerts-badge" hidden>0</span>
             </button>
           </div>
-          <button class="btn-primary" id="new-host-btn" type="button">+ Novo host</button>
         </header>
       </div>
-      <main class="content-area">
-        <div class="panel">
-          <div class="hosts-toolbar">
-            <input id="host-search" placeholder="Buscar por nome, IP ou grupo..." />
-          </div>
-          <div class="hosts-table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Host</th><th>IP</th><th>Porta</th>
-                  <th>Fabricante</th><th>Modelo</th><th>Grupo</th><th>User SSH</th><th></th>
-                </tr>
-              </thead>
-              <tbody id="hosts-tbody"></tbody>
-            </table>
+      <main class="agente-shell">
+        <div class="agente-messages" id="agente-messages">
+          <div class="agente-welcome">
+            <div class="agente-welcome-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            </div>
+            <h2>Como posso ajudar hoje?</h2>
+            <p>Em breve, consulta direta aos equipamentos: sinal óptico, PPPoE conectados,<br />prefixos BGP e mais — sem depender só do que o Zabbix já coletou.</p>
+            <div class="agente-suggestions">
+              <button type="button" class="agente-suggestion-chip">Qual o sinal óptico da porta 3?</button>
+              <button type="button" class="agente-suggestion-chip">Quantos PPPoE estão online?</button>
+              <button type="button" class="agente-suggestion-chip">Essa interface caiu quando?</button>
+            </div>
           </div>
         </div>
+        <form class="agente-input-row" id="agente-form">
+          <input id="agente-input" placeholder="Pergunte algo sobre a rede..." autocomplete="off" />
+          <button class="btn-primary" type="submit">Enviar →</button>
+        </form>
       </main>
     </div>
   </div>
@@ -115,45 +139,8 @@
     <div id="alerts-list"></div>
   </div>
 
-  <div class="backdrop" id="backdrop"></div>
-  <div class="detail-modal modal-form" id="host-modal">
-    <h4>Novo host</h4>
-    <form class="modal-form-body" id="host-form">
-      <input name="name" placeholder="Nome do host" required />
-      <input name="ip" placeholder="IP" required />
-      <select name="group_id" id="group-select" required>
-        <option value="">Selecione o grupo...</option>
-      </select>
-      <div class="row2">
-        <select name="vendor">
-          <option value="">Fabricante...</option>
-          <option value="huawei">Huawei</option>
-          <option value="mikrotik">Mikrotik</option>
-          <option value="datacom">Datacom</option>
-          <option value="a10">A10</option>
-          <option value="outro">Outro</option>
-        </select>
-        <input name="model" placeholder="Modelo" />
-      </div>
-      <div class="row2">
-        <input name="community" placeholder="Comunidade SNMP" value="public" />
-        <input name="port" placeholder="Porta SNMP" value="161" />
-      </div>
-      <details>
-        <summary>Credenciais SSH (opcional)</summary>
-        <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
-          <input name="ssh_user" placeholder="Usuário SSH" />
-          <input name="ssh_pass" placeholder="Senha SSH" type="password" />
-          <input name="ssh_port" placeholder="Porta SSH (ex: 22)" />
-        </div>
-      </details>
-      <button class="btn-primary" type="submit">Criar host</button>
-      <p id="host-form-status" class="form-status"></p>
-    </form>
-  </div>
-
   <script src="js/nav.js"></script>
   <script src="js/alerts.js"></script>
-  <script src="js/hosts.js"></script>
+  <script src="js/agente.js"></script>
 </body>
 </html>
