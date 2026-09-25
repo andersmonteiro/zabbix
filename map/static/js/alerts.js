@@ -19,6 +19,14 @@ function alertsFormatAge(seconds) {
   return `${Math.floor(seconds / 86400)} d atrás`;
 }
 
+// Horário real de início do problema (data + hora) -- a idade relativa
+// sozinha ("2 h atrás") não dizia quando o evento realmente começou.
+function alertsFormatClock(epochSeconds) {
+  return new Date(epochSeconds * 1000).toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 function alertsSeverityClass(severity) {
   if (severity >= 4) return 'sev-crit';
   if (severity >= 2) return 'sev-warn';
@@ -82,7 +90,8 @@ async function refreshAlerts() {
         <div class="alert-dot ${alertsSeverityClass(p.severity)}"></div>
         <div class="alert-body">
           <div class="alert-name">${alertsEsc(p.name)}</div>
-          <div class="alert-meta">${alertsEsc(p.host)} · ${alertsEsc(p.severity_label)} · ${alertsFormatAge(now - p.clock)}${p.acknowledged ? ' · reconhecido' : ''}</div>
+          <div class="alert-meta">${alertsEsc(p.host)} · ${alertsEsc(p.severity_label)}${p.acknowledged ? ' · <span class="alert-ack">reconhecido</span>' : ''}</div>
+          <div class="alert-time">Início <b>${alertsEsc(alertsFormatClock(p.clock))}</b> · ${alertsEsc(alertsFormatAge(now - p.clock))}</div>
         </div>
       </div>
     `).join('');

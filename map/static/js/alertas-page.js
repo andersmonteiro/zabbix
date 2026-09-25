@@ -53,7 +53,8 @@ async function refreshAlertasPage() {
       <div class="alert-dot ${alertsSeverityClass(p.severity)}"></div>
       <div class="alert-body">
         <div class="alert-name">${alertsEsc(p.name)}</div>
-        <div class="alert-meta">${alertsEsc(p.host)} · ${alertsEsc(p.severity_label)} · ${alertsFormatAge(now - p.clock)}${p.acknowledged ? ' · reconhecido' : ''}</div>
+        <div class="alert-meta">${alertsEsc(p.host)} · ${alertsEsc(p.severity_label)}${p.acknowledged ? ' · <span class="alert-ack">reconhecido</span>' : ''}</div>
+        <div class="alert-time">Início <b>${alertsEsc(alertsFormatClock(p.clock))}</b> · ${alertsEsc(alertsFormatAge(now - p.clock))}</div>
       </div>
     </div>
   `).join('');
