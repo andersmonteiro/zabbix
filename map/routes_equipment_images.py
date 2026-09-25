@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 
 from flask import Blueprint, request, send_file, Response
 
@@ -7,6 +8,13 @@ equipment_images_bp = Blueprint('equipment_images', __name__, url_prefix='/api/e
 
 _upload_dir = None
 ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.svg', '.webp'}
+
+# Fica no repo (map/default_brand_images/), não no volume persistente de
+# upload -- copiado pro volume uma vez no boot (_seed_default_brand_images)
+# igual ao usuário admin padrão em app.py. equipment_model hoje só guarda o
+# fabricante ("huawei"/"datacom"), então o mesmo lookup por nome exato de
+# _find_existing_image já serve de logo de marca sem nenhuma lógica nova.
+DEFAULT_BRAND_IMAGES_DIR = os.path.join(os.path.dirname(__file__), 'default_brand_images')
 
 GENERIC_FALLBACK_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" '
@@ -21,6 +29,23 @@ def init_equipment_images_routes(upload_dir):
     global _upload_dir
     _upload_dir = upload_dir
     os.makedirs(_upload_dir, exist_ok=True)
+    _seed_default_brand_images()
+
+
+def _seed_default_brand_images():
+    """Copies the bundled manufacturer logos into the upload volume, but only
+    the first time -- never overwrites a file already there, so an admin who
+    uploads their own image for "huawei"/"datacom" (Configurações) keeps it
+    across restarts instead of it being silently replaced on every boot."""
+    if not os.path.isdir(DEFAULT_BRAND_IMAGES_DIR):
+        return
+    for filename in os.listdir(DEFAULT_BRAND_IMAGES_DIR):
+        stem, ext = os.path.splitext(filename)
+        if ext.lower() not in ALLOWED_EXTENSIONS:
+            continue
+        if _find_existing_image(stem) is not None:
+            continue
+        shutil.copy(os.path.join(DEFAULT_BRAND_IMAGES_DIR, filename), os.path.join(_upload_dir, filename))
 
 
 def _sanitize_model_name(model):

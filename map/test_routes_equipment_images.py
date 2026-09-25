@@ -120,3 +120,32 @@ def test_sanitized_name_cannot_escape_the_upload_dir(tmp_path, hostile):
 def test_sanitize_model_name_preserves_ordinary_model_names():
     assert _sanitize_model_name('Huawei MA5800-X2') == 'Huawei MA5800-X2'
     assert _sanitize_model_name('Mikrotik_CCR2004') == 'Mikrotik_CCR2004'
+
+
+def test_default_brand_logos_are_seeded_on_init(client):
+    # equipment_model on real hosts today is just the manufacturer name
+    # ("huawei"/"datacom") -- the bundled logos are seeded under those exact
+    # stems, so the plain per-model lookup finds them with no extra code.
+    resp = client.get('/api/equipment-images/huawei')
+    assert resp.status_code == 200
+    assert resp.content_type.startswith('image/svg')
+
+    resp = client.get('/api/equipment-images/datacom')
+    assert resp.status_code == 200
+    assert resp.content_type == 'image/png'
+
+
+def test_seeding_never_overwrites_an_existing_upload(tmp_path):
+    # A file already sitting in the upload dir before init runs (e.g. an
+    # admin's own upload from a previous boot) must survive re-seeding.
+    (tmp_path / 'huawei.png').write_bytes(b'\x89PNG\r\n\x1a\ncustom-admin-upload')
+    app = Flask(__name__)
+    init_equipment_images_routes(str(tmp_path))
+    app.register_blueprint(equipment_images_bp)
+    app.config['TESTING'] = True
+    with app.test_client() as c:
+        resp = c.get('/api/equipment-images/huawei')
+    assert resp.data == b'\x89PNG\r\n\x1a\ncustom-admin-upload'
+    # The bundled .svg must not have been added alongside the custom .png --
+    # _find_existing_image would then pick whichever extension comes first.
+    assert not (tmp_path / 'huawei.svg').exists()
