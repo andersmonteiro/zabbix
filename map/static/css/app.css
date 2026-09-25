@@ -137,7 +137,8 @@ body {
 .topbar-rule { flex: 1; height: 1px; background: var(--border-2); margin-left: 4px; }
 
 /* ── Notification bell ────────────────────────────────────────────── */
-.topbar-actions { position: relative; display: flex; align-items: center; flex-shrink: 0; }
+.topbar-actions { position: relative; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+#edit-mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
 .alerts-bell {
   position: relative; background: none; border: none; color: var(--text-secondary);
   opacity: 0.85; cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center;

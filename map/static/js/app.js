@@ -119,6 +119,14 @@ addTileLayer();
 let markerLayer = L.layerGroup().addTo(map);
 let lineLayer = L.layerGroup().addTo(map);
 
+// Modo edição: arrastar hosts e ajustar o traçado das linhas direto no
+// mapa principal, sem passar por Circuitos. markersByPointId/
+// lineLayersBySegmentId são repovoados a cada refresh() pra sempre apontar
+// pras camadas atuais (elas são recriadas do zero a cada ciclo).
+let editMode = false;
+let markersByPointId = {};
+let lineLayersBySegmentId = {};
+
 // alert_severity vem de problemas REAIS abertos no Zabbix para aquele host
 // (não do item de ping/SNMP) -- 4-5 = vermelho, 2-3 = amarelo, sobrepõe a
 // cor normal de status quando presente. pulseClass ativa a animação CSS
@@ -174,6 +182,64 @@ function drawGlowLine(latlngs, color, status) {
     }).addTo(lineLayer);
   }
   return line;
+}
+
+// Liga/desliga a possibilidade de arrastar hosts e editar o traçado das
+// linhas -- chamado sempre no fim de refresh() (as camadas são recriadas do
+// zero a cada ciclo, então o estado de "arrastável" precisa ser reaplicado
+// toda vez, não só quando o botão Editar é clicado).
+function applyEditMode() {
+  Object.values(markersByPointId).forEach((marker) => {
+    if (editMode) marker.dragging.enable();
+    else marker.dragging.disable();
+  });
+  Object.values(lineLayersBySegmentId).forEach((line) => {
+    if (!line.pm) return;
+    if (editMode) {
+      if (!line.pm.enabled()) line.pm.enable({ allowSelfIntersection: true, draggable: true });
+    } else if (line.pm.enabled()) {
+      line.pm.disable();
+    }
+  });
+}
+
+// Salva o traçado ajustado de um segmento. Os vértices do meio (sem contar
+// origem/destino, que são os próprios hosts) viram pontos novos do tipo
+// route_point -- geometria pura da linha, igual ao que o roteamento OSRM já
+// gera, NUNCA 'waypoint' (isso criaria marcadores fantasma de poste/caixa,
+// o mesmo bug de "postes aparecendo em todo lugar" já corrigido antes nesta
+// sessão). Os pontos antigos que saíram do traçado são removidos depois,
+// nunca antes -- uma falha aqui (ex: ponto ainda usado por outro segmento)
+// não pode derrubar o traçado que acabou de ser salvo.
+async function saveSegmentPath(segment, latlngs) {
+  const middleLatLngs = latlngs.slice(1, -1);
+  const previousWaypointIds = (segment.waypoint_ids || []).slice();
+
+  const newWaypointIds = [];
+  for (const ll of middleLatLngs) {
+    const resp = await fetch('/api/points', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Trajeto', lat: ll.lat, lng: ll.lng, point_type: 'route_point' }),
+    });
+    const point = await resp.json();
+    newWaypointIds.push(point.id);
+  }
+
+  await fetch(`/api/segments/${segment.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ waypoint_ids: newWaypointIds }),
+  });
+
+  for (const oldId of previousWaypointIds) {
+    if (newWaypointIds.includes(oldId)) continue;
+    try {
+      await fetch(`/api/points/${oldId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn(`Não foi possível remover o ponto de trajeto ${oldId} substituído`, err);
+    }
+  }
 }
 
 // Small triangular warning badge dropped at a segment's midpoint when SNMP
@@ -603,6 +669,8 @@ async function refresh() {
 
   markerLayer.clearLayers();
   lineLayer.clearLayers();
+  markersByPointId = {};
+  lineLayersBySegmentId = {};
 
   const pointsById = Object.fromEntries(state.points.map((p) => [p.id, p]));
 
@@ -615,6 +683,14 @@ async function refresh() {
       const latlngs = [origin, ...waypoints, dest].map((p) => [p.lat, p.lng]);
       const color = STATUS_COLOR[segment.status] || STATUS_COLOR.unknown;
       const line = drawGlowLine(latlngs, color, segment.status);
+      lineLayersBySegmentId[segment.id] = line;
+      // pm:edit dispara ao terminar qualquer edição (arrastar vértice,
+      // adicionar via ponto médio, remover) -- salva sozinho, sem precisar
+      // de um botão "Salvar" separado por linha.
+      line.on('pm:edit', async (e) => {
+        await saveSegmentPath(segment, e.layer.getLatLngs());
+        await refresh();
+      });
 
       const statusCls = segment.status === 'down' ? 'crit' : segment.status === 'warn' ? 'warn' : 'ok';
       const utilPct = segment.utilization_pct;
@@ -677,6 +753,22 @@ async function refresh() {
     }
     const { color, pulseClass } = alertVisual(point.status, point.alert_severity);
     const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color, pulseClass) }).addTo(markerLayer);
+    markersByPointId[point.id] = marker;
+    // Some pra fetch, não pro clique de abrir o popup -- Leaflet já suprime
+    // o evento click de um marker quando o gesto foi de fato um arrasto.
+    marker.on('dragend', async () => {
+      const { lat, lng } = marker.getLatLng();
+      try {
+        await fetch(`/api/points/${point.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat, lng }),
+        });
+      } catch (err) {
+        console.error('Falha ao salvar nova posição do host', err);
+      }
+      await refresh();
+    });
     const pingUp = point.status === 'unknown' ? null : point.status !== 'down';
     marker.bindTooltip(
       tipTable(point.name, [
@@ -713,7 +805,25 @@ async function refresh() {
       ],
     }));
   });
+
+  applyEditMode();
+}
+
+const editModeBtn = document.getElementById('edit-mode-btn');
+if (editModeBtn) {
+  editModeBtn.addEventListener('click', () => {
+    editMode = !editMode;
+    editModeBtn.classList.toggle('active', editMode);
+    editModeBtn.textContent = editMode ? 'Editando…' : 'Editar';
+    applyEditMode();
+  });
 }
 
 refresh();
-setInterval(refresh, REFRESH_INTERVAL_MS);
+// Enquanto editMode está ligado, o ciclo automático de 30s fica pausado --
+// senão um refresh no meio de um arrasto troca o marker debaixo do cursor.
+// Os próprios handlers de salvar (dragend do host, pm:edit da linha) chamam
+// refresh() manualmente depois de persistir, então nada fica desatualizado.
+setInterval(() => {
+  if (!editMode) refresh();
+}, REFRESH_INTERVAL_MS);
