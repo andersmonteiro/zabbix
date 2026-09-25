@@ -290,16 +290,37 @@ function openModal({ photoUrl, title, statusClass, kicker, rows, utilizationPct 
   const chartWrap = document.getElementById('modal-chart');
   chartWrap.hidden = true;
   chartWrap.innerHTML = '';
+  modal.classList.remove('has-chart');
 
   document.getElementById('backdrop').classList.add('open');
   document.getElementById('detail-modal').classList.add('open');
+}
+
+function fmtTime(epochSeconds) {
+  return new Date(epochSeconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Índice do ponto de `series` (ordenado por tempo) mais próximo de `t`,
+// via busca binária -- usado pelo hover pra achar o valor sob o cursor
+// sem varrer a série inteira a cada movimento do mouse.
+function nearestSeriesIndex(series, t) {
+  if (!series.length) return -1;
+  let lo = 0, hi = series.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (series[mid][0] < t) lo = mid + 1; else hi = mid;
+  }
+  if (lo > 0 && Math.abs(series[lo - 1][0] - t) < Math.abs(series[lo][0] - t)) return lo - 1;
+  return lo;
 }
 
 // Gráfico de histórico de tráfego (SVG desenhado à mão, sem lib de chart)
 // -- estilo inspirado no motion.dev: fundo escuro, grid sutil, linha fina
 // com um ponto de destaque na ponta mais recente. Todos os valores vêm
 // computados do backend (timestamps/Mbps numéricos), nunca texto livre de
-// usuário, então entram direto no SVG sem passar por esc().
+// usuário, então entram direto no SVG sem passar por esc(). Retorna também
+// `meta`, com as coordenadas de projeção que o hover reusa pra não duplicar
+// a lógica de escala tempo/valor -> pixel.
 function buildSparkline(seriesIn, seriesOut) {
   const width = 292, height = 118;
   const pad = { top: 10, right: 8, bottom: 8, left: 8 };
@@ -308,7 +329,7 @@ function buildSparkline(seriesIn, seriesOut) {
 
   const allPoints = [...seriesIn, ...seriesOut];
   if (allPoints.length < 2) {
-    return '<div class="chart-empty">Sem histórico suficiente para este período.</div>';
+    return { html: '<div class="chart-empty">Sem histórico suficiente para este período.</div>', meta: null };
   }
 
   const maxV = Math.max(...allPoints.map((p) => p[1]), 0.01);
@@ -335,25 +356,109 @@ function buildSparkline(seriesIn, seriesOut) {
     ? `<circle cx="${pts[pts.length - 1][0].toFixed(1)}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="2.6" class="chart-dot ${cls}"/>`
     : '';
 
-  return `
+  const html = `
     <svg viewBox="0 0 ${width} ${height}" class="chart-svg" preserveAspectRatio="none">
       ${gridY.map((y) => `<line x1="${pad.left}" y1="${y.toFixed(1)}" x2="${width - pad.right}" y2="${y.toFixed(1)}" class="chart-grid"/>`).join('')}
       ${inPts.length ? `<path d="${pathFor(inPts)}" class="chart-line chart-line-in" fill="none"/>` : ''}
       ${outPts.length ? `<path d="${pathFor(outPts)}" class="chart-line chart-line-out" fill="none"/>` : ''}
       ${lastDot(inPts, 'chart-dot-in')}
       ${lastDot(outPts, 'chart-dot-out')}
+      <line class="chart-hover-line" x1="0" y1="${pad.top}" x2="0" y2="${height - pad.bottom}"/>
+      <circle class="chart-hover-dot chart-dot-in"/>
+      <circle class="chart-hover-dot chart-dot-out"/>
     </svg>
+    <div class="chart-tooltip"></div>
     <div class="chart-footer">
       <span class="chart-legend-item"><span class="chart-swatch chart-swatch-in"></span>Entrada</span>
       <span class="chart-legend-item"><span class="chart-swatch chart-swatch-out"></span>Saída</span>
       <span class="chart-max">pico ${esc(fmtThroughput(maxV))}</span>
     </div>
   `;
+
+  return { html, meta: { pad, plotW, plotH, minT, spanT, maxV, width, height, seriesIn, seriesOut } };
+}
+
+// Liga o mouseover do SVG a uma linha-guia + tooltip com os valores exatos
+// sob o cursor. `meta` vem de buildSparkline -- null quando não há série
+// suficiente pra desenhar (nesse caso não tem o que ligar).
+function setupChartHover(container, meta) {
+  if (!meta) return;
+  const svg = container.querySelector('.chart-svg');
+  const hoverLine = container.querySelector('.chart-hover-line');
+  const hoverDotIn = container.querySelector('.chart-hover-dot.chart-dot-in');
+  const hoverDotOut = container.querySelector('.chart-hover-dot.chart-dot-out');
+  const tooltip = container.querySelector('.chart-tooltip');
+  if (!svg || !hoverLine || !tooltip) return;
+
+  function valueY(v) {
+    return meta.pad.top + (1 - v / meta.maxV) * meta.plotH;
+  }
+
+  function onMove(evt) {
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    const xFrac = Math.max(0, Math.min(1, (evt.clientX - rect.left) / rect.width));
+    const svgX = meta.pad.left + xFrac * meta.plotW;
+    const t = meta.minT + ((svgX - meta.pad.left) / meta.plotW) * meta.spanT;
+
+    const idxIn = nearestSeriesIndex(meta.seriesIn, t);
+    const idxOut = nearestSeriesIndex(meta.seriesOut, t);
+    if (idxIn < 0 && idxOut < 0) return;
+
+    const refPoint = idxIn >= 0 ? meta.seriesIn[idxIn] : meta.seriesOut[idxOut];
+    const px = meta.pad.left + ((refPoint[0] - meta.minT) / meta.spanT) * meta.plotW;
+
+    hoverLine.setAttribute('x1', px.toFixed(1));
+    hoverLine.setAttribute('x2', px.toFixed(1));
+    hoverLine.style.display = '';
+
+    let rows = '';
+    if (idxIn >= 0) {
+      const v = meta.seriesIn[idxIn];
+      hoverDotIn.setAttribute('cx', px.toFixed(1));
+      hoverDotIn.setAttribute('cy', valueY(v[1]).toFixed(1));
+      hoverDotIn.style.display = '';
+      rows += `<div class="chart-tooltip-row in">Entrada <b>${esc(fmtThroughput(v[1]))}</b></div>`;
+    } else {
+      hoverDotIn.style.display = 'none';
+    }
+    if (idxOut >= 0) {
+      const v = meta.seriesOut[idxOut];
+      hoverDotOut.setAttribute('cx', px.toFixed(1));
+      hoverDotOut.setAttribute('cy', valueY(v[1]).toFixed(1));
+      hoverDotOut.style.display = '';
+      rows += `<div class="chart-tooltip-row out">Saída <b>${esc(fmtThroughput(v[1]))}</b></div>`;
+    } else {
+      hoverDotOut.style.display = 'none';
+    }
+
+    tooltip.innerHTML = `<div class="chart-tooltip-time">${esc(fmtTime(refPoint[0]))}</div>${rows}`;
+    tooltip.style.display = 'block';
+
+    // Mantém a tooltip perto do cursor sem vazar pra fora do container.
+    const wrapRect = container.getBoundingClientRect();
+    let left = evt.clientX - wrapRect.left + 14;
+    const maxLeft = wrapRect.width - tooltip.offsetWidth - 6;
+    if (left > maxLeft) left = evt.clientX - wrapRect.left - tooltip.offsetWidth - 14;
+    tooltip.style.left = `${Math.max(6, left)}px`;
+  }
+
+  function onLeave() {
+    hoverLine.style.display = 'none';
+    hoverDotIn.style.display = 'none';
+    hoverDotOut.style.display = 'none';
+    tooltip.style.display = 'none';
+  }
+
+  svg.addEventListener('mousemove', onMove);
+  svg.addEventListener('mouseleave', onLeave);
 }
 
 async function renderSegmentChart(segmentId) {
   const container = document.getElementById('modal-chart');
+  const modal = document.getElementById('detail-modal');
   container.hidden = false;
+  modal.classList.add('has-chart');
   container.innerHTML = '<div class="chart-title">Tráfego</div><div class="chart-loading">Carregando histórico…</div>';
   try {
     const resp = await fetch(`/api/segments/${segmentId}/history?hours=6`);
@@ -361,9 +466,9 @@ async function renderSegmentChart(segmentId) {
     const data = await resp.json();
     // O modal pode ter sido fechado/trocado enquanto o fetch corria.
     if (container.hidden) return;
-    container.innerHTML =
-      `<div class="chart-title">Tráfego — últimas ${esc(data.hours)}h</div>` +
-      buildSparkline(data.throughput_in_mbps || [], data.throughput_out_mbps || []);
+    const { html, meta } = buildSparkline(data.throughput_in_mbps || [], data.throughput_out_mbps || []);
+    container.innerHTML = `<div class="chart-title">Tráfego — últimas ${esc(data.hours)}h</div>` + html;
+    setupChartHover(container, meta);
   } catch (err) {
     console.error('Falha ao carregar histórico do segmento', err);
     if (container.hidden) return;

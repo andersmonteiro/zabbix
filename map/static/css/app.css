@@ -392,7 +392,11 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
   width: 340px; font-size: 13px; z-index: 1000;
   display: none; overflow: hidden; opacity: 0;
   box-shadow: var(--shadow-card), 0 0 50px -18px var(--status-color, var(--accent));
+  transition: width .18s ease;
 }
+/* Segmentos de circuito têm gráfico -- abre mais na horizontal pra dar
+   espaço real ao SVG, em vez do modal estreito usado pros pontos. */
+.detail-modal.has-chart { width: min(640px, calc(100vw - 32px)); }
 .detail-modal.open { display: block; animation: modal-in .22s cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
 @keyframes modal-in {
   from { opacity: 0; transform: translate(-50%, -50%) scale(0.94); }
@@ -445,12 +449,13 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
    SVG desenhado à mão (sem lib de chart), estilo motion.dev: fundo
    escuro, grid horizontal fino, linha com leve glow e um ponto de
    destaque no valor mais recente de cada série. */
-.chart-wrap { margin: 0 16px 12px; background: var(--bg-canvas); border: 1px solid var(--border-2); padding: 10px 10px 8px; }
+.chart-wrap { margin: 0 16px 12px; background: var(--bg-canvas); border: 1px solid var(--border-2); padding: 10px 10px 8px; position: relative; }
 .chart-title {
   font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
 }
-.chart-svg { width: 100%; height: 118px; display: block; }
+.chart-svg { width: 100%; height: 118px; display: block; cursor: crosshair; }
+.detail-modal.has-chart .chart-svg { height: 220px; }
 .chart-grid { stroke: var(--border); stroke-width: 1; }
 .chart-line { stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
 .chart-line-in { stroke: var(--accent); filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 55%, transparent)); }
@@ -458,6 +463,8 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .chart-dot { stroke: rgba(255,255,255,0.9); stroke-width: 1; }
 .chart-dot-in { fill: var(--accent); }
 .chart-dot-out { fill: var(--blue); }
+.chart-hover-line { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 2; display: none; pointer-events: none; }
+.chart-hover-dot { r: 3.2; stroke: rgba(255,255,255,0.9); stroke-width: 1; display: none; pointer-events: none; }
 .chart-footer { display: flex; align-items: center; gap: 12px; margin-top: 4px; font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
 .chart-legend-item { display: flex; align-items: center; gap: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
 .chart-swatch { width: 8px; height: 8px; flex-shrink: 0; }
@@ -465,6 +472,20 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .chart-swatch-out { background: var(--blue); }
 .chart-max { margin-left: auto; text-transform: uppercase; letter-spacing: 0.04em; }
 .chart-loading, .chart-empty { padding: 30px 0; text-align: center; color: var(--text-muted); font-family: var(--mono); font-size: 11px; }
+
+.chart-tooltip {
+  position: absolute; top: 10px; left: 10px; z-index: 5; pointer-events: none;
+  background: var(--bg-panel); border: 1px solid var(--border-2); box-shadow: var(--shadow-card);
+  padding: 6px 9px; font-family: var(--mono); font-size: 10.5px; white-space: nowrap; display: none;
+}
+.chart-tooltip-time {
+  color: var(--text-muted); font-size: 9.5px; text-transform: uppercase;
+  letter-spacing: 0.05em; margin-bottom: 4px;
+}
+.chart-tooltip-row { display: flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
+.chart-tooltip-row.in { color: var(--accent); }
+.chart-tooltip-row.out { color: var(--blue); }
+.chart-tooltip-row + .chart-tooltip-row { margin-top: 2px; }
 
 .detail-table { width: 100%; border-collapse: collapse; }
 .detail-table tr { border-top: 1px solid var(--border); }
