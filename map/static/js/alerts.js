@@ -97,6 +97,8 @@ async function refreshAlerts() {
   }
 }
 
+const ALERTS_PANEL_WIDTH = 360; // precisa bater com .alerts-panel no CSS
+
 // Abre o painel do sino ancorado em `anchorEl` (bell, badge de host, ou o
 // botão do popup do mapa) -- é como app.js mostra alertas sem sair da
 // página. `hostFilter` é `{ hostid, hostName }` ou null pra ver todos.
@@ -105,9 +107,28 @@ function showAlertsPanel(anchorEl, hostFilter) {
   if (!panel || !anchorEl) return;
   alertsHostFilter = hostFilter || null;
   panel.hidden = false;
-  const rect = anchorEl.getBoundingClientRect();
-  panel.style.top = `${rect.bottom + 8}px`;
-  panel.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
+
+  // Vindo do popup do mapa, o painel abre do LADO do popup inteiro (não
+  // embaixo do botão) -- embaixo empurrava o painel pra fora da tela quando
+  // o popup já estava perto do rodapé, e ficava confuso sobreposto ao resto
+  // do popup.
+  const modal = document.getElementById('detail-modal');
+  const dockToModal = modal && modal.contains(anchorEl);
+  const rect = (dockToModal ? modal : anchorEl).getBoundingClientRect();
+  const gap = 12;
+
+  panel.style.top = `${dockToModal ? Math.max(8, rect.top) : rect.bottom + 8}px`;
+  if (!dockToModal) {
+    panel.style.left = 'auto';
+    panel.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
+  } else if (window.innerWidth - rect.right >= ALERTS_PANEL_WIDTH + gap) {
+    panel.style.right = 'auto';
+    panel.style.left = `${rect.right + gap}px`;
+  } else {
+    panel.style.left = 'auto';
+    panel.style.right = `${Math.max(8, window.innerWidth - rect.left + gap)}px`;
+  }
+
   refreshAlerts();
 }
 
