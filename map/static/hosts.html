@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Natverk NOC — Adicionar hosts</title>
+  <title>Natverk NOC — Hosts</title>
   <link rel="stylesheet" href="css/app.css" />
   <style>
     .hosts-toolbar { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--border); }
@@ -44,7 +44,7 @@
           </a>
           <a href="/hosts.html" class="nav-item active">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>
-            Adicionar hosts
+            Hosts
           </a>
           <a href="/circuitos.html" class="nav-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2H9a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2h6"/></svg>
@@ -74,7 +74,7 @@
         <header class="topbar notch">
           <div class="topbar-title-row">
             <span class="topbar-slash">//</span>
-            <h1>Adicionar hosts</h1>
+            <h1>Hosts</h1>
             <div class="topbar-rule"></div>
           </div>
           <div class="topbar-actions">
@@ -96,7 +96,7 @@
               <thead>
                 <tr>
                   <th>Host</th><th>IP</th><th>Porta</th>
-                  <th>Fabricante</th><th>Modelo</th><th>Grupo</th><th>User SSH</th><th></th>
+                  <th>Fabricante</th><th>Modelo</th><th>Grupo</th><th>User SSH</th><th>Coordenadas</th><th></th>
                 </tr>
               </thead>
               <tbody id="hosts-tbody"></tbody>
@@ -117,11 +117,11 @@
 
   <div class="backdrop" id="backdrop"></div>
   <div class="detail-modal modal-form" id="host-modal">
-    <h4>Novo host</h4>
+    <h4 id="host-modal-title">Novo host</h4>
     <form class="modal-form-body" id="host-form">
       <input name="name" placeholder="Nome do host" required />
       <input name="ip" placeholder="IP" required />
-      <select name="group_id" id="group-select" required>
+      <select name="group_id" id="group-select">
         <option value="">Selecione o grupo...</option>
       </select>
       <div class="row2">
@@ -139,6 +139,10 @@
         <input name="community" placeholder="Comunidade SNMP" value="public" />
         <input name="port" placeholder="Porta SNMP" value="161" />
       </div>
+      <div class="row2">
+        <input name="lat" placeholder="Latitude (opcional)" type="number" step="any" min="-90" max="90" />
+        <input name="lng" placeholder="Longitude (opcional)" type="number" step="any" min="-180" max="180" />
+      </div>
       <details>
         <summary>Credenciais SSH (opcional)</summary>
         <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
@@ -147,7 +151,7 @@
           <input name="ssh_port" placeholder="Porta SSH (ex: 22)" />
         </div>
       </details>
-      <button class="btn-primary" type="submit">Criar host</button>
+      <button class="btn-primary" type="submit" id="host-form-submit">Criar host</button>
       <p id="host-form-status" class="form-status"></p>
     </form>
   </div>

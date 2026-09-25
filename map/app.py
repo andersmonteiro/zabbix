@@ -146,7 +146,7 @@ app.register_blueprint(equipment_images_bp)
 
 from routes_hosts import hosts_bp, init_hosts_routes
 
-init_hosts_routes(zabbix_client)
+init_hosts_routes(zabbix_client, SessionLocal)
 app.register_blueprint(hosts_bp)
 
 
