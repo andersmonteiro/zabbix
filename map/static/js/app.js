@@ -126,6 +126,11 @@ let lineLayer = L.layerGroup().addTo(map);
 let editMode = false;
 let markersByPointId = {};
 let lineLayersBySegmentId = {};
+// Snapshot da última resposta de /api/map-state -- deixa repositionPointLocally
+// (arrastar host) redesenhar só as linhas afetadas sem precisar buscar tudo
+// de novo no servidor, que era a maior fonte de delay percebido no arrasto.
+let lastState = null;
+let lastPointsById = {};
 
 // alert_severity vem de problemas REAIS abertos no Zabbix para aquele host
 // (não do item de ping/SNMP) -- 4-5 = vermelho, 2-3 = amarelo, sobrepõe a
@@ -172,16 +177,49 @@ function glowIcon(color, pulseClass) {
 function drawGlowLine(latlngs, color, status) {
   const opts = { weight: 5, color, opacity: 0.95, lineCap: 'round', lineJoin: 'round', smoothFactor: 3 };
   if (status === 'down') opts.dashArray = '1 10';
-  L.polyline(latlngs, { weight: 14, color, opacity: 0.18, lineCap: 'round', lineJoin: 'round', smoothFactor: 3 }).addTo(lineLayer);
+  const halo = L.polyline(latlngs, { weight: 14, color, opacity: 0.18, lineCap: 'round', lineJoin: 'round', smoothFactor: 3 }).addTo(lineLayer);
   const line = L.polyline(latlngs, opts).addTo(lineLayer);
 
+  let flow = null;
   if (status === 'up') {
-    L.polyline(latlngs, {
+    flow = L.polyline(latlngs, {
       weight: 2.5, color: '#ffffff', opacity: 0.85, lineCap: 'round', lineJoin: 'round',
       smoothFactor: 3, dashArray: '1 15', className: 'flow-line',
     }).addTo(lineLayer);
   }
+  // `line` continua sendo o retorno principal (tooltip/clique/pm.enable ficam
+  // nela) -- halo/flow acompanham geometricamente via repositionPointLocally,
+  // exposta aqui pra não duplicar essa lista de 2-3 camadas em outro lugar.
+  line._siblingLayers = flow ? [halo, flow] : [halo];
   return line;
+}
+
+// Redesenha só as linhas que passam por `pointId` (origem, destino ou
+// waypoint) usando a posição nova, sem buscar /api/map-state de novo --
+// chamado logo no dragend do host, então a linha acompanha o arrasto na
+// hora, e o PUT de persistência roda em paralelo, não antes.
+function repositionPointLocally(pointId, lat, lng) {
+  if (lastPointsById[pointId]) {
+    lastPointsById[pointId] = { ...lastPointsById[pointId], lat, lng };
+  }
+  if (!lastState) return;
+  lastState.circuits.forEach((circuit) => {
+    circuit.segments.forEach((segment) => {
+      const touchesPoint = segment.origin_point_id === pointId
+        || segment.destination_point_id === pointId
+        || (segment.waypoint_ids || []).includes(pointId);
+      if (!touchesPoint) return;
+      const line = lineLayersBySegmentId[segment.id];
+      if (!line) return;
+      const origin = lastPointsById[segment.origin_point_id];
+      const dest = lastPointsById[segment.destination_point_id];
+      if (!origin || !dest) return;
+      const waypoints = (segment.waypoint_ids || []).map((id) => lastPointsById[id]).filter(Boolean);
+      const latlngs = [origin, ...waypoints, dest].map((p) => [p.lat, p.lng]);
+      line.setLatLngs(latlngs);
+      (line._siblingLayers || []).forEach((sibling) => sibling.setLatLngs(latlngs));
+    });
+  });
 }
 
 // Liga/desliga a possibilidade de arrastar hosts e editar o traçado das
@@ -215,16 +253,18 @@ async function saveSegmentPath(segment, latlngs) {
   const middleLatLngs = latlngs.slice(1, -1);
   const previousWaypointIds = (segment.waypoint_ids || []).slice();
 
-  const newWaypointIds = [];
-  for (const ll of middleLatLngs) {
-    const resp = await fetch('/api/points', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Trajeto', lat: ll.lat, lng: ll.lng, point_type: 'route_point' }),
-    });
-    const point = await resp.json();
-    newWaypointIds.push(point.id);
-  }
+  // Em paralelo, não em sequência -- uma rota real (gerada via OSRM) pode ter
+  // dezenas de pontos, e esperar cada POST terminar antes de disparar o
+  // próximo era o principal motivo do "delay" ao salvar um ajuste de linha
+  // (N requisições em série em vez de todas ao mesmo tempo). Promise.all
+  // preserva a ordem dos resultados pela ordem de entrada, não de chegada,
+  // então newWaypointIds continua na ordem certa do traçado.
+  const created = await Promise.all(middleLatLngs.map((ll) => fetch('/api/points', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Trajeto', lat: ll.lat, lng: ll.lng, point_type: 'route_point' }),
+  }).then((resp) => resp.json())));
+  const newWaypointIds = created.map((point) => point.id);
 
   await fetch(`/api/segments/${segment.id}`, {
     method: 'PUT',
@@ -232,14 +272,13 @@ async function saveSegmentPath(segment, latlngs) {
     body: JSON.stringify({ waypoint_ids: newWaypointIds }),
   });
 
-  for (const oldId of previousWaypointIds) {
-    if (newWaypointIds.includes(oldId)) continue;
-    try {
-      await fetch(`/api/points/${oldId}`, { method: 'DELETE' });
-    } catch (err) {
-      console.warn(`Não foi possível remover o ponto de trajeto ${oldId} substituído`, err);
-    }
-  }
+  await Promise.allSettled(
+    previousWaypointIds
+      .filter((oldId) => !newWaypointIds.includes(oldId))
+      .map((oldId) => fetch(`/api/points/${oldId}`, { method: 'DELETE' }).catch((err) => {
+        console.warn(`Não foi possível remover o ponto de trajeto ${oldId} substituído`, err);
+      })),
+  );
 }
 
 // Small triangular warning badge dropped at a segment's midpoint when SNMP
@@ -673,6 +712,8 @@ async function refresh() {
   lineLayersBySegmentId = {};
 
   const pointsById = Object.fromEntries(state.points.map((p) => [p.id, p]));
+  lastState = state;
+  lastPointsById = pointsById;
 
   state.circuits.forEach((circuit) => {
     circuit.segments.forEach((segment) => {
@@ -754,20 +795,18 @@ async function refresh() {
     const { color, pulseClass } = alertVisual(point.status, point.alert_severity);
     const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color, pulseClass) }).addTo(markerLayer);
     markersByPointId[point.id] = marker;
-    // Some pra fetch, não pro clique de abrir o popup -- Leaflet já suprime
-    // o evento click de um marker quando o gesto foi de fato um arrasto.
-    marker.on('dragend', async () => {
+    // Reposiciona as linhas conectadas na hora (sem esperar o servidor) e só
+    // então dispara o PUT em segundo plano -- esperar um refresh() completo
+    // (fetch + reconstruir o mapa inteiro) antes da linha acompanhar o host
+    // era o delay perceptível ao soltar o marcador.
+    marker.on('dragend', () => {
       const { lat, lng } = marker.getLatLng();
-      try {
-        await fetch(`/api/points/${point.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat, lng }),
-        });
-      } catch (err) {
-        console.error('Falha ao salvar nova posição do host', err);
-      }
-      await refresh();
+      repositionPointLocally(point.id, lat, lng);
+      fetch(`/api/points/${point.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat, lng }),
+      }).catch((err) => console.error('Falha ao salvar nova posição do host', err));
     });
     const pingUp = point.status === 'unknown' ? null : point.status !== 'down';
     marker.bindTooltip(
