@@ -30,7 +30,6 @@ function renderHosts(hosts) {
     <tr data-id="${esc(h.hostid)}">
       <td>${esc(h.host)}</td>
       <td>${esc(h.ip)}</td>
-      <td>${esc(h.community)}</td>
       <td>${esc(h.port)}</td>
       <td>${esc(h.vendor)}</td>
       <td>${esc(h.model)}</td>

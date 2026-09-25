@@ -94,10 +94,7 @@ body {
    família tonal (oklch, croma/luminosidade equivalentes). nth-of-type
    conta só entre <a>/<button> do mesmo pai .nav-section, ignorando as
    divs de section-label intercaladas. */
-.nav-item:nth-of-type(1):hover, .nav-item:nth-of-type(1).active { background: var(--accent); color: var(--bg-canvas); }
-.nav-item:nth-of-type(2):hover, .nav-item:nth-of-type(2).active { background: var(--gold); color: var(--bg-canvas); }
-.nav-item:nth-of-type(3):hover, .nav-item:nth-of-type(3).active { background: var(--purple); color: var(--bg-canvas); }
-.nav-item:nth-of-type(4):hover, .nav-item:nth-of-type(4).active { background: var(--blue); color: var(--bg-canvas); }
+.nav-item:hover, .nav-item.active { background: var(--accent); color: var(--bg-canvas); }
 .nav-item:hover { opacity: 1; }
 
 .nav-footer { border-top: 1px solid var(--border); padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
