@@ -22,23 +22,14 @@ const labelLayer = L.layerGroup();
 
 // Rótulo fixo com o nome do ponto (não é o tooltip de hover, que continua
 // existindo separado no marker) -- overlay opcional "Nomes dos locais".
-// Callout tipo "plaquinha": uma linha reta e horizontal sai do ponto exato
-// do host e termina na caixa com o nome, alinhada na mesma altura -- não na
-// diagonal, pra ficar limpa em qualquer densidade de pontos. Um L.marker
-// com divIcon (não L.tooltip) porque precisamos desenhar essa linha nós
-// mesmos dentro do ícone.
-const LABEL_DX = 22;
-// Metade da altura aproximada do .map-label (fonte 10.5px + padding 2px +
-// borda 1px de cada lado) -- centraliza a caixa verticalmente na linha.
-const LABEL_BOX_HALF_HEIGHT = 11;
+// Só a caixa com o nome, sem linha conectora (a linha ficava torta demais
+// em telas com muitos pontos próximos -- removida por pedido do usuário).
+// Um L.marker com divIcon (não L.tooltip) só pra manter posicionamento
+// consistente com o resto do overlay.
+const LABEL_DX = 14;
 
 function labelMarker(lat, lng, text) {
-  const html =
-    `<svg width="160" height="40" viewBox="-4 -20 160 40" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none;">` +
-    `<line x1="0" y1="0" x2="${LABEL_DX}" y2="0" stroke="rgba(255,255,255,0.55)" stroke-width="1.2"/>` +
-    `<circle cx="0" cy="0" r="2" fill="rgba(255,255,255,0.85)"/>` +
-    `</svg>` +
-    `<div class="map-label" style="position:absolute;left:${LABEL_DX + 5}px;top:${-LABEL_BOX_HALF_HEIGHT}px;">${esc(text)}</div>`;
+  const html = `<div class="map-label" style="position:absolute;left:${LABEL_DX}px;top:-10px;">${esc(text)}</div>`;
   return L.marker([lat, lng], {
     icon: L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] }),
     interactive: false, keyboard: false,
