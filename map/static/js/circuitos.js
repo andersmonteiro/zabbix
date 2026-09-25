@@ -160,16 +160,63 @@ document.getElementById('circuit-form').addEventListener('submit', async (e) => 
   await selectCircuit(circuit.id);
 });
 
+// Traça a rota pela estrada real via OSRM (servidor demo público, grátis,
+// sem conta) -- chamado sozinho ao criar um segmento, não é uma ação manual
+// separada. O ajuste fino (arrastar no editor) é só pra corrigir os trechos
+// onde a rota automática não bater com a realidade, não pra desenhar do
+// zero. Lança em caso de falha -- quem chama decide o fallback (linha reta).
+async function fetchRoadRoute(originLat, originLng, destLat, destLng) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=simplified&geometries=geojson`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`OSRM HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
+    throw new Error(`OSRM: ${data.code || 'sem rota encontrada'}`);
+  }
+  // GeoJSON vem como [lng, lat]. As duas pontas da rota já são os próprios
+  // hosts (origem/destino) -- só o miolo vira waypoint do segmento.
+  return data.routes[0].geometry.coordinates.slice(1, -1).map(([lng, lat]) => ({ lat, lng }));
+}
+
 document.getElementById('segment-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!selectedCircuitId) return;
   const form = new FormData(e.target);
   const nextOrderIndex = (window.currentCircuit?.segments?.length) || 0;
+  const originId = Number(form.get('origin_point_id'));
+  const destinationId = Number(form.get('destination_point_id'));
+
+  let waypointIds = [];
+  const origin = allPoints.find((p) => p.id === originId);
+  const destination = allPoints.find((p) => p.id === destinationId);
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  setFormStatus('segment-status', '', false);
+  if (origin && destination) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Traçando rota pela estrada…';
+    try {
+      const routePoints = await fetchRoadRoute(origin.lat, origin.lng, destination.lat, destination.lng);
+      // route_point (não waypoint) -- geometria pura da linha, o mesmo tipo
+      // usado no ajuste fino manual; 'waypoint' criaria marcador fantasma
+      // de poste/caixa (bug já corrigido antes nesta sessão).
+      const created = await Promise.all(routePoints.map((rp) => api('/api/points', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Trajeto', lat: rp.lat, lng: rp.lng, point_type: 'route_point' }),
+      })));
+      waypointIds = created.map((p) => p.id);
+    } catch (err) {
+      console.warn('Rota automática pela estrada falhou, criando linha reta', err);
+      setFormStatus('segment-status', 'Rota automática indisponível — criado em linha reta; ajuste no mapa.', true);
+    }
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Adicionar segmento';
+  }
+
   const body = {
     order_index: nextOrderIndex,
-    origin_point_id: Number(form.get('origin_point_id')),
-    destination_point_id: Number(form.get('destination_point_id')),
-    waypoint_ids: [],
+    origin_point_id: originId,
+    destination_point_id: destinationId,
+    waypoint_ids: waypointIds,
     port_name: form.get('port_name') || null,
     zabbix_operstatus_itemid: form.get('zabbix_operstatus_itemid') || null,
     zabbix_snmp_available_itemid: form.get('zabbix_snmp_available_itemid') || null,
