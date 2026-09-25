@@ -166,6 +166,19 @@ body {
   padding: 10px 14px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 11px;
   font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted);
 }
+.alerts-filter-bar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+  background: var(--accent-dim); border-bottom: 1px solid var(--accent);
+  font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: 0.03em; color: var(--text-primary);
+}
+.alerts-filter-bar b { color: var(--accent); }
+.alerts-filter-bar button {
+  margin-left: auto; background: none; border: none; color: var(--text-secondary);
+  font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: 0.03em; cursor: pointer; text-decoration: underline; padding: 0;
+}
+.alerts-filter-bar button:hover { color: var(--text-primary); }
 .alerts-empty { padding: 20px 14px; text-align: center; color: var(--text-muted); font-family: var(--mono); font-size: 12px; }
 .alert-row { display: flex; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--border-dim); }
 .alert-row:first-child { border-top: none; }
@@ -344,7 +357,9 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
   flex-shrink: 0; min-width: 18px; height: 18px; padding: 0 5px;
   display: flex; align-items: center; justify-content: center;
   font-family: var(--mono); font-size: 10.5px; font-weight: 800; color: #fff;
+  border: none; text-decoration: none; cursor: pointer;
 }
+.ops-host-badge:hover { opacity: 0.8; }
 .ops-host-badge.crit { background: var(--red); }
 .ops-host-badge.warn { background: var(--yellow); color: #1a1a1a; }
 
@@ -494,6 +509,14 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .detail-table td:first-child { opacity: 0.6; width: 46%; letter-spacing: 0.04em; }
 .detail-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 .detail-table tr:last-child td { padding-bottom: 14px; }
+
+.modal-alerts-link { margin: -4px 16px 16px; }
+.modal-alerts-link a {
+  display: block; text-align: center; padding: 9px 14px; background: var(--red);
+  color: #fff; font-family: var(--mono); font-weight: 700; font-size: 12px;
+  letter-spacing: 0.03em; text-transform: uppercase; text-decoration: none;
+}
+.modal-alerts-link a:hover { opacity: 0.88; }
 
 .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; display: none; backdrop-filter: blur(2px); }
 .backdrop.open { display: block; }

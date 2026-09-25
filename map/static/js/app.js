@@ -253,7 +253,7 @@ function tipTable(title, rows) {
 
 const STATUS_LABEL_PT = { up: 'Operacional', warn: 'Atenção', down: 'Crítico', unknown: 'Sem dados' };
 
-function openModal({ photoUrl, title, statusClass, kicker, rows, utilizationPct }) {
+function openModal({ photoUrl, title, statusClass, kicker, rows, utilizationPct, alertsHost }) {
   document.getElementById('modal-photo-img').src = photoUrl;
 
   const modal = document.getElementById('detail-modal');
@@ -292,6 +292,23 @@ function openModal({ photoUrl, title, statusClass, kicker, rows, utilizationPct 
   chartWrap.hidden = true;
   chartWrap.innerHTML = '';
   modal.classList.remove('has-chart');
+
+  // Só hosts com alerta real aberto no Zabbix ganham o link. Abre o painel
+  // do sino filtrado (showAlertsPanel, em alerts.js) em vez de navegar --
+  // precisa dar pra ver sem sair do mapa/fechar o popup.
+  const alertsLink = document.getElementById('modal-alerts-link');
+  const alertsLinkA = document.getElementById('modal-alerts-link-a');
+  if (alertsHost) {
+    alertsLink.hidden = false;
+    alertsLinkA.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showAlertsPanel(alertsLinkA, alertsHost);
+    };
+  } else {
+    alertsLink.hidden = true;
+    alertsLinkA.onclick = null;
+  }
 
   document.getElementById('backdrop').classList.add('open');
   document.getElementById('detail-modal').classList.add('open');
@@ -541,8 +558,11 @@ function renderOpsPanel(state) {
 
   hostsList.innerHTML = sorted.map((h) => {
     const hasAlert = h.alert_severity !== null && h.alert_severity !== undefined;
+    // Botão, não link -- abre o painel de alertas ali mesmo (showAlertsPanel,
+    // de alerts.js) em vez de navegar pra outra página; precisa ficar
+    // prático de ver sem sair do mapa.
     const badge = hasAlert
-      ? `<span class="ops-host-badge ${h.alert_severity >= 4 ? 'crit' : 'warn'}">${esc(h.alert_count)}</span>`
+      ? `<button type="button" class="ops-host-badge ${h.alert_severity >= 4 ? 'crit' : 'warn'}" data-hostid="${esc(h.zabbix_hostid)}" data-hostname="${esc(h.name)}" title="Ver alertas deste host">${esc(h.alert_count)}</button>`
       : '';
     return `
       <div class="ops-host-item" data-id="${esc(h.id)}">
@@ -557,6 +577,12 @@ function renderOpsPanel(state) {
     el.addEventListener('click', () => {
       const host = hosts.find((h) => String(h.id) === el.dataset.id);
       if (host) map.setView([host.lat, host.lng], 12);
+    });
+  });
+  hostsList.querySelectorAll('.ops-host-badge').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showAlertsPanel(el, { hostid: el.dataset.hostid, hostName: el.dataset.hostname });
     });
   });
 }
@@ -665,11 +691,13 @@ async function refresh() {
       ]),
       { className: 'mini-tip' },
     );
+    const hasAlert = point.alert_severity !== null && point.alert_severity !== undefined;
     marker.on('click', () => openModal({
       photoUrl: equipmentPhotoUrl(point.equipment_model),
       title: point.name,
       statusClass: point.status,
       kicker: 'Equipamento',
+      alertsHost: hasAlert ? { hostid: String(point.zabbix_hostid), hostName: point.name } : null,
       rows: [
         ['Modelo', point.equipment_model || '—'],
         ['IP', point.equipment_ip || '—'],

@@ -25,6 +25,12 @@ function alertsSeverityClass(severity) {
   return 'sev-info';
 }
 
+// Quando setado (via showAlertsPanel com um 3º argumento), o painel do sino
+// mostra só os alertas daquele host em vez de todos -- usado pelos pontos de
+// entrada "ver alertas" na lista de hosts e no popup do mapa, pra não
+// precisar sair da página. O sino em si sempre limpa esse filtro ao abrir.
+let alertsHostFilter = null;
+
 async function refreshAlerts() {
   const bell = document.getElementById('alerts-bell');
   const badge = document.getElementById('alerts-badge');
@@ -40,15 +46,17 @@ async function refreshAlerts() {
     return;
   }
 
-  const problems = state.problems || [];
+  const allProblems = state.problems || [];
   const now = Math.floor(Date.now() / 1000);
 
-  if (problems.length === 0) {
+  // O badge do sino sempre reflete TODOS os alertas, independente de um
+  // filtro por host estar ativo na lista abaixo dele.
+  if (allProblems.length === 0) {
     badge.hidden = true;
   } else {
     badge.hidden = false;
-    badge.textContent = problems.length > 99 ? '99+' : String(problems.length);
-    const worst = Math.max(...problems.map((p) => p.severity));
+    badge.textContent = allProblems.length > 99 ? '99+' : String(allProblems.length);
+    const worst = Math.max(...allProblems.map((p) => p.severity));
     badge.className = `alerts-badge ${alertsSeverityClass(worst)}`;
   }
 
@@ -56,20 +64,51 @@ async function refreshAlerts() {
     list.innerHTML = '<div class="alerts-empty">Sem dados recentes do Zabbix.</div>';
     return;
   }
+
+  const filterBar = alertsHostFilter
+    ? `<div class="alerts-filter-bar">Filtrando: <b>${alertsEsc(alertsHostFilter.hostName)}</b><button type="button" id="alerts-clear-filter">Ver todos</button></div>`
+    : '';
+  const problems = alertsHostFilter
+    ? allProblems.filter((p) => String(p.hostid) === alertsHostFilter.hostid)
+    : allProblems;
+
   if (problems.length === 0) {
-    list.innerHTML = '<div class="alerts-empty">Nenhum alerta ativo.</div>';
-    return;
+    list.innerHTML = filterBar + (alertsHostFilter
+      ? '<div class="alerts-empty">Nenhum alerta ativo para este host.</div>'
+      : '<div class="alerts-empty">Nenhum alerta ativo.</div>');
+  } else {
+    list.innerHTML = filterBar + problems.map((p) => `
+      <div class="alert-row">
+        <div class="alert-dot ${alertsSeverityClass(p.severity)}"></div>
+        <div class="alert-body">
+          <div class="alert-name">${alertsEsc(p.name)}</div>
+          <div class="alert-meta">${alertsEsc(p.host)} · ${alertsEsc(p.severity_label)} · ${alertsFormatAge(now - p.clock)}${p.acknowledged ? ' · reconhecido' : ''}</div>
+        </div>
+      </div>
+    `).join('');
   }
 
-  list.innerHTML = problems.map((p) => `
-    <div class="alert-row">
-      <div class="alert-dot ${alertsSeverityClass(p.severity)}"></div>
-      <div class="alert-body">
-        <div class="alert-name">${alertsEsc(p.name)}</div>
-        <div class="alert-meta">${alertsEsc(p.host)} · ${alertsEsc(p.severity_label)} · ${alertsFormatAge(now - p.clock)}${p.acknowledged ? ' · reconhecido' : ''}</div>
-      </div>
-    </div>
-  `).join('');
+  const clearBtn = document.getElementById('alerts-clear-filter');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      alertsHostFilter = null;
+      refreshAlerts();
+    });
+  }
+}
+
+// Abre o painel do sino ancorado em `anchorEl` (bell, badge de host, ou o
+// botão do popup do mapa) -- é como app.js mostra alertas sem sair da
+// página. `hostFilter` é `{ hostid, hostName }` ou null pra ver todos.
+function showAlertsPanel(anchorEl, hostFilter) {
+  const panel = document.getElementById('alerts-panel');
+  if (!panel || !anchorEl) return;
+  alertsHostFilter = hostFilter || null;
+  panel.hidden = false;
+  const rect = anchorEl.getBoundingClientRect();
+  panel.style.top = `${rect.bottom + 8}px`;
+  panel.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
+  refreshAlerts();
 }
 
 (function initAlerts() {
@@ -79,12 +118,11 @@ async function refreshAlerts() {
 
   bell.addEventListener('click', (e) => {
     e.stopPropagation();
-    panel.hidden = !panel.hidden;
-    if (!panel.hidden) {
-      const rect = bell.getBoundingClientRect();
-      panel.style.top = `${rect.bottom + 8}px`;
-      panel.style.right = `${window.innerWidth - rect.right}px`;
+    if (!panel.hidden && !alertsHostFilter) {
+      panel.hidden = true;
+      return;
     }
+    showAlertsPanel(bell, null);
   });
   document.addEventListener('click', (e) => {
     if (!panel.hidden && !panel.contains(e.target) && e.target !== bell) {

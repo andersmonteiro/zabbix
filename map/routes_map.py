@@ -100,6 +100,10 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
             entry['status'] = compute_status(operstatus=operstatus)
             entry['equipment_model'] = point.equipment_model
             entry['equipment_ip'] = point.equipment_ip
+            # Exposto pro frontend poder linkar direto pra /alertas.html?hostid=...
+            # a partir do marcador/lista de hosts -- sem isso não dá pra filtrar
+            # a página de alertas por host sem re-adivinhar o hostid lá.
+            entry['zabbix_hostid'] = point.zabbix_hostid
             cpu = None if stale else _lastvalue(cache, point.zabbix_cpu_itemid, float)
             entry['cpu_percent'] = cpu
 
