@@ -74,8 +74,17 @@ async function loadPoints() {
   allPoints = await api('/api/points');
   const list = document.getElementById('points-list');
   list.innerHTML = allPoints
-    .map((p) => `<div class="list-item">${esc(p.name)} <small>(${esc(p.point_type)})</small></div>`)
+    .map((p) => `<div class="list-item" data-id="${esc(p.id)}">${esc(p.name)} <small>(${esc(p.point_type)})</small></div>`)
     .join('');
+  // Sem isso, clicar num ponto da lista não fazia absolutamente nada --
+  // mesmo comportamento que a lista de Circuitos já tem (centralizar no
+  // mapa do editor), só que pontos não têm um "selecionado" persistente.
+  list.querySelectorAll('.list-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      const point = allPoints.find((p) => p.id === Number(el.dataset.id));
+      if (point) editorMap.setView([point.lat, point.lng], 15);
+    });
+  });
 
   const originSel = document.getElementById('origin-select');
   const destSel = document.getElementById('destination-select');
