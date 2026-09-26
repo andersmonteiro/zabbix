@@ -9,10 +9,35 @@
     .login-grid { min-height: 100vh; display: grid; grid-template-columns: 55fr 45fr; }
 
     .login-brand {
-      background: radial-gradient(ellipse 80% 70% at 50% 50%, #0a1400 0%, #030600 50%, #000 100%);
+      background: radial-gradient(ellipse 80% 70% at 50% 50%, #040800 0%, #020400 50%, #000 100%);
       display: flex; flex-direction: column; justify-content: space-between;
       padding: 44px 52px 24px; position: relative; overflow: hidden;
     }
+    /* .login-brand > * vem antes de propósito -- os dois blocos abaixo
+       (GridScan e overlay) precisam de position:absolute vencendo essa
+       regra genérica, não position:relative aplicado por igual a todo
+       filho direto (mesma especificidade + ordem = a regra de baixo
+       ganhava, zerando a altura do canvas do GridScan). */
+    .login-brand > * { position: relative; z-index: 1; }
+    /* Corredor de grade em perspectiva com um pulso varrendo por ele --
+       mesma peça (GridScan) usada no login do painel de DNS da Natverk,
+       portada de React pra JS puro em js/grid-scan.js. */
+    .login-gridscan { position: absolute !important; inset: 0; z-index: 0; }
+    .login-gridscan canvas { display: block; }
+    .login-brand-overlay {
+      position: absolute !important; inset: 0; pointer-events: none; z-index: 0;
+      background: linear-gradient(to right, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.05) 100%);
+    }
+
+    .login-brand-logo { display: flex; align-items: center; gap: 8px; }
+    .login-brand-logo .logo-main {
+      font-family: var(--mono); font-weight: 800; font-size: 20px; color: #fff;
+      text-transform: uppercase; letter-spacing: 0.01em;
+    }
+    .login-brand-logo .logo-sub {
+      font-family: var(--mono); font-weight: 700; font-size: 10px; color: var(--text-muted); letter-spacing: 0.1em;
+    }
+
     .login-brand-label {
       font-family: var(--mono); font-size: 11px; font-weight: 500;
       letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin-bottom: 24px;
@@ -86,6 +111,12 @@
 <body>
   <div class="login-grid">
     <div class="login-brand">
+      <div class="login-gridscan" id="login-gridscan"></div>
+      <div class="login-brand-overlay"></div>
+      <div class="login-brand-logo">
+        <span class="logo-main">Nätverk</span>
+        <span class="logo-sub">NOC</span>
+      </div>
       <div>
         <div class="login-brand-label">&gt; noc_platform</div>
         <div class="login-cornerbox">
@@ -124,6 +155,29 @@
     </div>
   </div>
 
+  <script type="module">
+    import { createGridScan } from './js/grid-scan.js';
+    const container = document.getElementById('login-gridscan');
+    // Sem WebGL ou com prefers-reduced-motion, o fundo fica só o gradiente
+    // radial (já definido em .login-brand) -- nunca quebra a tela de login.
+    const supportsWebGL = (() => {
+      try {
+        const c = document.createElement('canvas');
+        return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl')));
+      } catch (err) {
+        return false;
+      }
+    })();
+    if (container && supportsWebGL && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      createGridScan(container, {
+        linesColor: '#91DC0A', scanColor: '#91DC0A', scanOpacity: 1.0, scanGlow: 2.0,
+        scanSoftness: 0.6, scanDuration: 1.2, scanDelay: 2.5, scanPhaseTaper: 0,
+        scanTaperOut: 0.28, scanDirection: 'forward', staticLight: 0, staticLightPos: 0.5,
+        gridScale: 0.030, lineThickness: 0.65, lineJitter: 0, noiseIntensity: 0, flowSpeed: 4,
+        focalLength: 0.72,
+      });
+    }
+  </script>
   <script>
     document.getElementById('login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
