@@ -742,6 +742,7 @@ async function refresh() {
         tipTable(`${origin.name} ↔ ${dest.name}`, [
           ...(segment.port_name ? [['Porta', segment.port_name]] : []),
           ['Status', segment.status, statusCls],
+          ...(segment.endpoint_down ? [['Motivo', 'host inalcançável', 'crit']] : []),
           ['Sinal RX', fmt(segment.optical_rx_dbm, ' dBm')],
           ['Sinal TX', fmt(segment.optical_tx_dbm, ' dBm')],
           ['Entrada', fmtThroughput(segment.throughput_in_mbps)],
@@ -764,6 +765,9 @@ async function refresh() {
             ['Circuito', circuit.name],
             ['Porta', segment.port_name || '—'],
             ['Status', segment.status],
+            ...(segment.endpoint_down
+              ? [['Motivo', 'host de uma das pontas está inalcançável']]
+              : []),
             ['SNMP', segment.snmp_offline ? 'indisponível — status por ping' : 'OK'],
             ['Velocidade', fmtThroughput(segment.speed_mbps)],
             ['Throughput', `${fmtThroughput(segment.throughput_in_mbps)} ↓ / ${fmtThroughput(segment.throughput_out_mbps)} ↑`],

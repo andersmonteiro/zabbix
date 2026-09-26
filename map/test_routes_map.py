@@ -60,6 +60,69 @@ def test_build_map_state_reports_up_when_cache_fresh_and_healthy(session):
     assert seg['optical_rx_dbm'] == -19.4
 
 
+def test_segment_forced_down_when_origin_host_is_down(session):
+    # Zabbix não zera um item quando o host para de responder -- ele fica
+    # travado no último valor coletado. Sem checar o status do host, a linha
+    # continuava "up" com throughput normal horas depois do host cair, só
+    # porque o item de operstatus da PORTA (diferente do item de ping do
+    # HOST) ainda tinha "1" congelado de antes da queda.
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '0', 'lastclock': '9999999999'},  # origin: ping down
+        '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'},  # porta: ainda "up" (congelado)
+        '60011': {'lastvalue': '-19.4', 'lastclock': '9999999999'},
+        '60012': {'lastvalue': '0', 'lastclock': '9999999999'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+
+    origin_point = next(p for p in state['points'] if p['id'] == origin.id)
+    assert origin_point['status'] == 'down'
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['status'] == 'down'
+    assert seg['endpoint_down'] is True
+    # Nada de tráfego/sinal fantasma de antes da queda.
+    assert seg['throughput_in_mbps'] is None
+    assert seg['throughput_out_mbps'] is None
+    assert seg['optical_rx_dbm'] is None
+    assert seg['utilization_pct'] is None
+
+
+def test_segment_forced_down_when_destination_host_is_down(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60002': {'lastvalue': '0', 'lastclock': '9999999999'},  # dest: ping down
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60011': {'lastvalue': '-19.4', 'lastclock': '9999999999'},
+        '60012': {'lastvalue': '0', 'lastclock': '9999999999'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['status'] == 'down'
+    assert seg['endpoint_down'] is True
+
+
+def test_segment_not_forced_down_when_both_endpoints_up(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'}, '60011': {'lastvalue': '-19.4', 'lastclock': '9999999999'}, '60012': {'lastvalue': '0', 'lastclock': '9999999999'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['endpoint_down'] is False
+    assert seg['status'] == 'up'
+
+
 def test_build_map_state_marks_segment_warn_below_threshold(session):
     origin, dest, waypoint, circuit, segment = _seed_circuit(session)
     cache = StatusCache()

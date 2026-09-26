@@ -126,6 +126,12 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
         points_out.append(entry)
 
     points_by_id = {p.id: p for p in session.query(Point).all()}
+    # Status computado (up/warn/down), só pros pontos de equipamento -- usado
+    # abaixo pra não deixar um segmento aparecer "up" com tráfego normal só
+    # porque o item de operstatus/throughput ficou com o último valor
+    # congelado de antes do host cair (Zabbix para de atualizar o item, não
+    # zera ele).
+    point_status_by_id = {p['id']: p.get('status') for p in points_out}
 
     circuits_out = []
     for circuit in session.query(Circuit).all():
@@ -158,6 +164,22 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
                 busiest = max(throughput_in_mbps or 0, throughput_out_mbps or 0)
                 utilization_pct = min(100.0, (busiest / speed_mbps) * 100)
 
+            # Um host que caiu (ping down) para de ser telemetrado -- os itens
+            # de operstatus/throughput daquela ponta não ficam em zero, ficam
+            # travados no último valor de antes da queda. Sem isso, a linha
+            # continuava verde com "tráfego normal" horas depois do host cair,
+            # porque compute_status só olhava o item da própria linha, nunca
+            # se as pontas dela ainda estão de pé.
+            endpoint_down = (
+                point_status_by_id.get(segment.origin_point_id) == 'down'
+                or point_status_by_id.get(segment.destination_point_id) == 'down'
+            )
+            segment_status = 'down' if endpoint_down else compute_status(
+                operstatus=operstatus, optical_rx_dbm=optical_rx,
+                signal_warn_threshold_dbm=segment.signal_warn_threshold_dbm,
+                error_count=error_count,
+            )
+
             segments_out.append({
                 'id': segment.id,
                 'circuit_id': segment.circuit_id,
@@ -168,25 +190,25 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
                 'destination_name': destination.name if destination else None,
                 'waypoint_ids': segment.waypoint_ids or [],
                 'port_name': segment.port_name,
-                'status': compute_status(
-                    operstatus=operstatus, optical_rx_dbm=optical_rx,
-                    signal_warn_threshold_dbm=segment.signal_warn_threshold_dbm,
-                    error_count=error_count,
-                ),
+                'status': segment_status,
                 # Zabbix's ifHCIn/OutOctets items here are pre-processed to
                 # bits/second (units: "bps") -- /1e6 to get Mbps for display.
                 'speed_mbps': speed_mbps,
-                'throughput_in_mbps': throughput_in_mbps,
-                'throughput_out_mbps': throughput_out_mbps,
+                # None (not the stale last value) once a host is down --
+                # showing frozen throughput numbers as if they were live on a
+                # link that's actually down is misleading, not just optimistic.
+                'throughput_in_mbps': None if endpoint_down else throughput_in_mbps,
+                'throughput_out_mbps': None if endpoint_down else throughput_out_mbps,
                 # % of the port's own nominal speed the busiest direction is
                 # using right now -- only computable when speed_mbps is
                 # configured, which most DTC/Datacom segments don't have yet.
-                'utilization_pct': utilization_pct,
-                'optical_rx_dbm': optical_rx,
-                'optical_tx_dbm': optical_tx,
-                'error_count': error_count,
+                'utilization_pct': None if endpoint_down else utilization_pct,
+                'optical_rx_dbm': None if endpoint_down else optical_rx,
+                'optical_tx_dbm': None if endpoint_down else optical_tx,
+                'error_count': None if endpoint_down else error_count,
                 'signal_warn_threshold_dbm': segment.signal_warn_threshold_dbm,
                 'snmp_offline': snmp_offline,
+                'endpoint_down': endpoint_down,
             })
         circuits_out.append({'id': circuit.id, 'name': circuit.name, 'segments': segments_out})
 
