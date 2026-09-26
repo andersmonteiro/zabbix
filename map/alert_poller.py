@@ -30,9 +30,15 @@ class AlertCache:
             self._last_refresh = time.time()
 
 
+RESOLVED_WINDOW_HOURS = 24  # quanto tempo um problema já resolvido continua aparecendo
+
+
 def _serialize_problem(raw, host_by_triggerid):
     severity = int(raw.get('severity', 0))
     host_name, host_id = host_by_triggerid.get(raw.get('objectid'), ('—', None))
+    # r_eventid == '0' quando ainda não resolveu -- mesmo campo que o Zabbix
+    # usa pra decidir "PROBLEM" vs "RESOLVED" na tela dele.
+    resolved = raw.get('r_eventid', '0') not in (None, '0')
     return {
         'eventid': raw.get('eventid'),
         'name': raw.get('name'),
@@ -42,22 +48,28 @@ def _serialize_problem(raw, host_by_triggerid):
         'severity_label': SEVERITY_LABELS.get(severity, 'Desconhecida'),
         'clock': int(raw.get('clock', 0)),
         'acknowledged': raw.get('acknowledged') == '1',
+        'resolved': resolved,
+        'resolved_clock': int(raw['r_clock']) if resolved and raw.get('r_clock') else None,
     }
 
 
-def fetch_problems(zabbix_client):
-    """Currently unresolved Zabbix problems (recent=False excludes ones that
-    already recovered), newest+most severe first. problem.get has no
-    selectHosts of its own -- the host lives on the trigger, so problems
-    whose object is a trigger (object=='0', the vast majority) get a
-    follow-up trigger.get to resolve host names. hostid travels alongside the
-    name so the map can match problems to Points reliably (host names can
-    collide or get renamed; hostid doesn't)."""
+def fetch_problems(zabbix_client, resolved_window_hours=RESOLVED_WINDOW_HOURS):
+    """Problemas do Zabbix -- abertos E resolvidos recentemente, igual ao que
+    a própria tela de Problemas do Zabbix mostra por padrão (checkbox "Show
+    recent problems"). `recent=True` é literalmente essa opção via API;
+    time_from limita a janela a resolved_window_hours pra não trazer um
+    histórico enorme sem fim. problem.get não tem selectHosts próprio -- o
+    host mora no trigger, então problemas cujo objeto é um trigger
+    (object=='0', a grande maioria) ganham um trigger.get de acompanhamento
+    pra resolver o nome do host. hostid viaja junto com o nome pra o mapa
+    conseguir casar problema com Point de forma confiável (nome de host pode
+    colidir ou ser renomeado; hostid não)."""
     raw = zabbix_client.call('problem.get', {
         'output': 'extend',
         'sortfield': ['eventid'],
         'sortorder': 'DESC',
-        'recent': False,
+        'recent': True,
+        'time_from': int(time.time()) - resolved_window_hours * 3600,
     })
     if not raw:
         return []

@@ -68,13 +68,18 @@ def _last_refresh_seconds_ago(cache):
 
 
 def _worst_alert_by_hostid(alert_cache):
-    """{hostid: {severity, count}} for the single worst open problem per
-    host. None entries (host unresolved when the alert was polled) are
-    skipped -- they can't be matched to a Point anyway."""
+    """{hostid: {severity, count}} for the single worst OPEN problem per
+    host. The cache now also holds recently-resolved problems (so the
+    Alertas page can show a "Resolvidos" tab) -- those must never count here,
+    or a host would keep glowing red on the map for hours after it recovered.
+    None entries (host unresolved when the alert was polled) are skipped --
+    they can't be matched to a Point anyway."""
     if alert_cache is None:
         return {}
     worst = {}
     for problem in alert_cache.get_all():
+        if problem.get('resolved'):
+            continue
         hostid = problem.get('hostid')
         if hostid is None:
             continue

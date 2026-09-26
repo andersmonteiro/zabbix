@@ -27,6 +27,15 @@ function alertsFormatClock(epochSeconds) {
   });
 }
 
+// Duração fixa (não relativa a agora) -- usada na aba "Resolvidos" pra
+// mostrar quanto tempo o problema ficou aberto até ser resolvido.
+function alertsFormatDuration(seconds) {
+  if (seconds < 60) return `${Math.max(0, Math.round(seconds))}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}min`;
+  return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
+}
+
 function alertsSeverityClass(severity) {
   if (severity >= 4) return 'sev-crit';
   if (severity >= 2) return 'sev-warn';
@@ -54,7 +63,10 @@ async function refreshAlerts() {
     return;
   }
 
-  const allProblems = state.problems || [];
+  // O sino é só "o que precisa de atenção agora" -- /api/alerts também traz
+  // problemas já resolvidos recentemente (pra aba "Resolvidos" da tela de
+  // Alertas), mas esses nunca aparecem aqui nem contam no badge.
+  const allProblems = (state.problems || []).filter((p) => !p.resolved);
   const now = Math.floor(Date.now() / 1000);
 
   // O badge do sino sempre reflete TODOS os alertas, independente de um

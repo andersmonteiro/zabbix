@@ -271,6 +271,26 @@ def test_point_alert_severity_from_matching_open_problem(session):
     assert origin_point['alert_count'] == 2
 
 
+def test_point_alert_severity_ignores_resolved_problems(session):
+    # alert_cache agora também guarda problemas resolvidos recentemente (pra
+    # aba "Resolvidos" da tela de Alertas) -- eles não podem contar aqui, ou
+    # o host continuaria pulsando vermelho no mapa horas depois de recuperar.
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    origin.zabbix_hostid = '10500'
+    session.commit()
+    cache = StatusCache()
+    cache.update({'60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'}, '60010': {'lastvalue': '1', 'lastclock': '9999999999'}})
+    alert_cache = AlertCache()
+    alert_cache.update([
+        {'eventid': '1', 'hostid': '10500', 'severity': 5, 'name': 'Já resolvido', 'resolved': True},
+    ])
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=alert_cache)
+    origin_point = next(p for p in state['points'] if p['id'] == origin.id)
+    assert origin_point['alert_severity'] is None
+    assert origin_point['alert_count'] == 0
+
+
 def test_point_alert_severity_is_none_without_open_problems(session):
     origin, dest, waypoint, circuit, segment = _seed_circuit(session)
     origin.zabbix_hostid = '10500'

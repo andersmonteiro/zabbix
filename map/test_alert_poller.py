@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from alert_poller import AlertCache, fetch_problems
@@ -33,7 +35,40 @@ def test_fetch_problems_serializes_host_and_severity_label(zabbix_client, reques
     assert problems == [{
         'eventid': '501', 'name': 'Link down', 'host': 'DTC - CARACOL - 6', 'hostid': '10066',
         'severity': 4, 'severity_label': 'Alta', 'clock': 1700000000, 'acknowledged': False,
+        'resolved': False, 'resolved_clock': None,
     }]
+
+
+def test_fetch_problems_requests_recent_and_a_bounded_time_window(zabbix_client, requests_mock):
+    requests_mock.post(API, [
+        _login_response(),
+        {'json': {'jsonrpc': '2.0', 'id': 3, 'result': []}},
+    ])
+
+    fetch_problems(zabbix_client)
+
+    call = json.loads(requests_mock.request_history[-1].body)
+    assert call['params']['recent'] is True
+    assert 'time_from' in call['params']
+
+
+def test_fetch_problems_marks_a_recovered_problem_as_resolved(zabbix_client, requests_mock):
+    requests_mock.post(API, [
+        _login_response(),
+        {'json': {'jsonrpc': '2.0', 'id': 3, 'result': [{
+            'eventid': '600', 'name': 'Link down', 'severity': '4', 'clock': '1700000000',
+            'acknowledged': '0', 'object': '0', 'objectid': '80',
+            'r_eventid': '601', 'r_clock': '1700003600',
+        }]}},
+        {'json': {'jsonrpc': '2.0', 'id': 3, 'result': [
+            {'triggerid': '80', 'hosts': [{'name': 'DTC - JORGE - 10', 'hostid': '10077'}]},
+        ]}},
+    ])
+
+    problems = fetch_problems(zabbix_client)
+
+    assert problems[0]['resolved'] is True
+    assert problems[0]['resolved_clock'] == 1700003600
 
 
 def test_fetch_problems_sorts_by_severity_then_recency(zabbix_client, requests_mock):
