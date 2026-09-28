@@ -161,7 +161,20 @@ const EQUIPMENT_GLYPH =
   'stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12"/>' +
   '<line x1="8.5" y1="6" x2="8.5" y2="18"/><line x1="15.5" y1="6" x2="15.5" y2="18"/></svg>';
 
-function glowIcon(color, pulseColor, pulseClass) {
+// snmpOffline: o próprio host está com o item de disponibilidade SNMP
+// caído (ping ok, SNMP não) -- entra como um selo triangular no canto do
+// marcador, no host em si, não flutuando solto na linha do circuito (ver
+// comentário no laço de segmentos: essa mesma informação, quando vem do
+// lado do segmento, deixou de virar um marcador separado no meio da rua).
+function glowIcon(color, pulseColor, pulseClass, snmpOffline) {
+  const snmpBadge = snmpOffline
+    ? '<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;z-index:10;">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="#e5484d" stroke="#fff" stroke-width="1.5">' +
+          '<path d="M12 2 L22 20 L2 20 Z"/><line x1="12" y1="9" x2="12" y2="14" stroke="#fff" stroke-width="2"/>' +
+          '<circle cx="12" cy="17" r="1.2" fill="#fff"/>' +
+        '</svg>' +
+      '</div>'
+    : '';
   return L.divIcon({
     className: '',
     html:
@@ -170,6 +183,7 @@ function glowIcon(color, pulseColor, pulseClass) {
         '<div style="position:absolute;top:6px;left:6px;width:22px;height:22px;background:' + color + ';border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">' +
           EQUIPMENT_GLYPH +
         '</div>' +
+        snmpBadge +
       '</div>',
     iconSize: [34, 34], iconAnchor: [17, 17],
   });
@@ -285,31 +299,6 @@ async function saveSegmentPath(segment, latlngs) {
         console.warn(`Não foi possível remover o ponto de trajeto ${oldId} substituído`, err);
       })),
   );
-}
-
-// Small triangular warning badge dropped at a segment's midpoint when SNMP
-// isn't answering for that link — deliberately a different shape from the
-// round status glow, so it reads as "monitoring degraded" rather than
-// restating the line's own up/down color.
-function warningIcon() {
-  return L.divIcon({
-    className: '',
-    html:
-      '<div style="position:relative;width:20px;height:20px;display:flex;align-items:center;justify-content:center;">'
-      + '<div style="position:absolute;inset:0;background:#e5484d;opacity:0.3;filter:blur(3px)"></div>'
-      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="#e5484d" stroke="#fff" stroke-width="1.2">'
-      + '<path d="M12 2 L22 20 L2 20 Z"/><line x1="12" y1="9" x2="12" y2="14" stroke="#fff" stroke-width="2"/>'
-      + '<circle cx="12" cy="17" r="1.2" fill="#fff"/></svg>'
-      + '</div>',
-    iconSize: [20, 20], iconAnchor: [10, 10],
-  });
-}
-
-function midpoint(latlngs) {
-  const mid = Math.floor((latlngs.length - 1) / 2);
-  const [lat1, lng1] = latlngs[mid];
-  const [lat2, lng2] = latlngs[Math.min(mid + 1, latlngs.length - 1)];
-  return [(lat1 + lat2) / 2, (lng1 + lng2) / 2];
 }
 
 function fmt(value, unit) {
@@ -785,12 +774,9 @@ async function refresh() {
         });
         renderSegmentChart(segment.id);
       });
-
-      if (segment.snmp_offline) {
-        L.marker(midpoint(latlngs), { icon: warningIcon(), zIndexOffset: 500 })
-          .addTo(markerLayer)
-          .bindTooltip(`${esc(circuit.name)}: SNMP indisponível — status exibido por ping`, { className: 'mini-tip' });
-      }
+      // SNMP indisponível não vira mais um marcador solto no meio da linha --
+      // é sinal do HOST, não do trajeto; já aparece como selo no marcador do
+      // host (glowIcon) e segue disponível no tooltip/popup do segmento acima.
     });
   });
 
@@ -806,7 +792,7 @@ async function refresh() {
       return;
     }
     const { color, pulseColor, pulseClass } = alertVisual(point.status, point.alert_severity);
-    const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color, pulseColor, pulseClass) }).addTo(markerLayer);
+    const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color, pulseColor, pulseClass, point.snmp_offline) }).addTo(markerLayer);
     markersByPointId[point.id] = marker;
     // Reposiciona as linhas conectadas na hora (sem esperar o servidor) e só
     // então dispara o PUT em segundo plano -- esperar um refresh() completo
