@@ -1,24 +1,39 @@
 let segmentLayersBySegmentId = {};
 
-window.renderCircuitOnEditorMap = function renderCircuitOnEditorMap(circuit, points) {
+// Desenha TODOS os circuitos cadastrados de uma vez (o backbone inteiro
+// continua visível mesmo enquanto você edita/cria outro) -- o circuito
+// identificado por highlightCircuitId entra em destaque (verde, mais
+// grosso); os demais ficam num azul apagado, só de contexto. Sem nenhum
+// circuito cadastrado ainda, o mapa fica genuinamente vazio -- não é bug.
+window.renderCircuitOnEditorMap = function renderCircuitOnEditorMap(circuits, points, highlightCircuitId) {
   Object.values(segmentLayersBySegmentId).forEach((layer) => editorMap.removeLayer(layer));
   segmentLayersBySegmentId = {};
 
   const pointsById = Object.fromEntries(points.map((p) => [p.id, p]));
+  const highlightLayers = [];
 
-  circuit.segments.forEach((segment) => {
-    const origin = pointsById[segment.origin_point_id];
-    const dest = pointsById[segment.destination_point_id];
-    if (!origin || !dest) return;
-    const waypoints = segment.waypoint_ids.map((id) => pointsById[id]).filter(Boolean);
-    const latlngs = [origin, ...waypoints, dest].map((p) => [p.lat, p.lng]);
+  circuits.forEach((circuit) => {
+    const isHighlighted = circuit.id === highlightCircuitId;
+    (circuit.segments || []).forEach((segment) => {
+      const origin = pointsById[segment.origin_point_id];
+      const dest = pointsById[segment.destination_point_id];
+      if (!origin || !dest) return;
+      const waypoints = (segment.waypoint_ids || []).map((id) => pointsById[id]).filter(Boolean);
+      const latlngs = [origin, ...waypoints, dest].map((p) => [p.lat, p.lng]);
 
-    const line = L.polyline(latlngs, { color: '#3b7ef0', weight: 4 }).addTo(editorMap);
-    segmentLayersBySegmentId[segment.id] = line;
+      const line = L.polyline(latlngs, isHighlighted
+        ? { color: '#91dc0a', weight: 5 }
+        : { color: '#3b7ef0', weight: 3, opacity: 0.55 }).addTo(editorMap);
+      segmentLayersBySegmentId[segment.id] = line;
+      if (isHighlighted) highlightLayers.push(line);
+    });
   });
 
-  if (circuit.segments.length > 0) {
-    const bounds = L.featureGroup(Object.values(segmentLayersBySegmentId)).getBounds();
+  // Dá zoom só no circuito em destaque quando existe um; sem destaque (ex:
+  // formulário de "novo circuito" aberto), mostra o backbone inteiro.
+  const boundsSource = highlightLayers.length > 0 ? highlightLayers : Object.values(segmentLayersBySegmentId);
+  if (boundsSource.length > 0) {
+    const bounds = L.featureGroup(boundsSource).getBounds();
     if (bounds.isValid()) editorMap.fitBounds(bounds, { padding: [30, 30] });
   }
 };

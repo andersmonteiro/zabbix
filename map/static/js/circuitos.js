@@ -225,7 +225,7 @@ function resetFormForNewCircuit() {
   destSel.selectedIndex = destSel.options.length > 1 ? 1 : 0;
   onSideHostChange(originSel, document.getElementById('origin-iface-select'), true);
   onSideHostChange(destSel, document.getElementById('destination-iface-select'), false);
-  window.renderCircuitOnEditorMap({ segments: [] }, allPoints);
+  window.renderCircuitOnEditorMap(allCircuits, allPoints, null);
 }
 document.getElementById('new-circuit-btn').addEventListener('click', () => {
   resetFormForNewCircuit();
@@ -237,7 +237,10 @@ document.getElementById('new-circuit-btn').addEventListener('click', () => {
 // salvar (sem reabrir o modal nesse segundo caso, ver o submit handler).
 async function loadCircuitIntoForm(circuitId) {
   selectedCircuitId = circuitId;
-  renderCircuitChips();
+  // Recarrega a lista inteira (não só renderCircuitChips) -- o mapa desenha
+  // TODOS os circuitos, então precisa dos segmentos atualizados de todo
+  // mundo, não só do que está sendo editado agora.
+  await loadCircuits();
   window.currentCircuit = await api(`/api/circuits/${circuitId}`);
   const segment = window.currentCircuit.segments[0];
   document.getElementById('segment-submit-btn').textContent = 'Salvar circuito';
@@ -269,7 +272,7 @@ async function loadCircuitIntoForm(circuitId) {
     ? 'Esse circuito referencia um ponto que não existe mais — corrija ou recrie.'
     : '';
 
-  window.renderCircuitOnEditorMap(window.currentCircuit, allPoints);
+  window.renderCircuitOnEditorMap(allCircuits, allPoints, circuitId);
 }
 
 async function editCircuit(circuitId) {
@@ -379,7 +382,6 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     if (isNew) {
       const circuit = await api('/api/circuits', { method: 'POST', body: JSON.stringify({ name: circuitName }) });
       await api(`/api/circuits/${circuit.id}/segments`, { method: 'POST', body: JSON.stringify(segmentBody) });
-      await loadCircuits();
       await loadCircuitIntoForm(circuit.id);
     } else {
       await api(`/api/circuits/${selectedCircuitId}`, { method: 'PUT', body: JSON.stringify({ name: circuitName }) });
@@ -398,7 +400,6 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
           }
         }
       }
-      await loadCircuits();
       await loadCircuitIntoForm(selectedCircuitId);
     }
     setFormStatus('segment-status', 'Circuito salvo.', false);

@@ -84,6 +84,22 @@ def test_update_segment_waypoints_for_path_editing(client):
     assert resp.get_json()['waypoint_ids'] == [3, 1]
 
 
+def test_list_circuits_includes_segments(client):
+    # A tela de Circuitos precisa desenhar todos os circuitos no mapa de uma
+    # vez -- sem segmentos aqui, sobraria só o nome, sem geometria pra traçar.
+    circuit = client.post('/api/circuits', json={'name': 'POP Centro -> Cliente'}).get_json()
+    client.post(f"/api/circuits/{circuit['id']}/segments", json={
+        'order_index': 0, 'origin_point_id': 1, 'destination_point_id': 2, 'waypoint_ids': [3],
+    })
+
+    resp = client.get('/api/circuits')
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert len(body) == 1
+    assert len(body[0]['segments']) == 1
+    assert body[0]['segments'][0]['origin_point_id'] == 1
+
+
 def test_delete_circuit_cascades_segments(client):
     circuit = client.post('/api/circuits', json={'name': 'X'}).get_json()
     client.post(f"/api/circuits/{circuit['id']}/segments", json={

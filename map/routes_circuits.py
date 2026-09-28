@@ -43,10 +43,14 @@ def _serialize_segment(segment):
 
 @circuits_bp.route('/circuits', methods=['GET'])
 def list_circuits():
+    # include_segments=True: a tela de Circuitos desenha TODOS os circuitos
+    # no mapa de uma vez (o selecionado em destaque, o resto apagado) --
+    # sem os segmentos aqui, precisaria de uma chamada por circuito só pra
+    # montar essa visão geral.
     session = _session_factory()
     try:
         circuits = session.query(Circuit).all()
-        return jsonify([_serialize_circuit(c) for c in circuits])
+        return jsonify([_serialize_circuit(c, include_segments=True) for c in circuits])
     finally:
         session.close()
 

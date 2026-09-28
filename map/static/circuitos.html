@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css" />
   <link rel="stylesheet" href="css/app.css" />
   <style>
-    .circuitos-shell { display: flex; flex: 1; min-height: 0; gap: 24px; padding: 24px; }
+    .circuitos-shell { display: flex; flex: 1; min-height: 0; gap: 20px; padding: 20px; }
     .section-label {
       font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
       text-transform: uppercase; color: var(--text-muted); margin: 0 0 12px;
@@ -15,7 +15,7 @@
     .section-label .slashes { color: var(--accent); margin-right: 6px; }
 
     /* ── Coluna esquerda: lista de circuitos ─────────────────────────── */
-    .circuits-panel { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+    .circuits-panel { width: 250px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
     #new-circuit-btn { margin-bottom: 20px; align-self: flex-start; }
     .circuits-chips { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
     .circuit-chip {
@@ -38,8 +38,8 @@
     }
     .modal-overlay[hidden] { display: none; }
     .modal-card {
-      width: 100%; max-width: 760px; max-height: 90vh; overflow-y: auto;
-      background: var(--bg-panel); border: 1px solid var(--border); box-shadow: var(--shadow-card); padding: 28px;
+      width: 100%; max-width: 1040px; max-height: 90vh; overflow-y: auto;
+      background: var(--bg-panel); border: 1px solid var(--border); box-shadow: var(--shadow-card); padding: 32px;
     }
     .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
     .modal-header h2 {
@@ -52,10 +52,10 @@
     }
     .modal-close:hover { color: var(--accent); }
 
-    .ab-flow { display: flex; align-items: stretch; gap: 16px; margin-bottom: 20px; }
+    .ab-flow { display: flex; align-items: stretch; gap: 22px; margin-bottom: 20px; }
     .ab-side {
       flex: 1; min-width: 0; background: var(--bg-canvas); border: 1px solid var(--border);
-      padding: 24px 20px; display: flex; flex-direction: column; gap: 14px; min-height: 160px;
+      padding: 30px 28px; display: flex; flex-direction: column; gap: 16px; min-height: 180px;
     }
     .ab-side select { width: 100%; padding: 12px 14px; font-size: 14px; }
     .ab-arrow {
