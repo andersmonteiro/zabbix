@@ -256,8 +256,34 @@ function applyEditMode() {
 // sessão). Os pontos antigos que saíram do traçado são removidos depois,
 // nunca antes -- uma falha aqui (ex: ponto ainda usado por outro segmento)
 // não pode derrubar o traçado que acabou de ser salvo.
+// Reencaixa o traçado arrastado na rua/estrada real mais próxima -- mesma
+// lógica usada em Circuitos (editor.js), duplicada aqui porque as duas
+// páginas não compartilham módulo JS. Sem isso, editar a linha aqui no
+// mapa principal salvava a linha reta exatamente como arrastada, diferente
+// do "Ajustar trajeto" de Circuitos, que já encaixa na estrada.
+async function snapPathToRoad(latlngs) {
+  if (latlngs.length < 2) return latlngs;
+  const coordsParam = latlngs.map((ll) => `${ll.lng},${ll.lat}`).join(';');
+  const url = `https://router.project-osrm.org/route/v1/driving/${coordsParam}?overview=simplified&geometries=geojson`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`OSRM HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
+    throw new Error(`OSRM: ${data.code || 'sem rota encontrada'}`);
+  }
+  return data.routes[0].geometry.coordinates.map(([lng, lat]) => L.latLng(lat, lng));
+}
+
 async function saveSegmentPath(segment, latlngs) {
-  const middleLatLngs = latlngs.slice(1, -1);
+  let snappedLatLngs = latlngs;
+  try {
+    snappedLatLngs = await snapPathToRoad(latlngs);
+  } catch (err) {
+    // Sem estrada encontrada (área rural sem cobertura OSM, ou OSRM fora do
+    // ar) -- mantém o traçado desenhado à mão em vez de travar o salvamento.
+    console.warn('Encaixe na estrada falhou, mantendo o traçado desenhado manualmente', err);
+  }
+  const middleLatLngs = snappedLatLngs.slice(1, -1);
   const previousWaypointIds = (segment.waypoint_ids || []).slice();
 
   // Em paralelo, não em sequência -- uma rota real (gerada via OSRM) pode ter
