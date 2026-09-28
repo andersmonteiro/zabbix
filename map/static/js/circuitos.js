@@ -168,25 +168,43 @@ async function loadCircuits() {
   renderCircuitChips();
 }
 
+const EDIT_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+// O ícone de editar só aparece no bloco do circuito já selecionado -- em
+// cima do próprio item da lista, não um botão solto no topo do painel sem
+// contexto nenhum de qual circuito ele afeta.
 function renderCircuitChips() {
   const wrap = document.getElementById('circuits-chips');
-  wrap.innerHTML = allCircuits.map((c) => `
-    <div class="circuit-chip${c.id === selectedCircuitId ? ' selected' : ''}" data-id="${esc(c.id)}">${esc(c.name)}</div>
-  `).join('');
+  wrap.innerHTML = allCircuits.map((c) => {
+    const isSelected = c.id === selectedCircuitId;
+    const editBtn = isSelected
+      ? `<button type="button" class="circuit-chip-edit" data-id="${esc(c.id)}" title="Editar circuito">${EDIT_ICON}</button>`
+      : '';
+    return `
+      <div class="circuit-chip${isSelected ? ' selected' : ''}" data-id="${esc(c.id)}">
+        <span class="circuit-chip-name">${esc(c.name)}</span>
+        ${editBtn}
+      </div>
+    `;
+  }).join('');
   wrap.querySelectorAll('.circuit-chip').forEach((el) => {
     el.addEventListener('click', () => viewCircuit(Number(el.dataset.id)));
+  });
+  wrap.querySelectorAll('.circuit-chip-edit').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      editCircuit(Number(el.dataset.id));
+    });
   });
 }
 
 // Clicar num circuito da lista só SELECIONA e mostra o trecho/dado ao vivo
 // -- direto no mapa, como uma legenda ancorada na direita (window.
-// showCircuitLegend, em editor.js), não mais uma lista na lateral. Abrir o
-// formulário de edição (Lado A/B) é uma ação separada, pelo botão "Editar"
-// da coluna esquerda (habilitado só quando há um circuito selecionado).
+// showCircuitLegend, em editor.js). Editar (Lado A/B) é o ícone de lápis
+// que aparece no próprio bloco do circuito, só depois de selecionado.
 async function viewCircuit(circuitId) {
   selectedCircuitId = circuitId;
   renderCircuitChips();
-  document.getElementById('edit-circuit-btn').disabled = false;
   window.renderCircuitOnEditorMap(allCircuits, allPoints, circuitId);
 
   const circuit = allCircuits.find((c) => c.id === circuitId);
@@ -202,9 +220,6 @@ async function viewCircuit(circuitId) {
   }
   window.showCircuitLegend(circuit, allPoints, liveSegment);
 }
-document.getElementById('edit-circuit-btn').addEventListener('click', () => {
-  if (selectedCircuitId !== null) editCircuit(selectedCircuitId);
-});
 
 // Acha, entre as interfaces já resolvidas de um lado, qual bate com o
 // itemid de status gravado no segmento -- é assim que a tela sabe qual
@@ -245,7 +260,6 @@ function resetFormForNewCircuit() {
   window.currentCircuit = null;
   renderCircuitChips();
   window.closeCircuitLegend();
-  document.getElementById('edit-circuit-btn').disabled = true;
   document.getElementById('segment-submit-btn').textContent = 'Criar circuito';
   document.getElementById('segment-warning').textContent = '';
   document.getElementById('circuit-name-input').value = '';

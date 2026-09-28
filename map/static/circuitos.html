@@ -20,20 +20,28 @@
        tem um min-width, então se não couber os dois o scroll horizontal do
        .circuitos-shell entra como saída, mas isso já é o caso extremo). */
     .circuits-panel { flex: 0 1 460px; min-width: 300px; display: flex; flex-direction: column; min-height: 0; }
-    .circuits-panel-actions { display: flex; gap: 10px; margin-bottom: 20px; }
-    .circuits-panel-actions button { flex: 1; }
-    .circuits-panel-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #new-circuit-btn { margin-bottom: 20px; align-self: flex-start; }
     /* flex:1 (não max-height fixa) -- usa toda a altura que sobrar no
        painel; antes travava em 340px e deixava um vazio enorme embaixo
        mesmo com dezenas de circuitos ainda não visíveis. */
     .circuits-chips { flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; }
     .circuit-chip {
-      width: 100%; text-align: left; padding: 16px 18px; border: 1px solid var(--border);
+      width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      text-align: left; padding: 16px 18px; border: 1px solid var(--border);
       background: var(--bg-panel); font-family: var(--mono); font-size: 13.5px;
       text-transform: uppercase; cursor: pointer; letter-spacing: 0.03em;
     }
     .circuit-chip:hover { border-color: var(--text-secondary); }
     .circuit-chip.selected { border-color: var(--accent); color: var(--accent); }
+    .circuit-chip-name { flex: 1; min-width: 0; }
+    /* Editar mora no próprio bloco do circuito selecionado -- só aparece
+       ali, em vez de um botão solto no topo do painel sem contexto. */
+    .circuit-chip-edit {
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; background: none; border: 1px solid var(--accent);
+      color: var(--accent); cursor: pointer; padding: 0;
+    }
+    .circuit-chip-edit:hover { background: var(--accent); color: #000; }
 
     /* ── Coluna direita: mapa, ocupa o resto da tela ─────────────────── */
     .map-column { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 360px; position: relative; }
@@ -61,6 +69,12 @@
     .cl-title {
       font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
       margin: 0 32px 16px 0; word-break: break-word; line-height: 1.4;
+    }
+    /* Separa capacidade / tráfego / sinal em grupos com cabeçalho próprio
+       -- sem isso tudo virava uma lista única, difícil de escanear rápido. */
+    .cl-section-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--accent); margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-dim);
     }
     .cl-row {
       display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 9px 0;
@@ -192,10 +206,7 @@
       </div>
       <div class="circuitos-shell">
         <div class="circuits-panel">
-          <div class="circuits-panel-actions">
-            <button class="btn-primary" id="new-circuit-btn" type="button">+ Novo circuito</button>
-            <button class="btn-secondary" id="edit-circuit-btn" type="button" disabled>Editar</button>
-          </div>
+          <button class="btn-primary" id="new-circuit-btn" type="button">+ Novo circuito</button>
           <div class="section-label"><span class="slashes">//</span>Circuitos</div>
           <div class="circuits-chips" id="circuits-chips"></div>
         </div>

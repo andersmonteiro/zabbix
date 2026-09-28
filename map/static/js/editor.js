@@ -88,11 +88,16 @@ window.showCircuitLegend = function showCircuitLegend(circuit, points, liveSegme
         <div class="cl-side"><span>Lado A</span><strong>${esc(origin.name)}</strong><small>${esc(ifaceA || '—')}</small></div>
         <div class="cl-side"><span>Lado B</span><strong>${esc(dest.name)}</strong><small>${esc(ifaceB || '—')}</small></div>
       </div>
-      <div class="cl-row"><span>Capacidade</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.speed_mbps) : '—')}</strong></div>
+      <div class="cl-section-label">Capacidade</div>
+      <div class="cl-row"><span>Link</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.speed_mbps) : '—')}</strong></div>
+
+      <div class="cl-section-label">Tráfego</div>
       <div class="cl-row"><span>Download</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.throughput_in_mbps) : '—')}</strong></div>
       <div class="cl-row"><span>Upload</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.throughput_out_mbps) : '—')}</strong></div>
-      <div class="cl-row"><span>Sinal RX</span><strong>${esc(liveSegment ? fmtDbm(liveSegment.optical_rx_dbm) : '—')}</strong></div>
-      <div class="cl-row"><span>Sinal TX</span><strong>${esc(liveSegment ? fmtDbm(liveSegment.optical_tx_dbm) : '—')}</strong></div>
+
+      <div class="cl-section-label">Sinal óptico</div>
+      <div class="cl-row"><span>RX</span><strong>${esc(liveSegment ? fmtDbm(liveSegment.optical_rx_dbm) : '—')}</strong></div>
+      <div class="cl-row"><span>TX</span><strong>${esc(liveSegment ? fmtDbm(liveSegment.optical_tx_dbm) : '—')}</strong></div>
     </div>
   `;
   document.getElementById('circuit-legend-card').hidden = false;
