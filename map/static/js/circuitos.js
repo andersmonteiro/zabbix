@@ -29,6 +29,7 @@ async function addTileLayer() {
 addTileLayer();
 
 let allPoints = [];
+let allCircuits = [];
 let selectedCircuitId = null;
 
 // Same helper as app.js — DB-sourced strings are attacker-controllable through
@@ -70,22 +71,12 @@ function setFormStatus(elementId, message, isError) {
   el.style.color = isError ? '#e5484d' : 'rgba(255,255,255,0.5)';
 }
 
+// A tela só precisa de Points pra alimentar os selects de Lado A/B e pro
+// roteamento OSRM (lat/lng) -- a listagem manual de pontos (e o CRUD que
+// vinha junto) saiu da tela: equipamentos já ganham coordenada no cadastro
+// de Hosts, e pontos de trajeto nascem sozinhos ao criar/ajustar um circuito.
 async function loadPoints() {
   allPoints = await api('/api/points');
-  const list = document.getElementById('points-list');
-  list.innerHTML = allPoints
-    .map((p) => `<div class="list-item" data-id="${esc(p.id)}">${esc(p.name)} <small>(${esc(p.point_type)})</small></div>`)
-    .join('');
-  // Sem isso, clicar num ponto da lista não fazia absolutamente nada --
-  // mesmo comportamento que a lista de Circuitos já tem (centralizar no
-  // mapa do editor), só que pontos não têm um "selecionado" persistente.
-  list.querySelectorAll('.list-item').forEach((el) => {
-    el.addEventListener('click', () => {
-      const point = allPoints.find((p) => p.id === Number(el.dataset.id));
-      if (point) editorMap.setView([point.lat, point.lng], 15);
-    });
-  });
-
   const originSel = document.getElementById('origin-select');
   const destSel = document.getElementById('destination-select');
   const equipmentOptions = allPoints
@@ -93,13 +84,7 @@ async function loadPoints() {
     .map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
   originSel.innerHTML = equipmentOptions;
   destSel.innerHTML = equipmentOptions;
-  // Lado A/B já vêm com um host pré-selecionado (o navegador escolhe a
-  // primeira option sozinho) -- sem isso, o select de interface ficava vazio
-  // até o operador mexer no dropdown manualmente, mesmo já tendo um host válido.
-  await Promise.all([
-    onSideHostChange(originSel, document.getElementById('origin-iface-select'), true),
-    onSideHostChange(destSel, document.getElementById('destination-iface-select'), false),
-  ]);
+  if (destSel.options.length > 1) destSel.selectedIndex = 1; // evita A e B começarem no mesmo host
 }
 
 // Interfaces já resolvidas do host escolhido em cada lado -- alimentadas por
@@ -140,10 +125,8 @@ function updateSegmentIfaceHint() {
     hint.textContent = '';
     return;
   }
-  // Lado A é a ponta monitorada por convenção (mesmo padrão dos segmentos já
-  // cadastrados manualmente) -- só cai pro lado B se A não tiver status
-  // coletado ainda, pra não deixar o segmento sem nenhuma leitura por causa
-  // de uma ponta incompleta (ex: host sem sinal óptico coletado ainda).
+  // Lado A é a ponta monitorada por convenção -- só cai pro lado B se A não
+  // tiver status coletado ainda (ex: host sem sinal óptico coletado ainda).
   const monitoredSide = originIface.operstatus_itemid ? 'A' : 'B';
   hint.textContent = `Dados de tráfego/sinal virão do Lado ${monitoredSide}.`;
 }
@@ -175,84 +158,94 @@ document.getElementById('origin-iface-select').addEventListener('change', update
 document.getElementById('destination-iface-select').addEventListener('change', updateSegmentIfaceHint);
 
 async function loadCircuits() {
-  const circuits = await api('/api/circuits');
-  const list = document.getElementById('circuits-list');
-  list.innerHTML = circuits.map((c) => `
-    <div class="list-item${c.id === selectedCircuitId ? ' selected' : ''}" data-id="${esc(c.id)}">${esc(c.name)}</div>
+  allCircuits = await api('/api/circuits');
+  renderCircuitChips();
+}
+
+function renderCircuitChips() {
+  const wrap = document.getElementById('circuits-chips');
+  wrap.innerHTML = allCircuits.map((c) => `
+    <div class="circuit-chip${c.id === selectedCircuitId ? ' selected' : ''}" data-id="${esc(c.id)}">${esc(c.name)}</div>
   `).join('');
-  list.querySelectorAll('.list-item').forEach((el) => {
+  wrap.querySelectorAll('.circuit-chip').forEach((el) => {
     el.addEventListener('click', () => selectCircuit(Number(el.dataset.id)));
   });
 }
 
+// Acha, entre as interfaces já resolvidas de um lado, qual bate com o
+// itemid de status gravado no segmento -- é assim que a tela sabe qual
+// interface pré-selecionar ao reabrir um circuito existente pra edição,
+// já que o segmento guarda itemids, não o nome da interface escolhida.
+// port_name (formato "IFACE_A ↔ IFACE_B") cobre o lado que não é o
+// monitorado, e também circuitos antigos cadastrados manualmente antes
+// dessa tela existir.
+function resolveIfaceName(interfaces, itemid, portNameFallback) {
+  const byItemid = itemid && interfaces.find((i) => i.operstatus_itemid === String(itemid));
+  if (byItemid) return byItemid.name;
+  if (portNameFallback && interfaces.some((i) => i.name === portNameFallback)) return portNameFallback;
+  return '';
+}
+
+function startNewCircuit() {
+  selectedCircuitId = null;
+  window.currentCircuit = null;
+  renderCircuitChips();
+  document.getElementById('segment-submit-btn').textContent = 'Criar circuito';
+  document.getElementById('segment-warning').textContent = '';
+  setFormStatus('segment-status', '', false);
+  const originSel = document.getElementById('origin-select');
+  const destSel = document.getElementById('destination-select');
+  originSel.selectedIndex = 0;
+  destSel.selectedIndex = destSel.options.length > 1 ? 1 : 0;
+  onSideHostChange(originSel, document.getElementById('origin-iface-select'), true);
+  onSideHostChange(destSel, document.getElementById('destination-iface-select'), false);
+  window.renderCircuitOnEditorMap({ segments: [] }, allPoints);
+}
+document.getElementById('new-circuit-btn').addEventListener('click', startNewCircuit);
+
 async function selectCircuit(circuitId) {
   selectedCircuitId = circuitId;
-  document.getElementById('segment-panel').style.display = 'block';
-  await loadCircuits();
+  renderCircuitChips();
   window.currentCircuit = await api(`/api/circuits/${circuitId}`);
+  const segment = window.currentCircuit.segments[0];
+  document.getElementById('segment-submit-btn').textContent = 'Salvar circuito';
+  setFormStatus('segment-status', '', false);
+
+  const originSel = document.getElementById('origin-select');
+  const destSel = document.getElementById('destination-select');
+  if (segment) {
+    originSel.value = String(segment.origin_point_id);
+    destSel.value = String(segment.destination_point_id);
+  }
+  await Promise.all([
+    onSideHostChange(originSel, document.getElementById('origin-iface-select'), true),
+    onSideHostChange(destSel, document.getElementById('destination-iface-select'), false),
+  ]);
+
+  if (segment) {
+    const [ifaceAName, ifaceBName] = (segment.port_name || '').split('↔').map((s) => (s || '').trim());
+    const originIfaceSel = document.getElementById('origin-iface-select');
+    const destIfaceSel = document.getElementById('destination-iface-select');
+    originIfaceSel.value = resolveIfaceName(originInterfaces, segment.zabbix_operstatus_itemid, ifaceAName);
+    destIfaceSel.value = resolveIfaceName(destinationInterfaces, segment.zabbix_operstatus_itemid, ifaceBName);
+    updateSegmentIfaceHint();
+  }
 
   const pointIds = new Set(allPoints.map((p) => p.id));
-  const brokenSegments = window.currentCircuit.segments.filter(
-    (s) => !pointIds.has(s.origin_point_id) || !pointIds.has(s.destination_point_id),
-  );
-  const warningEl = document.getElementById('segment-warning') || (() => {
-    const el = document.createElement('p');
-    el.id = 'segment-warning';
-    el.style.color = '#f5a623';
-    document.getElementById('segment-panel').prepend(el);
-    return el;
-  })();
-  warningEl.textContent = brokenSegments.length > 0
-    ? `${brokenSegments.length} segmento(s) referenciam um ponto que não existe mais — corrija ou remova.`
+  const broken = segment && (!pointIds.has(segment.origin_point_id) || !pointIds.has(segment.destination_point_id));
+  document.getElementById('segment-warning').textContent = broken
+    ? 'Esse circuito referencia um ponto que não existe mais — corrija ou recrie.'
     : '';
 
   window.renderCircuitOnEditorMap(window.currentCircuit, allPoints);
 }
 
-document.getElementById('point-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const form = new FormData(e.target);
-  const body = {
-    name: form.get('name'), lat: parseFloat(form.get('lat')), lng: parseFloat(form.get('lng')),
-    point_type: form.get('point_type'),
-    zabbix_hostid: form.get('zabbix_hostid') || null,
-    zabbix_status_itemid: form.get('zabbix_status_itemid') || null,
-    zabbix_snmp_available_itemid: form.get('zabbix_snmp_available_itemid') || null,
-    zabbix_uptime_itemid: form.get('zabbix_uptime_itemid') || null,
-    zabbix_latency_itemid: form.get('zabbix_latency_itemid') || null,
-    zabbix_cpu_itemid: form.get('zabbix_cpu_itemid') || null,
-    equipment_model: form.get('equipment_model') || null,
-    equipment_ip: form.get('equipment_ip') || null,
-  };
-  setFormStatus('point-status', '', false);
-  try {
-    await api('/api/points', { method: 'POST', body: JSON.stringify(body) });
-  } catch (err) {
-    // Without this the api() rejection was swallowed and the form simply did
-    // nothing visible — e.g. a non-numeric latitude looked like a dead button.
-    console.error('Falha ao criar ponto', err);
-    setFormStatus('point-status', `Falha ao criar ponto: ${err.message}`, true);
-    return;
-  }
-  e.target.reset();
-  setFormStatus('point-status', 'Ponto criado.', false);
-  await loadPoints();
-});
-
-document.getElementById('circuit-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const form = new FormData(e.target);
-  const circuit = await api('/api/circuits', { method: 'POST', body: JSON.stringify({ name: form.get('name') }) });
-  e.target.reset();
-  await loadCircuits();
-  await selectCircuit(circuit.id);
-});
-
 // Traça a rota pela estrada real via OSRM (servidor demo público, grátis,
-// sem conta) -- chamado sozinho ao criar um segmento, não é uma ação manual
-// separada. O ajuste fino (arrastar no editor) é só pra corrigir os trechos
-// onde a rota automática não bater com a realidade, não pra desenhar do
-// zero. Lança em caso de falha -- quem chama decide o fallback (linha reta).
+// sem conta) -- chamado sozinho ao criar/mudar as pontas de um circuito, não
+// é uma ação manual separada. O ajuste fino (arrastar no mini-mapa) é só pra
+// corrigir os trechos onde a rota automática não bater com a realidade, não
+// pra desenhar do zero. Lança em caso de falha -- quem chama decide o
+// fallback (linha reta).
 async function fetchRoadRoute(originLat, originLng, destLat, destLng) {
   const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=simplified&geometries=geojson`;
   const resp = await fetch(url);
@@ -268,30 +261,44 @@ async function fetchRoadRoute(originLat, originLng, destLat, destLng) {
 
 document.getElementById('segment-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!selectedCircuitId) return;
   const form = new FormData(e.target);
-  const nextOrderIndex = (window.currentCircuit?.segments?.length) || 0;
-  const originId = Number(form.get('origin_point_id'));
-  const destinationId = Number(form.get('destination_point_id'));
+  const originId = Number(document.getElementById('origin-select').value);
+  const destinationId = Number(document.getElementById('destination-select').value);
+
+  if (!originId || !destinationId) {
+    setFormStatus('segment-status', 'Escolha o host dos dois lados.', true);
+    return;
+  }
+  if (originId === destinationId) {
+    setFormStatus('segment-status', 'Lado A e Lado B não podem ser o mesmo host.', true);
+    return;
+  }
 
   const originIfaceName = document.getElementById('origin-iface-select').value;
   const destinationIfaceName = document.getElementById('destination-iface-select').value;
   const originIface = originInterfaces.find((i) => i.name === originIfaceName);
   const destinationIface = destinationInterfaces.find((i) => i.name === destinationIfaceName);
   if (!originIface || !destinationIface) {
-    setFormStatus('segment-status', 'Escolha a interface dos dois lados antes de adicionar.', true);
+    setFormStatus('segment-status', 'Escolha a interface dos dois lados antes de salvar.', true);
     return;
   }
   // Lado A é a ponta monitorada por convenção -- só cai pro lado B se A não
   // tiver status coletado ainda (ver updateSegmentIfaceHint).
   const monitored = originIface.operstatus_itemid ? originIface : destinationIface;
 
-  let waypointIds = [];
   const origin = allPoints.find((p) => p.id === originId);
   const destination = allPoints.find((p) => p.id === destinationId);
-  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const isNew = selectedCircuitId === null;
+  const existingSegment = !isNew && window.currentCircuit?.segments?.[0];
+  const endpointsChanged = !existingSegment
+    || existingSegment.origin_point_id !== originId
+    || existingSegment.destination_point_id !== destinationId;
+
+  const submitBtn = document.getElementById('segment-submit-btn');
   setFormStatus('segment-status', '', false);
-  if (origin && destination) {
+
+  let waypointIds = existingSegment ? (existingSegment.waypoint_ids || []) : [];
+  if (endpointsChanged) {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Traçando rota pela estrada…';
     try {
@@ -307,13 +314,14 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     } catch (err) {
       console.warn('Rota automática pela estrada falhou, criando linha reta', err);
       setFormStatus('segment-status', 'Rota automática indisponível — criado em linha reta; ajuste no mapa.', true);
+      waypointIds = [];
     }
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Adicionar segmento';
+    submitBtn.textContent = isNew ? 'Criar circuito' : 'Salvar circuito';
   }
 
-  const body = {
-    order_index: nextOrderIndex,
+  const segmentBody = {
+    order_index: 0,
     origin_point_id: originId,
     destination_point_id: destinationId,
     waypoint_ids: waypointIds,
@@ -326,18 +334,45 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     zabbix_optical_tx_itemid: monitored.optical_tx_itemid || null,
     signal_warn_threshold_dbm: form.get('signal_warn_threshold_dbm') ? parseFloat(form.get('signal_warn_threshold_dbm')) : null,
   };
-  await api(`/api/circuits/${selectedCircuitId}/segments`, { method: 'POST', body: JSON.stringify(body) });
-  e.target.reset();
-  // reset() volta os selects de host pro primeiro <option> -- sem re-buscar,
-  // os selects de interface ficariam mostrando a lista do host anterior.
-  await Promise.all([
-    onSideHostChange(document.getElementById('origin-select'), document.getElementById('origin-iface-select'), true),
-    onSideHostChange(document.getElementById('destination-select'), document.getElementById('destination-iface-select'), false),
-  ]);
-  await selectCircuit(selectedCircuitId);
+  // O nome do circuito é sempre "A + B" -- não existe mais campo de nome
+  // manual, por pedido explícito (o circuito É a ligação entre os dois).
+  const circuitName = `${origin.name} + ${destination.name}`;
+
+  try {
+    if (isNew) {
+      const circuit = await api('/api/circuits', { method: 'POST', body: JSON.stringify({ name: circuitName }) });
+      await api(`/api/circuits/${circuit.id}/segments`, { method: 'POST', body: JSON.stringify(segmentBody) });
+      await loadCircuits();
+      await selectCircuit(circuit.id);
+    } else {
+      await api(`/api/circuits/${selectedCircuitId}`, { method: 'PUT', body: JSON.stringify({ name: circuitName }) });
+      await api(`/api/segments/${existingSegment.id}`, { method: 'PUT', body: JSON.stringify(segmentBody) });
+      // Só limpa waypoints antigos se a rota foi refeita de verdade -- senão
+      // waypointIds é a mesma lista de existingSegment e isso apagaria a
+      // própria rota que acabou de ser salva.
+      if (endpointsChanged) {
+        const oldWaypointIds = existingSegment.waypoint_ids || [];
+        for (const oldId of oldWaypointIds) {
+          if (waypointIds.includes(oldId)) continue;
+          try {
+            await api(`/api/points/${oldId}`, { method: 'DELETE' });
+          } catch (err) {
+            console.warn(`Não foi possível remover o waypoint ${oldId} substituído`, err);
+          }
+        }
+      }
+      await loadCircuits();
+      await selectCircuit(selectedCircuitId);
+    }
+    setFormStatus('segment-status', 'Circuito salvo.', false);
+  } catch (err) {
+    console.error('Falha ao salvar circuito', err);
+    setFormStatus('segment-status', `Falha ao salvar: ${err.message}`, true);
+  }
 });
 
 (async function init() {
   await loadPoints();
   await loadCircuits();
+  startNewCircuit();
 })();

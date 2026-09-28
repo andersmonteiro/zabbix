@@ -7,26 +7,46 @@
   <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css" />
   <link rel="stylesheet" href="css/app.css" />
   <style>
-    .circuitos-shell { display: flex; flex: 1; min-height: 0; gap: 16px; padding: 0 24px 24px; }
-    .side-panel {
-      width: 340px; flex-shrink: 0; background: var(--bg-panel); border: 1px solid var(--border);
-      box-shadow: var(--shadow-card); padding: 18px; overflow-y: auto; font-size: 13px;
-    }
-    .side-panel .section-label {
+    .circuitos-shell { display: flex; flex: 1; min-height: 0; gap: 24px; padding: 24px; align-items: flex-start; overflow-y: auto; }
+    .circuit-builder { flex: 1; max-width: 640px; }
+    .section-label {
       font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
-      text-transform: uppercase; color: var(--text-muted); margin: 20px 0 8px;
+      text-transform: uppercase; color: var(--text-muted); margin: 0 0 12px;
     }
-    .side-panel .section-label:first-child { margin-top: 0; }
-    .side-panel .section-label .slashes { color: var(--accent); margin-right: 6px; }
-    #editor-map { flex: 1; border: 1px solid var(--border); box-shadow: var(--shadow-card); }
-    #edit-path-btn { margin-top: 10px; width: 100%; }
-    #segment-warning { font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; }
+    .section-label .slashes { color: var(--accent); margin-right: 6px; }
+
+    .circuits-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .circuit-chip {
+      padding: 7px 14px; border: 1px solid var(--border); background: var(--bg-panel);
+      font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; cursor: pointer;
+    }
+    .circuit-chip.selected { border-color: var(--accent); color: var(--accent); }
+    #new-circuit-btn { margin-bottom: 24px; }
+
+    .ab-flow { display: flex; align-items: stretch; gap: 14px; margin-bottom: 16px; }
+    .ab-side {
+      flex: 1; background: var(--bg-panel); border: 1px solid var(--border);
+      box-shadow: var(--shadow-card); padding: 16px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .ab-side select { width: 100%; }
+    .ab-arrow {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; color: var(--accent); font-family: var(--mono); flex-shrink: 0; width: 24px;
+    }
     .side-label {
       font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--accent); margin-top: 10px; display: block;
+      text-transform: uppercase; color: var(--accent);
     }
     #segment-form select:disabled { opacity: 0.5; }
     #segment-iface-hint { font-size: 11px; }
+    #segment-submit-btn { width: 100%; margin-top: 4px; }
+
+    .mini-map-card { width: 280px; flex-shrink: 0; }
+    #editor-map {
+      width: 100%; height: 220px; border: 1px solid var(--border); box-shadow: var(--shadow-card);
+    }
+    #edit-path-btn { margin-top: 10px; width: 100%; }
+    #segment-warning { font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; }
   </style>
 </head>
 <body>
@@ -91,60 +111,42 @@
         </header>
       </div>
       <div class="circuitos-shell">
-        <div class="side-panel">
-          <div class="section-label"><span class="slashes">//</span>Pontos</div>
-          <div id="points-list"></div>
-          <form class="inline" id="point-form">
-            <input name="name" placeholder="Nome" required />
-            <input name="lat" type="number" step="any" min="-90" max="90" placeholder="Latitude" required />
-            <input name="lng" type="number" step="any" min="-180" max="180" placeholder="Longitude" required />
-            <select name="point_type">
-              <option value="waypoint">Trajeto (sem monitoramento)</option>
-              <option value="equipment">Equipamento (host do Zabbix)</option>
-            </select>
-            <input name="zabbix_hostid" placeholder="Zabbix hostid (equipamento)" />
-            <input name="zabbix_status_itemid" placeholder="Zabbix itemid — status (ping)" />
-            <input name="zabbix_snmp_available_itemid" placeholder="Zabbix itemid — disponibilidade SNMP (opcional)" />
-            <input name="zabbix_uptime_itemid" placeholder="Zabbix itemid — uptime (opcional)" />
-            <input name="zabbix_latency_itemid" placeholder="Zabbix itemid — latência/RTT (opcional)" />
-            <input name="zabbix_cpu_itemid" placeholder="Zabbix itemid — CPU (opcional)" />
-            <input name="equipment_model" placeholder="Modelo do equipamento (opcional)" />
-            <input name="equipment_ip" placeholder="IP (opcional)" />
-            <button class="btn-primary" type="submit">Adicionar ponto</button>
-          </form>
-          <p id="point-status" class="form-status"></p>
-
+        <div class="circuit-builder">
           <div class="section-label"><span class="slashes">//</span>Circuitos</div>
-          <div id="circuits-list"></div>
-          <form class="inline" id="circuit-form">
-            <input name="name" placeholder="Nome do circuito" required />
-            <button class="btn-primary" type="submit">Criar circuito</button>
+          <div class="circuits-chips" id="circuits-chips"></div>
+          <button class="btn-secondary" id="new-circuit-btn" type="button">+ Novo circuito</button>
+          <p id="segment-warning"></p>
+
+          <form class="inline" id="segment-form">
+            <div class="ab-flow">
+              <div class="ab-side">
+                <span class="side-label">Lado A</span>
+                <select id="origin-select"></select>
+                <select id="origin-iface-select" disabled>
+                  <option value="">Selecione o host…</option>
+                </select>
+              </div>
+              <div class="ab-arrow">→</div>
+              <div class="ab-side">
+                <span class="side-label">Lado B</span>
+                <select id="destination-select"></select>
+                <select id="destination-iface-select" disabled>
+                  <option value="">Selecione o host…</option>
+                </select>
+              </div>
+            </div>
+            <p id="segment-iface-hint" class="form-status"></p>
+            <input name="signal_warn_threshold_dbm" placeholder="Limiar de sinal (dBm), opcional — ex: -25" />
+            <button class="btn-primary" type="submit" id="segment-submit-btn">Criar circuito</button>
           </form>
-
-          <div id="segment-panel" style="display:none">
-            <div class="section-label"><span class="slashes">//</span>Novo segmento</div>
-            <form class="inline" id="segment-form">
-              <label class="side-label">Lado A</label>
-              <select name="origin_point_id" id="origin-select"></select>
-              <select id="origin-iface-select" disabled>
-                <option value="">Selecione o host…</option>
-              </select>
-
-              <label class="side-label">Lado B</label>
-              <select name="destination_point_id" id="destination-select"></select>
-              <select id="destination-iface-select" disabled>
-                <option value="">Selecione o host…</option>
-              </select>
-
-              <input name="signal_warn_threshold_dbm" placeholder="Limiar de sinal (dBm), ex: -25" />
-              <p id="segment-iface-hint" class="form-status"></p>
-              <button class="btn-primary" type="submit">Adicionar segmento</button>
-            </form>
-            <p id="segment-status" class="form-status"></p>
-            <button class="btn-secondary" id="edit-path-btn">Editar trajeto</button>
-          </div>
+          <p id="segment-status" class="form-status"></p>
         </div>
-        <div id="editor-map"></div>
+
+        <div class="mini-map-card">
+          <div class="section-label"><span class="slashes">//</span>Trecho</div>
+          <div id="editor-map"></div>
+          <button class="btn-secondary" id="edit-path-btn">Ajustar trajeto</button>
+        </div>
       </div>
     </div>
   </div>
