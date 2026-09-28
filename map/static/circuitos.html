@@ -21,7 +21,10 @@
        .circuitos-shell entra como saída, mas isso já é o caso extremo). */
     .circuits-panel { flex: 0 1 460px; min-width: 300px; display: flex; flex-direction: column; min-height: 0; }
     #new-circuit-btn { margin-bottom: 20px; align-self: flex-start; }
-    .circuits-chips { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; max-height: 340px; }
+    /* flex:1 (não max-height fixa) -- usa toda a altura que sobrar no
+       painel; antes travava em 340px e deixava um vazio enorme embaixo
+       mesmo com dezenas de circuitos ainda não visíveis. */
+    .circuits-chips { flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; }
     .circuit-chip {
       width: 100%; text-align: left; padding: 16px 18px; border: 1px solid var(--border);
       background: var(--bg-panel); font-family: var(--mono); font-size: 13.5px;
