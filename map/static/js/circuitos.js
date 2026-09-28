@@ -174,9 +174,67 @@ function renderCircuitChips() {
     <div class="circuit-chip${c.id === selectedCircuitId ? ' selected' : ''}" data-id="${esc(c.id)}">${esc(c.name)}</div>
   `).join('');
   wrap.querySelectorAll('.circuit-chip').forEach((el) => {
-    el.addEventListener('click', () => editCircuit(Number(el.dataset.id)));
+    el.addEventListener('click', () => viewCircuit(Number(el.dataset.id)));
   });
 }
+
+function fmtMbps(v) {
+  return v === null || v === undefined ? '—' : `${v.toFixed(1)} Mbps`;
+}
+function fmtDbm(v) {
+  return v === null || v === undefined ? '—' : `${v.toFixed(1)} dBm`;
+}
+
+function renderCircuitDetail(circuit, liveSegment) {
+  const panel = document.getElementById('circuit-detail');
+  const rows = document.getElementById('circuit-detail-rows');
+  document.getElementById('circuit-detail-title').textContent = circuit.name;
+  panel.hidden = false;
+
+  const segment = circuit.segments && circuit.segments[0];
+  if (!segment) {
+    rows.innerHTML = '<p class="form-status">Esse circuito ainda não tem um trecho configurado.</p>';
+    return;
+  }
+
+  rows.innerHTML = [
+    ['Porta', segment.port_name || '—'],
+    ['Status', liveSegment ? liveSegment.status : '—'],
+    ['Capacidade do link', liveSegment ? fmtMbps(liveSegment.speed_mbps) : '—'],
+    ['Throughput entrada', liveSegment ? fmtMbps(liveSegment.throughput_in_mbps) : '—'],
+    ['Throughput saída', liveSegment ? fmtMbps(liveSegment.throughput_out_mbps) : '—'],
+    ['Utilização', liveSegment && liveSegment.utilization_pct !== null && liveSegment.utilization_pct !== undefined
+      ? `${liveSegment.utilization_pct.toFixed(0)}%` : '—'],
+    ['Sinal óptico RX', liveSegment ? fmtDbm(liveSegment.optical_rx_dbm) : '—'],
+    ['Sinal óptico TX', liveSegment ? fmtDbm(liveSegment.optical_tx_dbm) : '—'],
+  ].map(([label, value]) => `<div class="detail-row"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
+}
+
+// Clicar num circuito da lista só SELECIONA e mostra o trecho/dado ao vivo
+// -- abrir o formulário de edição (Lado A/B) virou uma ação separada, pelo
+// botão "Editar" do painel de detalhe (ver editCircuit), não mais um
+// efeito colateral do clique no nome.
+async function viewCircuit(circuitId) {
+  selectedCircuitId = circuitId;
+  renderCircuitChips();
+  window.renderCircuitOnEditorMap(allCircuits, allPoints, circuitId);
+
+  const circuit = allCircuits.find((c) => c.id === circuitId);
+  if (!circuit) return;
+
+  let liveSegment = null;
+  try {
+    const mapState = await api('/api/map-state');
+    const liveCircuit = mapState.circuits.find((c) => c.id === circuitId);
+    liveSegment = (liveCircuit && liveCircuit.segments && liveCircuit.segments[0]) || null;
+  } catch (err) {
+    console.error('Falha ao buscar dados ao vivo do circuito', err);
+  }
+  renderCircuitDetail(circuit, liveSegment);
+}
+document.getElementById('circuit-edit-btn').addEventListener('click', () => {
+  if (selectedCircuitId !== null) editCircuit(selectedCircuitId);
+});
 
 // Acha, entre as interfaces já resolvidas de um lado, qual bate com o
 // itemid de status gravado no segmento -- é assim que a tela sabe qual
@@ -216,6 +274,7 @@ function resetFormForNewCircuit() {
   selectedCircuitId = null;
   window.currentCircuit = null;
   renderCircuitChips();
+  document.getElementById('circuit-detail').hidden = true;
   document.getElementById('segment-submit-btn').textContent = 'Criar circuito';
   document.getElementById('segment-warning').textContent = '';
   document.getElementById('circuit-name-input').value = '';
@@ -380,10 +439,12 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
   const customName = (form.get('circuit_name') || '').trim();
   const circuitName = customName || `${origin.name} + ${destination.name}`;
 
+  let savedCircuitId = selectedCircuitId;
   try {
     if (isNew) {
       const circuit = await api('/api/circuits', { method: 'POST', body: JSON.stringify({ name: circuitName }) });
       await api(`/api/circuits/${circuit.id}/segments`, { method: 'POST', body: JSON.stringify(segmentBody) });
+      savedCircuitId = circuit.id;
       await loadCircuitIntoForm(circuit.id);
     } else {
       await api(`/api/circuits/${selectedCircuitId}`, { method: 'PUT', body: JSON.stringify({ name: circuitName }) });
@@ -406,6 +467,7 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     }
     setFormStatus('segment-status', 'Circuito salvo.', false);
     closeAbModal();
+    await viewCircuit(savedCircuitId);
   } catch (err) {
     console.error('Falha ao salvar circuito', err);
     setFormStatus('segment-status', `Falha ao salvar: ${err.message}`, true);

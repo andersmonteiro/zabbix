@@ -17,7 +17,7 @@
     /* ── Coluna esquerda: lista de circuitos ─────────────────────────── */
     .circuits-panel { width: 560px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
     #new-circuit-btn { margin-bottom: 20px; align-self: flex-start; }
-    .circuits-chips { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; }
+    .circuits-chips { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; max-height: 340px; }
     .circuit-chip {
       width: 100%; text-align: left; padding: 16px 18px; border: 1px solid var(--border);
       background: var(--bg-panel); font-family: var(--mono); font-size: 13.5px;
@@ -25,6 +25,22 @@
     }
     .circuit-chip:hover { border-color: var(--text-secondary); }
     .circuit-chip.selected { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Painel de detalhe: clicar num circuito só seleciona/mostra dado ao
+       vivo -- abrir o formulário de edição vira uma ação separada (botão
+       "Editar" aqui dentro), não mais um efeito colateral do clique. ── */
+    .circuit-detail { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); overflow-y: auto; }
+    .circuit-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .circuit-detail-header h3 {
+      font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--text-primary); margin: 0; word-break: break-word;
+    }
+    .detail-row {
+      display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
+      border-bottom: 1px solid var(--border-dim); font-family: var(--mono); font-size: 12px;
+    }
+    .detail-row span { color: var(--text-muted); text-transform: uppercase; }
+    .detail-row strong { color: var(--text-primary); font-weight: 600; text-align: right; }
 
     /* ── Coluna direita: mapa, ocupa o resto da tela ─────────────────── */
     .map-column { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
@@ -139,6 +155,14 @@
           <button class="btn-primary" id="new-circuit-btn" type="button">+ Novo circuito</button>
           <div class="section-label"><span class="slashes">//</span>Circuitos</div>
           <div class="circuits-chips" id="circuits-chips"></div>
+
+          <div id="circuit-detail" class="circuit-detail" hidden>
+            <div class="circuit-detail-header">
+              <h3 id="circuit-detail-title"></h3>
+              <button class="btn-secondary" id="circuit-edit-btn" type="button">Editar</button>
+            </div>
+            <div id="circuit-detail-rows"></div>
+          </div>
         </div>
 
         <div class="map-column">

@@ -618,19 +618,12 @@ function updateStaleBanner(state) {
   }
 }
 
-// Painel lateral: lista de circuitos e de hosts, cada host com um badge
-// numérico refletindo os mesmos alertas reais do Zabbix usados no pulso do
-// mapa (vermelho >=4, laranja 2-3) -- clicar num host centraliza o mapa nele.
+// Painel lateral: lista de hosts, cada um com um badge numérico refletindo
+// os mesmos alertas reais do Zabbix usados no pulso do mapa (vermelho >=4,
+// laranja 2-3) -- clicar num host centraliza o mapa nele.
 function renderOpsPanel(state) {
-  const circuitsList = document.getElementById('ops-circuits-list');
   const hostsList = document.getElementById('ops-hosts-list');
-  if (!circuitsList || !hostsList) return;
-
-  circuitsList.innerHTML = state.circuits.length === 0
-    ? '<div class="ops-empty">Nenhum circuito cadastrado.</div>'
-    : state.circuits.map((c) => `
-        <div class="ops-circuit-item">${esc(c.name)}<br><small>${esc(c.segments.length)} segmento(s)</small></div>
-      `).join('');
+  if (!hostsList) return;
 
   const hosts = state.points.filter((p) => p.point_type === 'equipment');
   if (hosts.length === 0) {
