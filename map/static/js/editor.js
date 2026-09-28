@@ -72,7 +72,12 @@ window.showCircuitLegend = function showCircuitLegend(circuit, points, liveSegme
   }
 
   const [ifaceA, ifaceB] = (segment.port_name || '').split('↔').map((s) => (s || '').trim());
-  const fmtMbps = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(1)} Mbps`);
+  // >=1000 Mbps mostra em Gbps (40000 Mbps lido como "40 Gbps" é bem mais
+  // direto que forçar Mbps pra capacidades de link grandes).
+  const fmtMbps = (v) => {
+    if (v === null || v === undefined) return '—';
+    return v >= 1000 ? `${(v / 1000).toFixed(1)} Gbps` : `${v.toFixed(1)} Mbps`;
+  };
   const fmtDbm = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(1)} dBm`);
 
   document.getElementById('circuit-legend-content').innerHTML = `
@@ -84,13 +89,13 @@ window.showCircuitLegend = function showCircuitLegend(circuit, points, liveSegme
         <div class="cl-side"><span>Lado B</span><strong>${esc(dest.name)}</strong><small>${esc(ifaceB || '—')}</small></div>
       </div>
       <div class="cl-row"><span>Capacidade</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.speed_mbps) : '—')}</strong></div>
-      <div class="cl-row"><span>Throughput</span><strong>${esc(liveSegment ? `${fmtMbps(liveSegment.throughput_in_mbps)} ↓ / ${fmtMbps(liveSegment.throughput_out_mbps)} ↑` : '—')}</strong></div>
-      <div class="cl-row"><span>Sinal óptico</span><strong>${esc(liveSegment ? `${fmtDbm(liveSegment.optical_rx_dbm)} RX / ${fmtDbm(liveSegment.optical_tx_dbm)} TX` : '—')}</strong></div>
-      <button id="circuit-legend-edit-btn" class="btn-secondary" type="button">Editar</button>
+      <div class="cl-row"><span>Download</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.throughput_in_mbps) : '—')}</strong></div>
+      <div class="cl-row"><span>Upload</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.throughput_out_mbps) : '—')}</strong></div>
+      <div class="cl-row"><span>Sinal RX</span><strong>${esc(liveSegment ? fmtDbm(liveSegment.optical_rx_dbm) : '—')}</strong></div>
+      <div class="cl-row"><span>Sinal TX</span><strong>${esc(liveSegment ? fmtDbm(liveSegment.optical_tx_dbm) : '—')}</strong></div>
     </div>
   `;
   document.getElementById('circuit-legend-card').hidden = false;
-  document.getElementById('circuit-legend-edit-btn').addEventListener('click', () => editCircuit(circuit.id));
 };
 
 let editingSegmentId = null;

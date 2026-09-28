@@ -179,13 +179,14 @@ function renderCircuitChips() {
 }
 
 // Clicar num circuito da lista só SELECIONA e mostra o trecho/dado ao vivo
-// -- direto no mapa, como uma legenda ancorada no trecho (window.
+// -- direto no mapa, como uma legenda ancorada na direita (window.
 // showCircuitLegend, em editor.js), não mais uma lista na lateral. Abrir o
 // formulário de edição (Lado A/B) é uma ação separada, pelo botão "Editar"
-// dentro da própria legenda.
+// da coluna esquerda (habilitado só quando há um circuito selecionado).
 async function viewCircuit(circuitId) {
   selectedCircuitId = circuitId;
   renderCircuitChips();
+  document.getElementById('edit-circuit-btn').disabled = false;
   window.renderCircuitOnEditorMap(allCircuits, allPoints, circuitId);
 
   const circuit = allCircuits.find((c) => c.id === circuitId);
@@ -201,6 +202,9 @@ async function viewCircuit(circuitId) {
   }
   window.showCircuitLegend(circuit, allPoints, liveSegment);
 }
+document.getElementById('edit-circuit-btn').addEventListener('click', () => {
+  if (selectedCircuitId !== null) editCircuit(selectedCircuitId);
+});
 
 // Acha, entre as interfaces já resolvidas de um lado, qual bate com o
 // itemid de status gravado no segmento -- é assim que a tela sabe qual
@@ -241,6 +245,7 @@ function resetFormForNewCircuit() {
   window.currentCircuit = null;
   renderCircuitChips();
   window.closeCircuitLegend();
+  document.getElementById('edit-circuit-btn').disabled = true;
   document.getElementById('segment-submit-btn').textContent = 'Criar circuito';
   document.getElementById('segment-warning').textContent = '';
   document.getElementById('circuit-name-input').value = '';
