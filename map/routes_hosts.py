@@ -1,3 +1,5 @@
+import re
+
 from flask import Blueprint, jsonify, request
 
 from models import Point
@@ -7,6 +9,28 @@ hosts_bp = Blueprint('zbx_hosts', __name__, url_prefix='/api/zabbix')
 
 _zabbix_client = None
 _session_factory = None
+
+# Confirmado contra dado real de produção (item.get num host Huawei com
+# segmento já funcionando) -- são os templates padrão IF-MIB aplicados por
+# TODOS os vendors (MW - INTERFACES - FISICAS E VIRTUAIS), não algo
+# específico de fabricante:
+#   ifOperStatus[100GE0/0/1], ifHCInOctets[100GE0/0/1],
+#   ifHCOutOctets[100GE0/0/1], net.if.speed[100GE0/0/1]
+_IFACE_KEY_PATTERNS = {
+    'operstatus_itemid': re.compile(r'^ifOperStatus\[([^\]]+)\]$'),
+    'throughput_in_itemid': re.compile(r'^ifHCInOctets\[([^\]]+)\]$'),
+    'throughput_out_itemid': re.compile(r'^ifHCOutOctets\[([^\]]+)\]$'),
+    'speed_itemid': re.compile(r'^net\.if\.speed\[([^\]]+)\]$'),
+}
+# Sinal óptico varia por vendor: Huawei multi-lane separa o nome da interface
+# com vírgula (rxpowerML[100GE0/0/1,Ramo 1]); outros templates (ex: Datacom)
+# colam o lane junto do nome sem separador -- por isso a chave só captura até
+# a primeira vírgula (ou o fim, se não tiver vírgula) e o restante é resolvido
+# por prefixo contra os nomes de interface já conhecidos em _extract_interfaces.
+_POWER_KEY_PATTERNS = {
+    'optical_rx_itemid': re.compile(r'^rxpower(?:ML)?\[([^\],]+)'),
+    'optical_tx_itemid': re.compile(r'^txpower(?:ML)?\[([^\],]+)'),
+}
 
 # Vendor -> template set, mirroring the mapping used when the SWITCHS group
 # was populated by hand. Only SNMP-based templates are auto-applied (no SSH
@@ -152,6 +176,57 @@ def list_hosts():
         session.close()
 
     return jsonify([_serialize_host(h, points_by_hostid.get(h['hostid'])) for h in hosts])
+
+
+def _extract_interfaces(items):
+    """Groups a host's raw Zabbix items into one entry per physical
+    interface, keyed by the interface name embedded in the item key --
+    this is what lets Circuitos offer a "choose the interface" dropdown
+    instead of asking the operator to paste 5 itemids by hand."""
+    ifaces = {}
+    power_items = []
+    for item in items:
+        key, itemid = item['key_'], item['itemid']
+        matched = False
+        for field, pattern in _IFACE_KEY_PATTERNS.items():
+            m = pattern.match(key)
+            if m:
+                ifaces.setdefault(m.group(1), {})[field] = itemid
+                matched = True
+                break
+        if matched:
+            continue
+        for field, pattern in _POWER_KEY_PATTERNS.items():
+            m = pattern.match(key)
+            if m:
+                power_items.append((field, m.group(1), itemid))
+                break
+
+    # Sinal óptico entra por último, casado por prefixo contra os nomes de
+    # interface já achados acima -- necessário pro formato "colado" (sem
+    # vírgula) de alguns templates (ver comentário de _POWER_KEY_PATTERNS).
+    known_names = sorted(ifaces.keys(), key=len, reverse=True)
+    for field, content, itemid in power_items:
+        name = next((n for n in known_names if content.startswith(n)), content)
+        # setdefault: a primeira leitura vence -- um segundo RX/TX pro mesmo
+        # nome é outro lane do mesmo SFP multi-lane, não outra interface.
+        ifaces.setdefault(name, {}).setdefault(field, itemid)
+
+    return sorted(
+        ({'name': name, **fields} for name, fields in ifaces.items() if 'operstatus_itemid' in fields),
+        key=lambda i: i['name'],
+    )
+
+
+@hosts_bp.route('/hosts/<hostid>/interfaces', methods=['GET'])
+def list_host_interfaces(hostid):
+    try:
+        items = _zabbix_client.call('item.get', {
+            'hostids': [hostid], 'output': ['itemid', 'key_'],
+        })
+    except ZabbixAPIError as e:
+        return jsonify({'error': str(e)}), 502
+    return jsonify(_extract_interfaces(items))
 
 
 @hosts_bp.route('/host-groups', methods=['GET'])

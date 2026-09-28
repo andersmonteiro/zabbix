@@ -238,3 +238,75 @@ def test_delete_host(client, requests_mock):
     ])
     resp = client.delete('/api/zabbix/hosts/100')
     assert resp.status_code == 204
+
+
+def test_list_host_interfaces_groups_huawei_multilane_items(client, requests_mock):
+    # Chaves reais confirmadas contra produção (host Huawei KM30) -- ver
+    # comentário em routes_hosts.py sobre _IFACE_KEY_PATTERNS.
+    requests_mock.post(API, [
+        _login_response(),
+        {'json': {'jsonrpc': '2.0', 'id': 2, 'result': [
+            {'itemid': '85941', 'key_': 'ifOperStatus[100GE0/0/1]'},
+            {'itemid': '85909', 'key_': 'ifHCInOctets[100GE0/0/1]'},
+            {'itemid': '85925', 'key_': 'ifHCOutOctets[100GE0/0/1]'},
+            {'itemid': '85989', 'key_': 'net.if.speed[100GE0/0/1]'},
+            {'itemid': '83306', 'key_': 'rxpowerML[100GE0/0/1,Ramo 1]'},
+            {'itemid': '83999', 'key_': 'rxpowerML[100GE0/0/1,Ramo 2]'},
+            {'itemid': '83378', 'key_': 'txpowerML[100GE0/0/1,Ramo 1]'},
+        ]}},
+    ])
+
+    resp = client.get('/api/zabbix/hosts/11068/interfaces')
+    assert resp.status_code == 200
+    assert resp.get_json() == [{
+        'name': '100GE0/0/1',
+        'operstatus_itemid': '85941',
+        'throughput_in_itemid': '85909',
+        'throughput_out_itemid': '85925',
+        'speed_itemid': '85989',
+        'optical_rx_itemid': '83306',
+        'optical_tx_itemid': '83378',
+    }]
+
+
+def test_list_host_interfaces_matches_concatenated_power_keys_by_prefix(client, requests_mock):
+    # Formato "colado" (sem vírgula) usado por outros templates (ex:
+    # Datacom): rxpower[{#IFNAME}{#GBIC_LANE}] -- resolvido por prefixo
+    # contra o nome de interface já visto no ifOperStatus.
+    requests_mock.post(API, [
+        _login_response(),
+        {'json': {'jsonrpc': '2.0', 'id': 2, 'result': [
+            {'itemid': '1', 'key_': 'ifOperStatus[ge-1/1/1]'},
+            {'itemid': '2', 'key_': 'ifHCInOctets[ge-1/1/1]'},
+            {'itemid': '3', 'key_': 'ifHCOutOctets[ge-1/1/1]'},
+            {'itemid': '4', 'key_': 'rxpower[ge-1/1/1Lane1]'},
+            {'itemid': '5', 'key_': 'txpower[ge-1/1/1Lane1]'},
+        ]}},
+    ])
+
+    resp = client.get('/api/zabbix/hosts/999/interfaces')
+    ifaces = resp.get_json()
+    assert len(ifaces) == 1
+    assert ifaces[0]['name'] == 'ge-1/1/1'
+    assert ifaces[0]['optical_rx_itemid'] == '4'
+    assert ifaces[0]['optical_tx_itemid'] == '5'
+
+
+def test_list_host_interfaces_omits_interfaces_without_operstatus(client, requests_mock):
+    # Um item de potência sozinho, sem ifOperStatus correspondente, não é uma
+    # interface física completa o bastante pra oferecer no picker Lado A/B.
+    requests_mock.post(API, [
+        _login_response(),
+        {'json': {'jsonrpc': '2.0', 'id': 2, 'result': [
+            {'itemid': '1', 'key_': 'rxpower[orphan-iface]'},
+        ]}},
+    ])
+
+    resp = client.get('/api/zabbix/hosts/999/interfaces')
+    assert resp.get_json() == []
+
+
+def test_list_host_interfaces_returns_502_on_zabbix_failure(client, requests_mock):
+    requests_mock.post(API, exc=__import__('requests').exceptions.ConnectionError('refused'))
+    resp = client.get('/api/zabbix/hosts/999/interfaces')
+    assert resp.status_code == 502

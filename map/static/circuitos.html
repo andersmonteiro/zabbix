@@ -21,6 +21,12 @@
     #editor-map { flex: 1; border: 1px solid var(--border); box-shadow: var(--shadow-card); }
     #edit-path-btn { margin-top: 10px; width: 100%; }
     #segment-warning { font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; }
+    .side-label {
+      font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--accent); margin-top: 10px; display: block;
+    }
+    #segment-form select:disabled { opacity: 0.5; }
+    #segment-iface-hint { font-size: 11px; }
   </style>
 </head>
 <body>
@@ -118,18 +124,20 @@
           <div id="segment-panel" style="display:none">
             <div class="section-label"><span class="slashes">//</span>Novo segmento</div>
             <form class="inline" id="segment-form">
+              <label class="side-label">Lado A</label>
               <select name="origin_point_id" id="origin-select"></select>
+              <select id="origin-iface-select" disabled>
+                <option value="">Selecione o host…</option>
+              </select>
+
+              <label class="side-label">Lado B</label>
               <select name="destination_point_id" id="destination-select"></select>
-              <input name="port_name" placeholder="Nome da porta (ex: 100GE0/0/1 - KM30-40G)" />
-              <input name="zabbix_operstatus_itemid" placeholder="itemid — status da porta" />
-              <input name="zabbix_snmp_available_itemid" placeholder="itemid — disponibilidade SNMP (opcional)" />
-              <input name="zabbix_speed_itemid" placeholder="itemid — velocidade" />
-              <input name="zabbix_throughput_in_itemid" placeholder="itemid — throughput entrada" />
-              <input name="zabbix_throughput_out_itemid" placeholder="itemid — throughput saída" />
-              <input name="zabbix_optical_rx_itemid" placeholder="itemid — sinal óptico RX" />
-              <input name="zabbix_optical_tx_itemid" placeholder="itemid — sinal óptico TX" />
-              <input name="zabbix_error_itemid" placeholder="itemid — contador de erros" />
+              <select id="destination-iface-select" disabled>
+                <option value="">Selecione o host…</option>
+              </select>
+
               <input name="signal_warn_threshold_dbm" placeholder="Limiar de sinal (dBm), ex: -25" />
+              <p id="segment-iface-hint" class="form-status"></p>
               <button class="btn-primary" type="submit">Adicionar segmento</button>
             </form>
             <p id="segment-status" class="form-status"></p>

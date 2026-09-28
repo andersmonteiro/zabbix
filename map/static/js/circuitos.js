@@ -93,7 +93,86 @@ async function loadPoints() {
     .map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
   originSel.innerHTML = equipmentOptions;
   destSel.innerHTML = equipmentOptions;
+  // Lado A/B já vêm com um host pré-selecionado (o navegador escolhe a
+  // primeira option sozinho) -- sem isso, o select de interface ficava vazio
+  // até o operador mexer no dropdown manualmente, mesmo já tendo um host válido.
+  await Promise.all([
+    onSideHostChange(originSel, document.getElementById('origin-iface-select'), true),
+    onSideHostChange(destSel, document.getElementById('destination-iface-select'), false),
+  ]);
 }
+
+// Interfaces já resolvidas do host escolhido em cada lado -- alimentadas por
+// onSideHostChange, consultadas no submit do formulário pra montar os
+// itemids do segmento sem o operador precisar saber nenhum deles de cor.
+let originInterfaces = [];
+let destinationInterfaces = [];
+
+async function fetchHostInterfaces(hostid) {
+  if (!hostid) return [];
+  try {
+    return await api(`/api/zabbix/hosts/${hostid}/interfaces`);
+  } catch (err) {
+    console.error('Falha ao buscar interfaces do host', hostid, err);
+    return [];
+  }
+}
+
+function populateIfaceSelect(selectEl, interfaces, emptyLabel) {
+  if (interfaces.length === 0) {
+    selectEl.innerHTML = `<option value="">${esc(emptyLabel)}</option>`;
+    selectEl.disabled = true;
+    return;
+  }
+  selectEl.innerHTML = interfaces
+    .map((i) => `<option value="${esc(i.name)}">${esc(i.name)}${i.optical_rx_itemid ? ' (sinal óptico)' : ''}</option>`)
+    .join('');
+  selectEl.disabled = false;
+}
+
+function updateSegmentIfaceHint() {
+  const hint = document.getElementById('segment-iface-hint');
+  const originName = document.getElementById('origin-iface-select').value;
+  const destName = document.getElementById('destination-iface-select').value;
+  const originIface = originInterfaces.find((i) => i.name === originName);
+  const destIface = destinationInterfaces.find((i) => i.name === destName);
+  if (!originIface || !destIface) {
+    hint.textContent = '';
+    return;
+  }
+  // Lado A é a ponta monitorada por convenção (mesmo padrão dos segmentos já
+  // cadastrados manualmente) -- só cai pro lado B se A não tiver status
+  // coletado ainda, pra não deixar o segmento sem nenhuma leitura por causa
+  // de uma ponta incompleta (ex: host sem sinal óptico coletado ainda).
+  const monitoredSide = originIface.operstatus_itemid ? 'A' : 'B';
+  hint.textContent = `Dados de tráfego/sinal virão do Lado ${monitoredSide}.`;
+}
+
+async function onSideHostChange(pointSelectEl, ifaceSelectEl, isOrigin) {
+  const pointId = Number(pointSelectEl.value);
+  const point = allPoints.find((p) => p.id === pointId);
+  if (!point || !point.zabbix_hostid) {
+    populateIfaceSelect(ifaceSelectEl, [], 'Host sem vínculo com o Zabbix');
+    if (isOrigin) originInterfaces = []; else destinationInterfaces = [];
+    updateSegmentIfaceHint();
+    return;
+  }
+  ifaceSelectEl.disabled = true;
+  ifaceSelectEl.innerHTML = '<option value="">Buscando interfaces…</option>';
+  const interfaces = await fetchHostInterfaces(point.zabbix_hostid);
+  if (isOrigin) originInterfaces = interfaces; else destinationInterfaces = interfaces;
+  populateIfaceSelect(ifaceSelectEl, interfaces, 'Nenhuma interface monitorada encontrada');
+  updateSegmentIfaceHint();
+}
+
+document.getElementById('origin-select').addEventListener('change', (e) => {
+  onSideHostChange(e.target, document.getElementById('origin-iface-select'), true);
+});
+document.getElementById('destination-select').addEventListener('change', (e) => {
+  onSideHostChange(e.target, document.getElementById('destination-iface-select'), false);
+});
+document.getElementById('origin-iface-select').addEventListener('change', updateSegmentIfaceHint);
+document.getElementById('destination-iface-select').addEventListener('change', updateSegmentIfaceHint);
 
 async function loadCircuits() {
   const circuits = await api('/api/circuits');
@@ -195,6 +274,18 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
   const originId = Number(form.get('origin_point_id'));
   const destinationId = Number(form.get('destination_point_id'));
 
+  const originIfaceName = document.getElementById('origin-iface-select').value;
+  const destinationIfaceName = document.getElementById('destination-iface-select').value;
+  const originIface = originInterfaces.find((i) => i.name === originIfaceName);
+  const destinationIface = destinationInterfaces.find((i) => i.name === destinationIfaceName);
+  if (!originIface || !destinationIface) {
+    setFormStatus('segment-status', 'Escolha a interface dos dois lados antes de adicionar.', true);
+    return;
+  }
+  // Lado A é a ponta monitorada por convenção -- só cai pro lado B se A não
+  // tiver status coletado ainda (ver updateSegmentIfaceHint).
+  const monitored = originIface.operstatus_itemid ? originIface : destinationIface;
+
   let waypointIds = [];
   const origin = allPoints.find((p) => p.id === originId);
   const destination = allPoints.find((p) => p.id === destinationId);
@@ -226,19 +317,23 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     origin_point_id: originId,
     destination_point_id: destinationId,
     waypoint_ids: waypointIds,
-    port_name: form.get('port_name') || null,
-    zabbix_operstatus_itemid: form.get('zabbix_operstatus_itemid') || null,
-    zabbix_snmp_available_itemid: form.get('zabbix_snmp_available_itemid') || null,
-    zabbix_speed_itemid: form.get('zabbix_speed_itemid') || null,
-    zabbix_throughput_in_itemid: form.get('zabbix_throughput_in_itemid') || null,
-    zabbix_throughput_out_itemid: form.get('zabbix_throughput_out_itemid') || null,
-    zabbix_optical_rx_itemid: form.get('zabbix_optical_rx_itemid') || null,
-    zabbix_optical_tx_itemid: form.get('zabbix_optical_tx_itemid') || null,
-    zabbix_error_itemid: form.get('zabbix_error_itemid') || null,
+    port_name: `${originIface.name} ↔ ${destinationIface.name}`,
+    zabbix_operstatus_itemid: monitored.operstatus_itemid || null,
+    zabbix_speed_itemid: monitored.speed_itemid || null,
+    zabbix_throughput_in_itemid: monitored.throughput_in_itemid || null,
+    zabbix_throughput_out_itemid: monitored.throughput_out_itemid || null,
+    zabbix_optical_rx_itemid: monitored.optical_rx_itemid || null,
+    zabbix_optical_tx_itemid: monitored.optical_tx_itemid || null,
     signal_warn_threshold_dbm: form.get('signal_warn_threshold_dbm') ? parseFloat(form.get('signal_warn_threshold_dbm')) : null,
   };
   await api(`/api/circuits/${selectedCircuitId}/segments`, { method: 'POST', body: JSON.stringify(body) });
   e.target.reset();
+  // reset() volta os selects de host pro primeiro <option> -- sem re-buscar,
+  // os selects de interface ficariam mostrando a lista do host anterior.
+  await Promise.all([
+    onSideHostChange(document.getElementById('origin-select'), document.getElementById('origin-iface-select'), true),
+    onSideHostChange(document.getElementById('destination-select'), document.getElementById('destination-iface-select'), false),
+  ]);
   await selectCircuit(selectedCircuitId);
 });
 
