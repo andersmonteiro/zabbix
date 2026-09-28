@@ -7,21 +7,55 @@
   <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css" />
   <link rel="stylesheet" href="css/app.css" />
   <style>
-    .circuitos-shell { display: flex; flex: 1; min-height: 0; gap: 28px; padding: 24px; }
-    .circuit-builder { flex: 0 1 880px; display: flex; flex-direction: column; }
+    .circuitos-shell { display: flex; flex: 1; min-height: 0; gap: 24px; padding: 24px; }
     .section-label {
       font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
       text-transform: uppercase; color: var(--text-muted); margin: 0 0 12px;
     }
     .section-label .slashes { color: var(--accent); margin-right: 6px; }
 
-    #new-circuit-btn { margin-bottom: 16px; align-self: flex-start; }
+    /* ── Coluna esquerda: lista de circuitos ─────────────────────────── */
+    .circuits-panel { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+    #new-circuit-btn { margin-bottom: 20px; align-self: flex-start; }
+    .circuits-chips { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+    .circuit-chip {
+      width: 100%; text-align: left; padding: 10px 14px; border: 1px solid var(--border);
+      background: var(--bg-panel); font-family: var(--mono); font-size: 12px;
+      text-transform: uppercase; cursor: pointer;
+    }
+    .circuit-chip.selected { border-color: var(--accent); color: var(--accent); }
 
-    .ab-flow { display: flex; align-items: stretch; gap: 14px; margin-bottom: 20px; }
+    /* ── Coluna direita: mapa, ocupa o resto da tela ─────────────────── */
+    .map-column { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+    #editor-map { flex: 1; min-height: 320px; border: 1px solid var(--border); box-shadow: var(--shadow-card); }
+    #edit-path-btn { margin-top: 10px; align-self: flex-start; }
+
+    /* ── Modal Lado A/B (com desfoque do fundo) ──────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(4, 6, 4, 0.6); backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center;
+      z-index: 1000; padding: 24px;
+    }
+    .modal-overlay[hidden] { display: none; }
+    .modal-card {
+      width: 100%; max-width: 760px; max-height: 90vh; overflow-y: auto;
+      background: var(--bg-panel); border: 1px solid var(--border); box-shadow: var(--shadow-card); padding: 28px;
+    }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .modal-header h2 {
+      font-family: var(--mono); text-transform: uppercase; font-size: 15px; letter-spacing: 0.05em;
+      margin: 0; color: var(--text-primary);
+    }
+    .modal-close {
+      background: none; border: none; color: var(--text-muted); font-size: 26px; line-height: 1;
+      cursor: pointer; padding: 0 4px;
+    }
+    .modal-close:hover { color: var(--accent); }
+
+    .ab-flow { display: flex; align-items: stretch; gap: 16px; margin-bottom: 20px; }
     .ab-side {
-      flex: 1; min-width: 0; background: var(--bg-panel); border: 1px solid var(--border);
-      box-shadow: var(--shadow-card); padding: 24px 20px; display: flex; flex-direction: column; gap: 14px;
-      min-height: 160px;
+      flex: 1; min-width: 0; background: var(--bg-canvas); border: 1px solid var(--border);
+      padding: 24px 20px; display: flex; flex-direction: column; gap: 14px; min-height: 160px;
     }
     .ab-side select { width: 100%; padding: 12px 14px; font-size: 14px; }
     .ab-arrow {
@@ -35,22 +69,6 @@
     #segment-form select:disabled { opacity: 0.5; }
     #segment-iface-hint { font-size: 11px; }
     #segment-submit-btn { width: 100%; margin-top: 4px; padding: 14px; font-size: 14px; }
-
-    .map-column { flex: 1 1 400px; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-    #editor-map {
-      flex: 1; min-height: 320px; border: 1px solid var(--border); box-shadow: var(--shadow-card);
-    }
-    #edit-path-btn { margin-top: 10px; align-self: flex-start; }
-    .circuits-list-label { margin: 18px 0 10px; }
-    .circuits-chips {
-      display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start;
-      max-height: 130px; overflow-y: auto;
-    }
-    .circuit-chip {
-      padding: 7px 14px; border: 1px solid var(--border); background: var(--bg-panel);
-      font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; cursor: pointer;
-    }
-    .circuit-chip.selected { border-color: var(--accent); color: var(--accent); }
     #segment-warning { font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; }
   </style>
 </head>
@@ -116,40 +134,15 @@
         </header>
       </div>
       <div class="circuitos-shell">
-        <div class="circuit-builder">
+        <div class="circuits-panel">
           <button class="btn-primary" id="new-circuit-btn" type="button">+ Novo circuito</button>
-          <p id="segment-warning"></p>
-
-          <form class="inline" id="segment-form">
-            <div class="ab-flow">
-              <div class="ab-side">
-                <span class="side-label">Lado A</span>
-                <select id="origin-select"></select>
-                <select id="origin-iface-select" disabled>
-                  <option value="">Selecione o host…</option>
-                </select>
-              </div>
-              <div class="ab-arrow">→</div>
-              <div class="ab-side">
-                <span class="side-label">Lado B</span>
-                <select id="destination-select"></select>
-                <select id="destination-iface-select" disabled>
-                  <option value="">Selecione o host…</option>
-                </select>
-              </div>
-            </div>
-            <p id="segment-iface-hint" class="form-status"></p>
-            <input name="signal_warn_threshold_dbm" placeholder="Limiar de sinal (dBm), opcional — ex: -25" />
-            <button class="btn-primary" type="submit" id="segment-submit-btn">Criar circuito</button>
-          </form>
-          <p id="segment-status" class="form-status"></p>
+          <div class="section-label"><span class="slashes">//</span>Circuitos</div>
+          <div class="circuits-chips" id="circuits-chips"></div>
         </div>
 
         <div class="map-column">
           <div id="editor-map"></div>
           <button class="btn-secondary" id="edit-path-btn">Ajustar trajeto</button>
-          <div class="section-label circuits-list-label"><span class="slashes">//</span>Circuitos cadastrados</div>
-          <div class="circuits-chips" id="circuits-chips"></div>
         </div>
       </div>
     </div>
@@ -161,6 +154,39 @@
   <div class="alerts-panel" id="alerts-panel" hidden>
     <div class="alerts-panel-header">Alertas ativos</div>
     <div id="alerts-list"></div>
+  </div>
+
+  <div class="modal-overlay" id="ab-modal-overlay" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="ab-modal-title">Novo circuito</h2>
+        <button class="modal-close" id="ab-modal-close" type="button">&times;</button>
+      </div>
+      <p id="segment-warning"></p>
+      <form class="inline" id="segment-form">
+        <div class="ab-flow">
+          <div class="ab-side">
+            <span class="side-label">Lado A</span>
+            <select id="origin-select"></select>
+            <select id="origin-iface-select" disabled>
+              <option value="">Selecione o host…</option>
+            </select>
+          </div>
+          <div class="ab-arrow">→</div>
+          <div class="ab-side">
+            <span class="side-label">Lado B</span>
+            <select id="destination-select"></select>
+            <select id="destination-iface-select" disabled>
+              <option value="">Selecione o host…</option>
+            </select>
+          </div>
+        </div>
+        <p id="segment-iface-hint" class="form-status"></p>
+        <input name="signal_warn_threshold_dbm" placeholder="Limiar de sinal (dBm), opcional — ex: -25" />
+        <button class="btn-primary" type="submit" id="segment-submit-btn">Criar circuito</button>
+      </form>
+      <p id="segment-status" class="form-status"></p>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

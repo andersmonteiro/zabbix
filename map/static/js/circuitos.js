@@ -21,8 +21,11 @@ async function addTileLayer() {
     // require a registered API key even for their free tier — that would
     // have silently broken the "no account needed" default for every new
     // client install, so it was replaced with the real OSM tile server.)
+    // className: 'tiles-dark' reaplica o mesmo filtro CSS que o mapa
+    // principal usa pra escurecer o OSM sem precisar de conta/token --
+    // ver .tiles-dark .leaflet-tile em app.css. Mesmo tile, mesma cara.
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors', maxZoom: 19, subdomains: 'abc',
+      attribution: '&copy; OpenStreetMap contributors', maxZoom: 19, subdomains: 'abc', className: 'tiles-dark',
     }).addTo(editorMap);
   }
 }
@@ -171,7 +174,7 @@ function renderCircuitChips() {
     <div class="circuit-chip${c.id === selectedCircuitId ? ' selected' : ''}" data-id="${esc(c.id)}">${esc(c.name)}</div>
   `).join('');
   wrap.querySelectorAll('.circuit-chip').forEach((el) => {
-    el.addEventListener('click', () => selectCircuit(Number(el.dataset.id)));
+    el.addEventListener('click', () => editCircuit(Number(el.dataset.id)));
   });
 }
 
@@ -189,7 +192,27 @@ function resolveIfaceName(interfaces, itemid, portNameFallback) {
   return '';
 }
 
-function startNewCircuit() {
+// Modal Lado A/B -- desfoca o fundo (backdrop-filter, ver CSS) em vez de
+// competir por espaço permanente na tela com o mapa/lista de circuitos.
+function openAbModal(title) {
+  document.getElementById('ab-modal-title').textContent = title;
+  document.getElementById('ab-modal-overlay').hidden = false;
+}
+function closeAbModal() {
+  document.getElementById('ab-modal-overlay').hidden = true;
+}
+document.getElementById('ab-modal-close').addEventListener('click', closeAbModal);
+document.getElementById('ab-modal-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'ab-modal-overlay') closeAbModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !document.getElementById('ab-modal-overlay').hidden) closeAbModal();
+});
+
+// Reseta os campos do modal pro estado "novo circuito" -- não abre o modal
+// sozinho, quem chama decide (o botão abre na hora; loadPoints() só prepara
+// o estado padrão de antemão pra abrir já populado na primeira vez).
+function resetFormForNewCircuit() {
   selectedCircuitId = null;
   window.currentCircuit = null;
   renderCircuitChips();
@@ -204,9 +227,15 @@ function startNewCircuit() {
   onSideHostChange(destSel, document.getElementById('destination-iface-select'), false);
   window.renderCircuitOnEditorMap({ segments: [] }, allPoints);
 }
-document.getElementById('new-circuit-btn').addEventListener('click', startNewCircuit);
+document.getElementById('new-circuit-btn').addEventListener('click', () => {
+  resetFormForNewCircuit();
+  openAbModal('Novo circuito');
+});
 
-async function selectCircuit(circuitId) {
+// Carrega um circuito existente nos campos do formulário e no mapa -- usado
+// tanto ao abrir o modal de edição quanto pra atualizar a tela depois de
+// salvar (sem reabrir o modal nesse segundo caso, ver o submit handler).
+async function loadCircuitIntoForm(circuitId) {
   selectedCircuitId = circuitId;
   renderCircuitChips();
   window.currentCircuit = await api(`/api/circuits/${circuitId}`);
@@ -241,6 +270,11 @@ async function selectCircuit(circuitId) {
     : '';
 
   window.renderCircuitOnEditorMap(window.currentCircuit, allPoints);
+}
+
+async function editCircuit(circuitId) {
+  await loadCircuitIntoForm(circuitId);
+  openAbModal('Editar circuito');
 }
 
 // Traça a rota pela estrada real via OSRM (servidor demo público, grátis,
@@ -346,7 +380,7 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
       const circuit = await api('/api/circuits', { method: 'POST', body: JSON.stringify({ name: circuitName }) });
       await api(`/api/circuits/${circuit.id}/segments`, { method: 'POST', body: JSON.stringify(segmentBody) });
       await loadCircuits();
-      await selectCircuit(circuit.id);
+      await loadCircuitIntoForm(circuit.id);
     } else {
       await api(`/api/circuits/${selectedCircuitId}`, { method: 'PUT', body: JSON.stringify({ name: circuitName }) });
       await api(`/api/segments/${existingSegment.id}`, { method: 'PUT', body: JSON.stringify(segmentBody) });
@@ -365,9 +399,10 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
         }
       }
       await loadCircuits();
-      await selectCircuit(selectedCircuitId);
+      await loadCircuitIntoForm(selectedCircuitId);
     }
     setFormStatus('segment-status', 'Circuito salvo.', false);
+    closeAbModal();
   } catch (err) {
     console.error('Falha ao salvar circuito', err);
     setFormStatus('segment-status', `Falha ao salvar: ${err.message}`, true);
@@ -377,5 +412,5 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
 (async function init() {
   await loadPoints();
   await loadCircuits();
-  startNewCircuit();
+  resetFormForNewCircuit();
 })();

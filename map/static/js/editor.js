@@ -87,5 +87,5 @@ async function saveEditedPath(segment, latlngs) {
     }
   }
 
-  await selectCircuit(selectedCircuitId);
+  await loadCircuitIntoForm(selectedCircuitId);
 }
