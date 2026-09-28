@@ -15,7 +15,7 @@
     .section-label .slashes { color: var(--accent); margin-right: 6px; }
 
     /* ── Coluna esquerda: lista de circuitos ─────────────────────────── */
-    .circuits-panel { width: 420px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+    .circuits-panel { width: 560px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
     #new-circuit-btn { margin-bottom: 20px; align-self: flex-start; }
     .circuits-chips { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; }
     .circuit-chip {
@@ -183,6 +183,7 @@
           </div>
         </div>
         <p id="segment-iface-hint" class="form-status"></p>
+        <input name="circuit_name" id="circuit-name-input" placeholder="Nome do circuito (opcional — padrão: Lado A + Lado B)" />
         <input name="signal_warn_threshold_dbm" placeholder="Limiar de sinal (dBm), opcional — ex: -25" />
         <button class="btn-primary" type="submit" id="segment-submit-btn">Criar circuito</button>
       </form>

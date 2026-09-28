@@ -218,6 +218,7 @@ function resetFormForNewCircuit() {
   renderCircuitChips();
   document.getElementById('segment-submit-btn').textContent = 'Criar circuito';
   document.getElementById('segment-warning').textContent = '';
+  document.getElementById('circuit-name-input').value = '';
   setFormStatus('segment-status', '', false);
   const originSel = document.getElementById('origin-select');
   const destSel = document.getElementById('destination-select');
@@ -244,6 +245,7 @@ async function loadCircuitIntoForm(circuitId) {
   window.currentCircuit = await api(`/api/circuits/${circuitId}`);
   const segment = window.currentCircuit.segments[0];
   document.getElementById('segment-submit-btn').textContent = 'Salvar circuito';
+  document.getElementById('circuit-name-input').value = window.currentCircuit.name || '';
   setFormStatus('segment-status', '', false);
 
   const originSel = document.getElementById('origin-select');
@@ -374,9 +376,9 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     zabbix_optical_tx_itemid: monitored.optical_tx_itemid || null,
     signal_warn_threshold_dbm: form.get('signal_warn_threshold_dbm') ? parseFloat(form.get('signal_warn_threshold_dbm')) : null,
   };
-  // O nome do circuito é sempre "A + B" -- não existe mais campo de nome
-  // manual, por pedido explícito (o circuito É a ligação entre os dois).
-  const circuitName = `${origin.name} + ${destination.name}`;
+  // Nome manual é opcional -- em branco, cai no padrão "Lado A + Lado B".
+  const customName = (form.get('circuit_name') || '').trim();
+  const circuitName = customName || `${origin.name} + ${destination.name}`;
 
   try {
     if (isNew) {
