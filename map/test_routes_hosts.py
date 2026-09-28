@@ -246,13 +246,13 @@ def test_list_host_interfaces_groups_huawei_multilane_items(client, requests_moc
     requests_mock.post(API, [
         _login_response(),
         {'json': {'jsonrpc': '2.0', 'id': 2, 'result': [
-            {'itemid': '85941', 'key_': 'ifOperStatus[100GE0/0/1]'},
-            {'itemid': '85909', 'key_': 'ifHCInOctets[100GE0/0/1]'},
-            {'itemid': '85925', 'key_': 'ifHCOutOctets[100GE0/0/1]'},
-            {'itemid': '85989', 'key_': 'net.if.speed[100GE0/0/1]'},
-            {'itemid': '83306', 'key_': 'rxpowerML[100GE0/0/1,Ramo 1]'},
-            {'itemid': '83999', 'key_': 'rxpowerML[100GE0/0/1,Ramo 2]'},
-            {'itemid': '83378', 'key_': 'txpowerML[100GE0/0/1,Ramo 1]'},
+            {'itemid': '85941', 'key_': 'ifOperStatus[100GE0/0/1]', 'name': 'Status da Interface 100GE0/0/1 - KM30-40G'},
+            {'itemid': '85909', 'key_': 'ifHCInOctets[100GE0/0/1]', 'name': 'Tráfego de Entrada na Interface 100GE0/0/1 - KM30-40G'},
+            {'itemid': '85925', 'key_': 'ifHCOutOctets[100GE0/0/1]', 'name': 'Tráfego de Saída na Interface 100GE0/0/1 - KM30-40G'},
+            {'itemid': '85989', 'key_': 'net.if.speed[100GE0/0/1]', 'name': 'Velocidade da interface 100GE0/0/1 - KM30-40G'},
+            {'itemid': '83306', 'key_': 'rxpowerML[100GE0/0/1,Ramo 1]', 'name': 'Potência Recebida (RX) na Interface 100GE0/0/1 - KM30-40G - Ramo 1'},
+            {'itemid': '83999', 'key_': 'rxpowerML[100GE0/0/1,Ramo 2]', 'name': 'Potência Recebida (RX) na Interface 100GE0/0/1 - KM30-40G - Ramo 2'},
+            {'itemid': '83378', 'key_': 'txpowerML[100GE0/0/1,Ramo 1]', 'name': 'Potência Transmitida (TX) na Interface 100GE0/0/1 - KM30-40G - Ramo 1'},
         ]}},
     ])
 
@@ -260,6 +260,7 @@ def test_list_host_interfaces_groups_huawei_multilane_items(client, requests_moc
     assert resp.status_code == 200
     assert resp.get_json() == [{
         'name': '100GE0/0/1',
+        'description': 'KM30-40G',
         'operstatus_itemid': '85941',
         'throughput_in_itemid': '85909',
         'throughput_out_itemid': '85925',

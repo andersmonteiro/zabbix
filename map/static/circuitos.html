@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="css/app.css" />
   <style>
     .circuitos-shell { display: flex; flex: 1; min-height: 0; gap: 24px; padding: 24px; align-items: flex-start; overflow-y: auto; }
-    .circuit-builder { flex: 1; max-width: 640px; }
+    .circuit-builder { flex: 1; max-width: 820px; }
     .section-label {
       font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
       text-transform: uppercase; color: var(--text-muted); margin: 0 0 12px;
@@ -23,23 +23,24 @@
     .circuit-chip.selected { border-color: var(--accent); color: var(--accent); }
     #new-circuit-btn { margin-bottom: 24px; }
 
-    .ab-flow { display: flex; align-items: stretch; gap: 14px; margin-bottom: 16px; }
+    .ab-flow { display: flex; align-items: stretch; gap: 18px; margin-bottom: 20px; }
     .ab-side {
       flex: 1; background: var(--bg-panel); border: 1px solid var(--border);
-      box-shadow: var(--shadow-card); padding: 16px; display: flex; flex-direction: column; gap: 8px;
+      box-shadow: var(--shadow-card); padding: 26px 24px; display: flex; flex-direction: column; gap: 14px;
+      min-height: 160px;
     }
-    .ab-side select { width: 100%; }
+    .ab-side select { width: 100%; padding: 12px 14px; font-size: 14px; }
     .ab-arrow {
       display: flex; align-items: center; justify-content: center;
-      font-size: 22px; color: var(--accent); font-family: var(--mono); flex-shrink: 0; width: 24px;
+      font-size: 32px; color: var(--accent); font-family: var(--mono); flex-shrink: 0; width: 32px;
     }
     .side-label {
-      font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+      font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
       text-transform: uppercase; color: var(--accent);
     }
     #segment-form select:disabled { opacity: 0.5; }
     #segment-iface-hint { font-size: 11px; }
-    #segment-submit-btn { width: 100%; margin-top: 4px; }
+    #segment-submit-btn { width: 100%; margin-top: 4px; padding: 14px; font-size: 14px; }
 
     .mini-map-card { width: 280px; flex-shrink: 0; }
     #editor-map {

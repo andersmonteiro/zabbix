@@ -110,7 +110,11 @@ function populateIfaceSelect(selectEl, interfaces, emptyLabel) {
     return;
   }
   selectEl.innerHTML = interfaces
-    .map((i) => `<option value="${esc(i.name)}">${esc(i.name)}${i.optical_rx_itemid ? ' (sinal óptico)' : ''}</option>`)
+    .map((i) => {
+      const desc = i.description ? ` — ${i.description}` : '';
+      const optical = i.optical_rx_itemid ? ' (sinal óptico)' : '';
+      return `<option value="${esc(i.name)}">${esc(i.name)}${esc(desc)}${optical}</option>`;
+    })
     .join('');
   selectEl.disabled = false;
 }

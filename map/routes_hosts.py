@@ -178,6 +178,19 @@ def list_hosts():
     return jsonify([_serialize_host(h, points_by_hostid.get(h['hostid'])) for h in hosts])
 
 
+def _extract_description(item_name, ifname):
+    """Zabbix item names carry a human label after the interface name (ex:
+    'Status da Interface 100GE0/0/1 - KM30-40G' -> 'KM30-40G', usually what
+    the port connects to) -- pulled from ifOperStatus specifically since
+    every returned interface is guaranteed to have one and its name never
+    carries the extra '- Ramo N' suffix that optical items do."""
+    idx = item_name.find(ifname)
+    if idx == -1:
+        return None
+    tail = item_name[idx + len(ifname):].strip().lstrip('-').strip()
+    return tail or None
+
+
 def _extract_interfaces(items):
     """Groups a host's raw Zabbix items into one entry per physical
     interface, keyed by the interface name embedded in the item key --
@@ -186,12 +199,16 @@ def _extract_interfaces(items):
     ifaces = {}
     power_items = []
     for item in items:
-        key, itemid = item['key_'], item['itemid']
+        key, itemid, name = item['key_'], item['itemid'], item.get('name', '')
         matched = False
         for field, pattern in _IFACE_KEY_PATTERNS.items():
             m = pattern.match(key)
             if m:
-                ifaces.setdefault(m.group(1), {})[field] = itemid
+                ifname = m.group(1)
+                entry = ifaces.setdefault(ifname, {})
+                entry[field] = itemid
+                if field == 'operstatus_itemid':
+                    entry['description'] = _extract_description(name, ifname)
                 matched = True
                 break
         if matched:
@@ -222,7 +239,7 @@ def _extract_interfaces(items):
 def list_host_interfaces(hostid):
     try:
         items = _zabbix_client.call('item.get', {
-            'hostids': [hostid], 'output': ['itemid', 'key_'],
+            'hostids': [hostid], 'output': ['itemid', 'key_', 'name'],
         })
     except ZabbixAPIError as e:
         return jsonify({'error': str(e)}), 502
