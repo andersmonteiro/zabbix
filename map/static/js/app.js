@@ -618,9 +618,13 @@ function updateStaleBanner(state) {
   }
 }
 
-// Painel lateral: lista de hosts, cada um com um badge numérico refletindo
-// os mesmos alertas reais do Zabbix usados no pulso do mapa (vermelho >=4,
-// laranja 2-3) -- clicar num host centraliza o mapa nele.
+// Painel lateral: lista de hosts, cada um com um badge refletindo
+// EXATAMENTE a mesma condição usada pro pulso no mapa (ver alertVisual) --
+// alerta real do Zabbix (vermelho >=4, laranja 2-3) ou SNMP indisponível
+// (conta como crítico). Um host só pulsa se aparecer aqui com badge, e
+// vice-versa -- as duas fontes têm que casar sempre, ou o operador vê um
+// número de hosts piscando diferente do número de notificações listadas.
+// Clicar num host (fora do badge) centraliza o mapa nele.
 function renderOpsPanel(state) {
   const hostsList = document.getElementById('ops-hosts-list');
   if (!hostsList) return;
@@ -631,22 +635,31 @@ function renderOpsPanel(state) {
     return;
   }
 
-  // Pior primeiro (crítico > aviso > sem alerta), depois por nome.
+  // Pior primeiro (crítico > aviso > sem problema), depois por nome. SNMP
+  // indisponível entra com peso de crítico, igual no pulso.
+  const severityOf = (h) => {
+    if (h.alert_severity !== null && h.alert_severity !== undefined) return h.alert_severity;
+    return h.snmp_offline ? 4 : -1;
+  };
   const sorted = [...hosts].sort((a, b) => {
-    const sevA = a.alert_severity ?? -1;
-    const sevB = b.alert_severity ?? -1;
+    const sevA = severityOf(a);
+    const sevB = severityOf(b);
     if (sevA !== sevB) return sevB - sevA;
     return a.name.localeCompare(b.name);
   });
 
   hostsList.innerHTML = sorted.map((h) => {
     const hasAlert = h.alert_severity !== null && h.alert_severity !== undefined;
-    // Botão, não link -- abre o painel de alertas ali mesmo (showAlertsPanel,
-    // de alerts.js) em vez de navegar pra outra página; precisa ficar
-    // prático de ver sem sair do mapa.
-    const badge = hasAlert
-      ? `<button type="button" class="ops-host-badge ${h.alert_severity >= 4 ? 'crit' : 'warn'}" data-hostid="${esc(h.zabbix_hostid)}" data-hostname="${esc(h.name)}" title="Ver alertas deste host">${esc(h.alert_count)}</button>`
-      : '';
+    let badge = '';
+    if (hasAlert) {
+      // Botão, não link -- abre o painel de alertas ali mesmo (showAlertsPanel,
+      // de alerts.js) em vez de navegar pra outra página; precisa ficar
+      // prático de ver sem sair do mapa.
+      badge = `<button type="button" class="ops-host-badge ${h.alert_severity >= 4 ? 'crit' : 'warn'}" data-hostid="${esc(h.zabbix_hostid)}" data-hostname="${esc(h.name)}" title="Ver alertas deste host">${esc(h.alert_count)}</button>`;
+    } else if (h.snmp_offline) {
+      // Sem alerta real do Zabbix pra abrir aqui -- só um selo, não um botão.
+      badge = `<span class="ops-host-badge crit" title="SNMP indisponível nesse host">SNMP</span>`;
+    }
     return `
       <div class="ops-host-item" data-id="${esc(h.id)}">
         <span class="ops-host-dot ${esc(h.status || 'unknown')}"></span>
@@ -662,7 +675,9 @@ function renderOpsPanel(state) {
       if (host) map.setView([host.lat, host.lng], 12);
     });
   });
-  hostsList.querySelectorAll('.ops-host-badge').forEach((el) => {
+  // Só o selo de alerta real (um <button>) abre o painel de alertas -- o
+  // selo "SNMP" é um <span>, sem alerta do Zabbix nenhum pra mostrar ali.
+  hostsList.querySelectorAll('button.ops-host-badge').forEach((el) => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       showAlertsPanel(el, { hostid: el.dataset.hostid, hostName: el.dataset.hostname });
