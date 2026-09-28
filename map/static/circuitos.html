@@ -264,8 +264,14 @@
           </div>
         </div>
         <p id="segment-iface-hint" class="form-status"></p>
-        <label class="field-label" for="signal-threshold-input">Limiar de sinal (dBm)</label>
-        <input name="signal_warn_threshold_dbm" id="signal-threshold-input" placeholder="Opcional — ex: -25" />
+        <!-- Escondido a pedido -- fica fora de uso por ora, mas o campo
+             continua existindo (hidden, não removido) e o submit handler
+             continua lendo o valor normalmente, então é só tirar o
+             "hidden" daqui se precisar reativar. -->
+        <div hidden>
+          <label class="field-label" for="signal-threshold-input">Limiar de sinal (dBm)</label>
+          <input name="signal_warn_threshold_dbm" id="signal-threshold-input" placeholder="Opcional — ex: -25" />
+        </div>
         <button class="btn-primary" type="submit" id="segment-submit-btn">Criar circuito</button>
       </form>
       <p id="segment-status" class="form-status"></p>

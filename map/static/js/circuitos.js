@@ -364,14 +364,15 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     return;
   }
 
+  // Interface não é mais obrigatória pra salvar -- um host sem nenhuma
+  // interface coletada no Zabbix (ex: alguns Datacom) travava o formulário
+  // inteiro, impedindo até renomear o circuito. Sem interface resolvida,
+  // o lado correspondente simplesmente fica sem itemid nenhum.
   const originIfaceName = document.getElementById('origin-iface-select').value;
   const destinationIfaceName = document.getElementById('destination-iface-select').value;
-  const originIface = originInterfaces.find((i) => i.name === originIfaceName);
-  const destinationIface = destinationInterfaces.find((i) => i.name === destinationIfaceName);
-  if (!originIface || !destinationIface) {
-    setFormStatus('segment-status', 'Escolha a interface dos dois lados antes de salvar.', true);
-    return;
-  }
+  const originIface = originInterfaces.find((i) => i.name === originIfaceName) || null;
+  const destinationIface = destinationInterfaces.find((i) => i.name === destinationIfaceName) || null;
+
   const origin = allPoints.find((p) => p.id === originId);
   const destination = allPoints.find((p) => p.id === destinationId);
   const isNew = selectedCircuitId === null;
@@ -411,22 +412,23 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     origin_point_id: originId,
     destination_point_id: destinationId,
     waypoint_ids: waypointIds,
-    port_name: `${originIface.name} ↔ ${destinationIface.name}`,
+    port_name: `${originIface ? originIface.name : (originIfaceName || '—')} ↔ ${destinationIface ? destinationIface.name : (destinationIfaceName || '—')}`,
     // Lado A (origem) e Lado B (destino) são salvos separadamente agora --
     // cada um com seus próprios itemids, monitorados de forma independente
-    // (antes só um lado "vencia" e o outro ficava sem dado nenhum).
-    zabbix_operstatus_itemid: originIface.operstatus_itemid || null,
-    zabbix_speed_itemid: originIface.speed_itemid || null,
-    zabbix_throughput_in_itemid: originIface.throughput_in_itemid || null,
-    zabbix_throughput_out_itemid: originIface.throughput_out_itemid || null,
-    zabbix_optical_rx_itemid: originIface.optical_rx_itemid || null,
-    zabbix_optical_tx_itemid: originIface.optical_tx_itemid || null,
-    zabbix_operstatus_itemid_b: destinationIface.operstatus_itemid || null,
-    zabbix_speed_itemid_b: destinationIface.speed_itemid || null,
-    zabbix_throughput_in_itemid_b: destinationIface.throughput_in_itemid || null,
-    zabbix_throughput_out_itemid_b: destinationIface.throughput_out_itemid || null,
-    zabbix_optical_rx_itemid_b: destinationIface.optical_rx_itemid || null,
-    zabbix_optical_tx_itemid_b: destinationIface.optical_tx_itemid || null,
+    // (antes só um lado "vencia" e o outro ficava sem dado nenhum). Sem
+    // interface resolvida nesse lado, os itemids dele ficam nulos.
+    zabbix_operstatus_itemid: originIface?.operstatus_itemid || null,
+    zabbix_speed_itemid: originIface?.speed_itemid || null,
+    zabbix_throughput_in_itemid: originIface?.throughput_in_itemid || null,
+    zabbix_throughput_out_itemid: originIface?.throughput_out_itemid || null,
+    zabbix_optical_rx_itemid: originIface?.optical_rx_itemid || null,
+    zabbix_optical_tx_itemid: originIface?.optical_tx_itemid || null,
+    zabbix_operstatus_itemid_b: destinationIface?.operstatus_itemid || null,
+    zabbix_speed_itemid_b: destinationIface?.speed_itemid || null,
+    zabbix_throughput_in_itemid_b: destinationIface?.throughput_in_itemid || null,
+    zabbix_throughput_out_itemid_b: destinationIface?.throughput_out_itemid || null,
+    zabbix_optical_rx_itemid_b: destinationIface?.optical_rx_itemid || null,
+    zabbix_optical_tx_itemid_b: destinationIface?.optical_tx_itemid || null,
     signal_warn_threshold_dbm: form.get('signal_warn_threshold_dbm') ? parseFloat(form.get('signal_warn_threshold_dbm')) : null,
   };
   // Nome manual é opcional -- em branco, cai no padrão "Lado A + Lado B".
