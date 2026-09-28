@@ -132,18 +132,24 @@ let lineLayersBySegmentId = {};
 let lastState = null;
 let lastPointsById = {};
 
-// alert_severity vem de problemas REAIS abertos no Zabbix para aquele host
-// (não do item de ping/SNMP) -- 4-5 = vermelho, 2-3 = amarelo, sobrepõe a
-// cor normal de status quando presente. pulseClass ativa a animação CSS
-// (.pulse-warn / .pulse-down em app.css) para chamar atenção no mapa.
+// A cor do próprio marcador reflete só a alcançabilidade real (ping/SNMP) --
+// nunca fica vermelho por causa de um alerta que não seja o host estar
+// down. alert_severity vem de problemas REAIS abertos no Zabbix (não do
+// item de ping) e entra como um PULSO colorido por cima (pulseColor),
+// separado da cor sólida do marcador: crítico pulsa vermelho, médio pulsa
+// laranja, mas o marcador em si continua verde enquanto o host responde.
+// Só fica vermelho de verdade quando o host está down.
 function alertVisual(status, alertSeverity) {
-  if (alertSeverity !== null && alertSeverity !== undefined) {
-    if (alertSeverity >= 4) return { color: STATUS_COLOR.down, pulseClass: 'pulse-down' };
-    if (alertSeverity >= 2) return { color: STATUS_COLOR.warn, pulseClass: 'pulse-warn' };
+  if (status === 'down') {
+    return { color: STATUS_COLOR.down, pulseColor: STATUS_COLOR.down, pulseClass: 'pulse-down' };
   }
-  if (status === 'down') return { color: STATUS_COLOR.down, pulseClass: 'pulse-down' };
-  if (status === 'warn') return { color: STATUS_COLOR.warn, pulseClass: 'pulse-warn' };
-  return { color: STATUS_COLOR[status] || STATUS_COLOR.unknown, pulseClass: '' };
+  const color = STATUS_COLOR[status] || STATUS_COLOR.unknown;
+  if (alertSeverity !== null && alertSeverity !== undefined) {
+    if (alertSeverity >= 4) return { color, pulseColor: STATUS_COLOR.down, pulseClass: 'pulse-down' };
+    if (alertSeverity >= 2) return { color, pulseColor: STATUS_COLOR.warn, pulseClass: 'pulse-warn' };
+  }
+  if (status === 'warn') return { color, pulseColor: color, pulseClass: 'pulse-warn' };
+  return { color, pulseColor: color, pulseClass: '' };
 }
 
 // Switch de rede (retângulo com 3 portas) em vez do glifo de wifi anterior
@@ -155,12 +161,12 @@ const EQUIPMENT_GLYPH =
   'stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12"/>' +
   '<line x1="8.5" y1="6" x2="8.5" y2="18"/><line x1="15.5" y1="6" x2="15.5" y2="18"/></svg>';
 
-function glowIcon(color, pulseClass) {
+function glowIcon(color, pulseColor, pulseClass) {
   return L.divIcon({
     className: '',
     html:
       '<div class="glow-marker ' + (pulseClass || '') + '" style="position:relative;width:34px;height:34px;">' +
-        '<div class="glow-halo" style="position:absolute;inset:0;background:' + color + ';opacity:0.35;filter:blur(4px)"></div>' +
+        '<div class="glow-halo" style="position:absolute;inset:0;background:' + (pulseColor || color) + ';opacity:0.35;filter:blur(4px)"></div>' +
         '<div style="position:absolute;top:6px;left:6px;width:22px;height:22px;background:' + color + ';border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">' +
           EQUIPMENT_GLYPH +
         '</div>' +
@@ -799,8 +805,8 @@ async function refresh() {
         .bindTooltip('Poste / caixa (só trajeto)', { className: 'mini-tip' });
       return;
     }
-    const { color, pulseClass } = alertVisual(point.status, point.alert_severity);
-    const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color, pulseClass) }).addTo(markerLayer);
+    const { color, pulseColor, pulseClass } = alertVisual(point.status, point.alert_severity);
+    const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color, pulseColor, pulseClass) }).addTo(markerLayer);
     markersByPointId[point.id] = marker;
     // Reposiciona as linhas conectadas na hora (sem esperar o servidor) e só
     // então dispara o PUT em segundo plano -- esperar um refresh() completo
