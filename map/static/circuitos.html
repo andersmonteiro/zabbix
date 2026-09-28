@@ -15,14 +15,15 @@
     .section-label .slashes { color: var(--accent); margin-right: 6px; }
 
     /* ── Coluna esquerda: lista de circuitos ─────────────────────────── */
-    .circuits-panel { width: 250px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+    .circuits-panel { width: 420px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
     #new-circuit-btn { margin-bottom: 20px; align-self: flex-start; }
-    .circuits-chips { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+    .circuits-chips { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; }
     .circuit-chip {
-      width: 100%; text-align: left; padding: 10px 14px; border: 1px solid var(--border);
-      background: var(--bg-panel); font-family: var(--mono); font-size: 12px;
-      text-transform: uppercase; cursor: pointer;
+      width: 100%; text-align: left; padding: 16px 18px; border: 1px solid var(--border);
+      background: var(--bg-panel); font-family: var(--mono); font-size: 13.5px;
+      text-transform: uppercase; cursor: pointer; letter-spacing: 0.03em;
     }
+    .circuit-chip:hover { border-color: var(--text-secondary); }
     .circuit-chip.selected { border-color: var(--accent); color: var(--accent); }
 
     /* ── Coluna direita: mapa, ocupa o resto da tela ─────────────────── */
