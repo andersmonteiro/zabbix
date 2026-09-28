@@ -38,6 +38,60 @@ window.renderCircuitOnEditorMap = function renderCircuitOnEditorMap(circuits, po
   }
 };
 
+let circuitLegendPopup = null;
+
+window.closeCircuitLegend = function closeCircuitLegend() {
+  if (circuitLegendPopup) {
+    editorMap.closePopup(circuitLegendPopup);
+    circuitLegendPopup = null;
+  }
+};
+
+// Legenda do circuito selecionado, ancorada no meio do próprio trecho no
+// mapa (popup Leaflet) -- por pedido explícito, em vez de uma lista de
+// dados na lateral: selecionar um circuito leva a visão até ele e a
+// legenda (lado A/B, status, capacidade, throughput, sinal) já aparece
+// ali, colada na linha.
+window.showCircuitLegend = function showCircuitLegend(circuit, points, liveSegment) {
+  window.closeCircuitLegend();
+  const segment = circuit.segments && circuit.segments[0];
+  if (!segment) return;
+
+  const pointsById = Object.fromEntries(points.map((p) => [p.id, p]));
+  const origin = pointsById[segment.origin_point_id];
+  const dest = pointsById[segment.destination_point_id];
+  if (!origin || !dest) return;
+  const waypoints = (segment.waypoint_ids || []).map((id) => pointsById[id]).filter(Boolean);
+  const chain = [origin, ...waypoints, dest];
+  const mid = chain[Math.floor(chain.length / 2)];
+
+  const [ifaceA, ifaceB] = (segment.port_name || '').split('↔').map((s) => (s || '').trim());
+  const fmtMbps = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(1)} Mbps`);
+  const fmtDbm = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(1)} dBm`);
+
+  const html = `
+    <div class="circuit-legend">
+      <div class="cl-title">${esc(circuit.name)}</div>
+      <div class="cl-row"><span>Status</span><strong>${esc(liveSegment ? liveSegment.status : '—')}</strong></div>
+      <div class="cl-sides">
+        <div class="cl-side"><span>Lado A</span><strong>${esc(origin.name)}</strong><small>${esc(ifaceA || '—')}</small></div>
+        <div class="cl-side"><span>Lado B</span><strong>${esc(dest.name)}</strong><small>${esc(ifaceB || '—')}</small></div>
+      </div>
+      <div class="cl-row"><span>Capacidade</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.speed_mbps) : '—')}</strong></div>
+      <div class="cl-row"><span>Throughput</span><strong>${esc(liveSegment ? `${fmtMbps(liveSegment.throughput_in_mbps)} ↓ / ${fmtMbps(liveSegment.throughput_out_mbps)} ↑` : '—')}</strong></div>
+      <div class="cl-row"><span>Sinal óptico</span><strong>${esc(liveSegment ? `${fmtDbm(liveSegment.optical_rx_dbm)} RX / ${fmtDbm(liveSegment.optical_tx_dbm)} TX` : '—')}</strong></div>
+      <button id="circuit-legend-edit-btn" class="btn-secondary" type="button">Editar</button>
+    </div>
+  `;
+
+  circuitLegendPopup = L.popup({
+    className: 'circuit-legend-popup', closeButton: true, autoClose: false, closeOnClick: false, maxWidth: 280,
+  }).setLatLng([mid.lat, mid.lng]).setContent(html).openOn(editorMap);
+
+  const editBtn = document.getElementById('circuit-legend-edit-btn');
+  if (editBtn) editBtn.addEventListener('click', () => editCircuit(circuit.id));
+};
+
 let editingSegmentId = null;
 
 document.getElementById('edit-path-btn').addEventListener('click', async () => {

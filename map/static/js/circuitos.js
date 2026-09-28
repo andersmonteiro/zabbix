@@ -178,42 +178,11 @@ function renderCircuitChips() {
   });
 }
 
-function fmtMbps(v) {
-  return v === null || v === undefined ? '—' : `${v.toFixed(1)} Mbps`;
-}
-function fmtDbm(v) {
-  return v === null || v === undefined ? '—' : `${v.toFixed(1)} dBm`;
-}
-
-function renderCircuitDetail(circuit, liveSegment) {
-  const panel = document.getElementById('circuit-detail');
-  const rows = document.getElementById('circuit-detail-rows');
-  document.getElementById('circuit-detail-title').textContent = circuit.name;
-  panel.hidden = false;
-
-  const segment = circuit.segments && circuit.segments[0];
-  if (!segment) {
-    rows.innerHTML = '<p class="form-status">Esse circuito ainda não tem um trecho configurado.</p>';
-    return;
-  }
-
-  rows.innerHTML = [
-    ['Porta', segment.port_name || '—'],
-    ['Status', liveSegment ? liveSegment.status : '—'],
-    ['Capacidade do link', liveSegment ? fmtMbps(liveSegment.speed_mbps) : '—'],
-    ['Throughput entrada', liveSegment ? fmtMbps(liveSegment.throughput_in_mbps) : '—'],
-    ['Throughput saída', liveSegment ? fmtMbps(liveSegment.throughput_out_mbps) : '—'],
-    ['Utilização', liveSegment && liveSegment.utilization_pct !== null && liveSegment.utilization_pct !== undefined
-      ? `${liveSegment.utilization_pct.toFixed(0)}%` : '—'],
-    ['Sinal óptico RX', liveSegment ? fmtDbm(liveSegment.optical_rx_dbm) : '—'],
-    ['Sinal óptico TX', liveSegment ? fmtDbm(liveSegment.optical_tx_dbm) : '—'],
-  ].map(([label, value]) => `<div class="detail-row"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
-}
-
 // Clicar num circuito da lista só SELECIONA e mostra o trecho/dado ao vivo
-// -- abrir o formulário de edição (Lado A/B) virou uma ação separada, pelo
-// botão "Editar" do painel de detalhe (ver editCircuit), não mais um
-// efeito colateral do clique no nome.
+// -- direto no mapa, como uma legenda ancorada no trecho (window.
+// showCircuitLegend, em editor.js), não mais uma lista na lateral. Abrir o
+// formulário de edição (Lado A/B) é uma ação separada, pelo botão "Editar"
+// dentro da própria legenda.
 async function viewCircuit(circuitId) {
   selectedCircuitId = circuitId;
   renderCircuitChips();
@@ -230,11 +199,8 @@ async function viewCircuit(circuitId) {
   } catch (err) {
     console.error('Falha ao buscar dados ao vivo do circuito', err);
   }
-  renderCircuitDetail(circuit, liveSegment);
+  window.showCircuitLegend(circuit, allPoints, liveSegment);
 }
-document.getElementById('circuit-edit-btn').addEventListener('click', () => {
-  if (selectedCircuitId !== null) editCircuit(selectedCircuitId);
-});
 
 // Acha, entre as interfaces já resolvidas de um lado, qual bate com o
 // itemid de status gravado no segmento -- é assim que a tela sabe qual
@@ -274,7 +240,7 @@ function resetFormForNewCircuit() {
   selectedCircuitId = null;
   window.currentCircuit = null;
   renderCircuitChips();
-  document.getElementById('circuit-detail').hidden = true;
+  window.closeCircuitLegend();
   document.getElementById('segment-submit-btn').textContent = 'Criar circuito';
   document.getElementById('segment-warning').textContent = '';
   document.getElementById('circuit-name-input').value = '';
