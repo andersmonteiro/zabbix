@@ -40,7 +40,7 @@ window.renderCircuitOnEditorMap = function renderCircuitOnEditorMap(circuits, po
 
 let editingSegmentId = null;
 
-document.getElementById('edit-path-btn').addEventListener('click', () => {
+document.getElementById('edit-path-btn').addEventListener('click', async () => {
   const circuit = window.currentCircuit;
   if (!circuit || circuit.segments.length === 0) return;
   const segment = circuit.segments[circuit.segments.length - 1]; // edits the most recently added segment
@@ -51,8 +51,8 @@ document.getElementById('edit-path-btn').addEventListener('click', () => {
     // Already editing — save and exit
     layer.pm.disable();
     const latlngs = layer.getLatLngs();
-    saveEditedPath(segment, latlngs);
     editingSegmentId = null;
+    await saveEditedPath(segment, latlngs);
     document.getElementById('edit-path-btn').textContent = 'Editar trajeto';
     return;
   }
@@ -62,12 +62,43 @@ document.getElementById('edit-path-btn').addEventListener('click', () => {
   document.getElementById('edit-path-btn').textContent = 'Salvar trajeto';
 });
 
+// Reencaixa o traçado desenhado à mão na rua/estrada real mais próxima --
+// passa TODOS os vértices (incluindo os que o operador acabou de arrastar)
+// pro OSRM como pontos de passagem obrigatórios, na ordem, e usa a geometria
+// de rua que ele devolve entre eles. Assim o ajuste manual continua servindo
+// pra corrigir a ROTA (por onde passar), mas o traçado final sempre gruda na
+// via real, em vez de ficar em linha reta entre os pontos arrastados.
+async function snapPathToRoad(latlngs) {
+  if (latlngs.length < 2) return latlngs;
+  const coordsParam = latlngs.map((ll) => `${ll.lng},${ll.lat}`).join(';');
+  const url = `https://router.project-osrm.org/route/v1/driving/${coordsParam}?overview=simplified&geometries=geojson`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`OSRM HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
+    throw new Error(`OSRM: ${data.code || 'sem rota encontrada'}`);
+  }
+  return data.routes[0].geometry.coordinates.map(([lng, lat]) => L.latLng(lat, lng));
+}
+
 async function saveEditedPath(segment, latlngs) {
+  const btn = document.getElementById('edit-path-btn');
+  let snappedLatLngs = latlngs;
+  try {
+    btn.textContent = 'Encaixando na estrada…';
+    snappedLatLngs = await snapPathToRoad(latlngs);
+  } catch (err) {
+    // Sem estrada encontrada (área rural sem cobertura OSM, ou OSRM fora do
+    // ar) -- mantém exatamente o traçado desenhado à mão em vez de travar o
+    // salvamento.
+    console.warn('Encaixe na estrada falhou, mantendo o traçado desenhado manualmente', err);
+  }
+
   // The first and last vertices are the origin/destination equipment points
   // (not editable — Leaflet-Geoman lets the user drag them visually, but we
   // only persist the middle vertices as the segment's waypoint_ids; moving
   // an equipment point's real location happens via the Pontos form instead).
-  const middleLatLngs = latlngs.slice(1, -1);
+  const middleLatLngs = snappedLatLngs.slice(1, -1);
 
   // Captured BEFORE the segment is repointed: each save used to mint a fresh
   // waypoint Point per vertex and abandon the previous ones, and since
@@ -78,9 +109,13 @@ async function saveEditedPath(segment, latlngs) {
 
   const newWaypoints = [];
   for (const ll of middleLatLngs) {
+    // route_point (não waypoint) -- geometria pura da linha, o mesmo tipo
+    // usado no traçado automático ao criar um circuito; 'waypoint' cria um
+    // marcador visível de poste/caixa (o mesmo bug de "marcador fantasma"
+    // já corrigido no fluxo de criação, reproduzido aqui até agora).
     const point = await api('/api/points', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Trajeto', lat: ll.lat, lng: ll.lng, point_type: 'waypoint' }),
+      body: JSON.stringify({ name: 'Trajeto', lat: ll.lat, lng: ll.lng, point_type: 'route_point' }),
     });
     newWaypoints.push(point.id);
   }
