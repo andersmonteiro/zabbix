@@ -131,10 +131,14 @@ function updateSegmentIfaceHint() {
     hint.textContent = '';
     return;
   }
-  // Lado A é a ponta monitorada por convenção -- só cai pro lado B se A não
-  // tiver status coletado ainda (ex: host sem sinal óptico coletado ainda).
-  const monitoredSide = originIface.operstatus_itemid ? 'A' : 'B';
-  hint.textContent = `Dados de tráfego/sinal virão do Lado ${monitoredSide}.`;
+  // Os dois lados são monitorados de forma independente agora -- o aviso é
+  // só pra avisar quando um deles não tem status coletado no Zabbix ainda.
+  const missingSides = [];
+  if (!originIface.operstatus_itemid) missingSides.push('A');
+  if (!destIface.operstatus_itemid) missingSides.push('B');
+  hint.textContent = missingSides.length
+    ? `Sem status coletado no Lado ${missingSides.join(' e ')} ainda — esse lado fica sem dado ao vivo.`
+    : 'Os dois lados serão monitorados de forma independente.';
 }
 
 async function onSideHostChange(pointSelectEl, ifaceSelectEl, isOrigin) {
@@ -308,7 +312,7 @@ async function loadCircuitIntoForm(circuitId) {
     const originIfaceSel = document.getElementById('origin-iface-select');
     const destIfaceSel = document.getElementById('destination-iface-select');
     originIfaceSel.value = resolveIfaceName(originInterfaces, segment.zabbix_operstatus_itemid, ifaceAName);
-    destIfaceSel.value = resolveIfaceName(destinationInterfaces, segment.zabbix_operstatus_itemid, ifaceBName);
+    destIfaceSel.value = resolveIfaceName(destinationInterfaces, segment.zabbix_operstatus_itemid_b, ifaceBName);
     updateSegmentIfaceHint();
   }
 
@@ -368,10 +372,6 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     setFormStatus('segment-status', 'Escolha a interface dos dois lados antes de salvar.', true);
     return;
   }
-  // Lado A é a ponta monitorada por convenção -- só cai pro lado B se A não
-  // tiver status coletado ainda (ver updateSegmentIfaceHint).
-  const monitored = originIface.operstatus_itemid ? originIface : destinationIface;
-
   const origin = allPoints.find((p) => p.id === originId);
   const destination = allPoints.find((p) => p.id === destinationId);
   const isNew = selectedCircuitId === null;
@@ -412,12 +412,21 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
     destination_point_id: destinationId,
     waypoint_ids: waypointIds,
     port_name: `${originIface.name} ↔ ${destinationIface.name}`,
-    zabbix_operstatus_itemid: monitored.operstatus_itemid || null,
-    zabbix_speed_itemid: monitored.speed_itemid || null,
-    zabbix_throughput_in_itemid: monitored.throughput_in_itemid || null,
-    zabbix_throughput_out_itemid: monitored.throughput_out_itemid || null,
-    zabbix_optical_rx_itemid: monitored.optical_rx_itemid || null,
-    zabbix_optical_tx_itemid: monitored.optical_tx_itemid || null,
+    // Lado A (origem) e Lado B (destino) são salvos separadamente agora --
+    // cada um com seus próprios itemids, monitorados de forma independente
+    // (antes só um lado "vencia" e o outro ficava sem dado nenhum).
+    zabbix_operstatus_itemid: originIface.operstatus_itemid || null,
+    zabbix_speed_itemid: originIface.speed_itemid || null,
+    zabbix_throughput_in_itemid: originIface.throughput_in_itemid || null,
+    zabbix_throughput_out_itemid: originIface.throughput_out_itemid || null,
+    zabbix_optical_rx_itemid: originIface.optical_rx_itemid || null,
+    zabbix_optical_tx_itemid: originIface.optical_tx_itemid || null,
+    zabbix_operstatus_itemid_b: destinationIface.operstatus_itemid || null,
+    zabbix_speed_itemid_b: destinationIface.speed_itemid || null,
+    zabbix_throughput_in_itemid_b: destinationIface.throughput_in_itemid || null,
+    zabbix_throughput_out_itemid_b: destinationIface.throughput_out_itemid || null,
+    zabbix_optical_rx_itemid_b: destinationIface.optical_rx_itemid || null,
+    zabbix_optical_tx_itemid_b: destinationIface.optical_tx_itemid || null,
     signal_warn_threshold_dbm: form.get('signal_warn_threshold_dbm') ? parseFloat(form.get('signal_warn_threshold_dbm')) : null,
   };
   // Nome manual é opcional -- em branco, cai no padrão "Lado A + Lado B".

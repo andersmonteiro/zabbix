@@ -55,12 +55,25 @@ class Segment(Base):
     destination_point_id = Column(Integer, ForeignKey('netmap_points.id'), nullable=False)
     waypoint_ids = Column(JSON, nullable=False, default=list)  # ordered list of Point.id (point_type='waypoint')
 
+    # "Lado A" (origem) -- nomes sem sufixo por serem os originais, de antes
+    # do segmento monitorar as duas pontas.
     zabbix_speed_itemid = Column(String, nullable=True)
     zabbix_throughput_in_itemid = Column(String, nullable=True)
     zabbix_throughput_out_itemid = Column(String, nullable=True)
     zabbix_optical_rx_itemid = Column(String, nullable=True)
     zabbix_optical_tx_itemid = Column(String, nullable=True)
     zabbix_error_itemid = Column(String, nullable=True)
+    # "Lado B" (destino) -- itens da interface do outro lado do link. Cada
+    # ponta de um circuito físico tem seus próprios contadores (throughput,
+    # sinal óptico); mostrar só um lado escondia problemas que só aparecem
+    # do outro lado (ex: RX ruim de um lado só). Nulo em segmentos antigos
+    # até serem reabertos e salvos de novo pelo formulário Lado A/B.
+    zabbix_speed_itemid_b = Column(String, nullable=True)
+    zabbix_throughput_in_itemid_b = Column(String, nullable=True)
+    zabbix_throughput_out_itemid_b = Column(String, nullable=True)
+    zabbix_optical_rx_itemid_b = Column(String, nullable=True)
+    zabbix_optical_tx_itemid_b = Column(String, nullable=True)
+    zabbix_operstatus_itemid_b = Column(String, nullable=True)
     # Free-text label (e.g. "100GE0/0/1 - KM30-40G"), not an itemid -- the
     # port name is stable and Zabbix has no single item that returns just
     # the friendly name, so it's filled in once when the segment is wired up.

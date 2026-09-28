@@ -164,6 +164,24 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
                 busiest = max(throughput_in_mbps or 0, throughput_out_mbps or 0)
                 utilization_pct = min(100.0, (busiest / speed_mbps) * 100)
 
+            # Lado B (destino) -- os mesmos dados do Lado A, só que da
+            # interface do outro lado do link. Cada ponta tem seus próprios
+            # contadores; um problema (sinal ruim, erro) pode aparecer só de
+            # um lado, então mostrar só o Lado A escondia metade do quadro.
+            operstatus_b = None if stale else _lastvalue(cache, segment.zabbix_operstatus_itemid_b, int)
+            optical_rx_b = None if stale else _lastvalue(cache, segment.zabbix_optical_rx_itemid_b, float)
+            optical_tx_b = None if stale else _lastvalue(cache, segment.zabbix_optical_tx_itemid_b, float)
+            throughput_in_raw_b = None if stale else _lastvalue(cache, segment.zabbix_throughput_in_itemid_b, float)
+            throughput_out_raw_b = None if stale else _lastvalue(cache, segment.zabbix_throughput_out_itemid_b, float)
+            speed_raw_b = None if stale else _lastvalue(cache, segment.zabbix_speed_itemid_b, float)
+            throughput_in_mbps_b = _bps_to_mbps(throughput_in_raw_b)
+            throughput_out_mbps_b = _bps_to_mbps(throughput_out_raw_b)
+            speed_mbps_b = _bps_to_mbps(speed_raw_b)
+            status_b = compute_status(
+                operstatus=operstatus_b, optical_rx_dbm=optical_rx_b,
+                signal_warn_threshold_dbm=segment.signal_warn_threshold_dbm,
+            )
+
             # Um host que caiu (ping down) para de ser telemetrado -- os itens
             # de operstatus/throughput daquela ponta não ficam em zero, ficam
             # travados no último valor de antes da queda. Sem isso, a linha
@@ -209,6 +227,12 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
                 'signal_warn_threshold_dbm': segment.signal_warn_threshold_dbm,
                 'snmp_offline': snmp_offline,
                 'endpoint_down': endpoint_down,
+                'status_b': 'down' if endpoint_down else status_b,
+                'speed_mbps_b': speed_mbps_b,
+                'throughput_in_mbps_b': None if endpoint_down else throughput_in_mbps_b,
+                'throughput_out_mbps_b': None if endpoint_down else throughput_out_mbps_b,
+                'optical_rx_dbm_b': None if endpoint_down else optical_rx_b,
+                'optical_tx_dbm_b': None if endpoint_down else optical_tx_b,
             })
         circuits_out.append({'id': circuit.id, 'name': circuit.name, 'segments': segments_out})
 

@@ -52,6 +52,30 @@ def test_create_segment_under_circuit(client):
     assert segment['signal_warn_threshold_dbm'] == -25.0
 
 
+def test_segment_round_trips_side_b_itemids(client):
+    circuit = client.post('/api/circuits', json={'name': 'POP Centro -> Cliente'}).get_json()
+
+    resp = client.post(f"/api/circuits/{circuit['id']}/segments", json={
+        'order_index': 0, 'origin_point_id': 1, 'destination_point_id': 2,
+        'zabbix_operstatus_itemid': '55010', 'zabbix_optical_rx_itemid': '55011',
+        'zabbix_operstatus_itemid_b': '55020', 'zabbix_optical_rx_itemid_b': '55021',
+        'zabbix_optical_tx_itemid_b': '55022', 'zabbix_throughput_in_itemid_b': '55023',
+        'zabbix_throughput_out_itemid_b': '55024', 'zabbix_speed_itemid_b': '55025',
+    })
+    assert resp.status_code == 201
+    segment = resp.get_json()
+    assert segment['zabbix_operstatus_itemid_b'] == '55020'
+    assert segment['zabbix_optical_rx_itemid_b'] == '55021'
+    assert segment['zabbix_optical_tx_itemid_b'] == '55022'
+    assert segment['zabbix_throughput_in_itemid_b'] == '55023'
+    assert segment['zabbix_throughput_out_itemid_b'] == '55024'
+    assert segment['zabbix_speed_itemid_b'] == '55025'
+
+    resp = client.put(f"/api/segments/{segment['id']}", json={'zabbix_optical_rx_itemid_b': '55099'})
+    assert resp.status_code == 200
+    assert resp.get_json()['zabbix_optical_rx_itemid_b'] == '55099'
+
+
 def test_get_circuit_includes_segments(client):
     circuit = client.post('/api/circuits', json={'name': 'POP Centro -> Cliente'}).get_json()
     client.post(f"/api/circuits/{circuit['id']}/segments", json={

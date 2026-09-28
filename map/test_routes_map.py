@@ -508,3 +508,59 @@ def test_segment_utilization_pct_is_none_without_speed_configured(session):
     state = build_map_state(session, cache, stale_threshold_seconds=120)
     seg = state['circuits'][0]['segments'][0]
     assert seg['utilization_pct'] is None
+
+
+def test_segment_exposes_side_b_data_independent_of_side_a(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    segment.zabbix_operstatus_itemid_b = '60070'
+    segment.zabbix_optical_rx_itemid_b = '60071'
+    segment.zabbix_optical_tx_itemid_b = '60072'
+    segment.zabbix_throughput_in_itemid_b = '60073'
+    segment.zabbix_throughput_out_itemid_b = '60074'
+    segment.zabbix_speed_itemid_b = '60075'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '1', 'lastclock': '9999999999'}, '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'}, '60011': {'lastvalue': '-19.4', 'lastclock': '9999999999'},
+        # Lado B com um sinal bem diferente do Lado A -- é exatamente o caso
+        # que só mostrar um lado escondia (problema visível só de um lado).
+        '60070': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60071': {'lastvalue': '-28.5', 'lastclock': '9999999999'},
+        '60072': {'lastvalue': '-4.1', 'lastclock': '9999999999'},
+        '60073': {'lastvalue': '2000000000', 'lastclock': '9999999999'},
+        '60074': {'lastvalue': '1000000000', 'lastclock': '9999999999'},
+        '60075': {'lastvalue': '10000000000', 'lastclock': '9999999999'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['optical_rx_dbm'] == -19.4  # lado A intacto
+    # -28.5 dBm cruza o limiar de -25 configurado no fixture -- prova que o
+    # Lado B aplica o mesmo limiar de forma independente do Lado A.
+    assert seg['status_b'] == 'warn'
+    assert seg['optical_rx_dbm_b'] == -28.5
+    assert seg['optical_tx_dbm_b'] == -4.1
+    assert seg['throughput_in_mbps_b'] == pytest.approx(2000.0)
+    assert seg['throughput_out_mbps_b'] == pytest.approx(1000.0)
+    assert seg['speed_mbps_b'] == pytest.approx(10000.0)
+
+
+def test_segment_side_b_nulled_when_endpoint_down(session):
+    origin, dest, waypoint, circuit, segment = _seed_circuit(session)
+    segment.zabbix_operstatus_itemid_b = '60070'
+    segment.zabbix_optical_rx_itemid_b = '60071'
+    session.commit()
+    cache = StatusCache()
+    cache.update({
+        '60001': {'lastvalue': '2', 'lastclock': '9999999999'},  # origem down
+        '60002': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60010': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60070': {'lastvalue': '1', 'lastclock': '9999999999'},
+        '60071': {'lastvalue': '-15.0', 'lastclock': '9999999999'},
+    })
+
+    state = build_map_state(session, cache, stale_threshold_seconds=120)
+    seg = state['circuits'][0]['segments'][0]
+    assert seg['status_b'] == 'down'
+    assert seg['optical_rx_dbm_b'] is None

@@ -82,14 +82,14 @@
     }
     .cl-row span { color: var(--text-muted); text-transform: uppercase; flex-shrink: 0; }
     .cl-row strong { color: var(--text-primary); font-weight: 600; text-align: right; }
-    /* Lado A em cima, Lado B embaixo -- lado a lado ficava espremido demais
-       pro nome inteiro do equipamento caber sem quebrar feio. */
-    .cl-sides { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+    /* Identificação (nome + interface) de cada lado, logo abaixo do
+       cabeçalho de seção "Lado A"/"Lado B" -- os dados ao vivo daquele
+       lado (status, capacidade, tráfego, sinal) vêm depois, como cl-row
+       normais, tudo dentro do mesmo grupo. */
     .cl-side {
-      display: flex; flex-direction: column; gap: 5px; padding: 12px;
-      background: rgba(255,255,255,0.04); border: 1px solid var(--border-dim); font-size: 12.5px;
+      display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px;
+      padding: 10px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-dim);
     }
-    .cl-side span { color: var(--accent); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em; }
     .cl-side strong { color: var(--text-primary); word-break: break-word; font-size: 13px; line-height: 1.35; }
     .cl-side small { color: var(--text-muted); word-break: break-word; }
 

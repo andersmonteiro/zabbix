@@ -80,24 +80,38 @@ window.showCircuitLegend = function showCircuitLegend(circuit, points, liveSegme
   };
   const fmtDbm = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(1)} dBm`);
 
+  // Cada lado tem sua própria interface, com seus próprios contadores --
+  // um problema (sinal ruim, erro) pode aparecer só de um lado, então os
+  // dois ganham seu próprio bloco de dados em vez de um valor só.
+  const sideBlock = (label, pointName, ifaceName, status, speedMbps, inMbps, outMbps, rxDbm, txDbm) => `
+    <div class="cl-section-label">Lado ${label}</div>
+    <div class="cl-side">
+      <strong>${esc(pointName)}</strong>
+      <small>${esc(ifaceName || '—')}</small>
+    </div>
+    <div class="cl-row"><span>Status</span><strong>${esc(liveSegment ? status : '—')}</strong></div>
+    <div class="cl-row"><span>Capacidade</span><strong>${esc(liveSegment ? fmtMbps(speedMbps) : '—')}</strong></div>
+    <div class="cl-row"><span>Download</span><strong>${esc(liveSegment ? fmtMbps(inMbps) : '—')}</strong></div>
+    <div class="cl-row"><span>Upload</span><strong>${esc(liveSegment ? fmtMbps(outMbps) : '—')}</strong></div>
+    <div class="cl-row"><span>Sinal RX</span><strong>${esc(liveSegment ? fmtDbm(rxDbm) : '—')}</strong></div>
+    <div class="cl-row"><span>Sinal TX</span><strong>${esc(liveSegment ? fmtDbm(txDbm) : '—')}</strong></div>
+  `;
+
   document.getElementById('circuit-legend-content').innerHTML = `
     <div class="circuit-legend">
       <div class="cl-title">${esc(circuit.name)}</div>
-      <div class="cl-row"><span>Status</span><strong>${esc(liveSegment ? liveSegment.status : '—')}</strong></div>
-      <div class="cl-sides">
-        <div class="cl-side"><span>Lado A</span><strong>${esc(origin.name)}</strong><small>${esc(ifaceA || '—')}</small></div>
-        <div class="cl-side"><span>Lado B</span><strong>${esc(dest.name)}</strong><small>${esc(ifaceB || '—')}</small></div>
-      </div>
-      <div class="cl-section-label">Capacidade</div>
-      <div class="cl-row"><span>Link</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.speed_mbps) : '—')}</strong></div>
-
-      <div class="cl-section-label">Tráfego</div>
-      <div class="cl-row"><span>Download</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.throughput_in_mbps) : '—')}</strong></div>
-      <div class="cl-row"><span>Upload</span><strong>${esc(liveSegment ? fmtMbps(liveSegment.throughput_out_mbps) : '—')}</strong></div>
-
-      <div class="cl-section-label">Sinal óptico</div>
-      <div class="cl-row"><span>RX</span><strong>${esc(liveSegment ? fmtDbm(liveSegment.optical_rx_dbm) : '—')}</strong></div>
-      <div class="cl-row"><span>TX</span><strong>${esc(liveSegment ? fmtDbm(liveSegment.optical_tx_dbm) : '—')}</strong></div>
+      ${sideBlock(
+        'A', origin.name, ifaceA,
+        liveSegment && liveSegment.status, liveSegment && liveSegment.speed_mbps,
+        liveSegment && liveSegment.throughput_in_mbps, liveSegment && liveSegment.throughput_out_mbps,
+        liveSegment && liveSegment.optical_rx_dbm, liveSegment && liveSegment.optical_tx_dbm,
+      )}
+      ${sideBlock(
+        'B', dest.name, ifaceB,
+        liveSegment && liveSegment.status_b, liveSegment && liveSegment.speed_mbps_b,
+        liveSegment && liveSegment.throughput_in_mbps_b, liveSegment && liveSegment.throughput_out_mbps_b,
+        liveSegment && liveSegment.optical_rx_dbm_b, liveSegment && liveSegment.optical_tx_dbm_b,
+      )}
     </div>
   `;
   document.getElementById('circuit-legend-card').hidden = false;

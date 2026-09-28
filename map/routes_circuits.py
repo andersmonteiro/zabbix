@@ -38,6 +38,12 @@ def _serialize_segment(segment):
         'zabbix_operstatus_itemid': segment.zabbix_operstatus_itemid,
         'zabbix_snmp_available_itemid': segment.zabbix_snmp_available_itemid,
         'signal_warn_threshold_dbm': segment.signal_warn_threshold_dbm,
+        'zabbix_speed_itemid_b': segment.zabbix_speed_itemid_b,
+        'zabbix_throughput_in_itemid_b': segment.zabbix_throughput_in_itemid_b,
+        'zabbix_throughput_out_itemid_b': segment.zabbix_throughput_out_itemid_b,
+        'zabbix_optical_rx_itemid_b': segment.zabbix_optical_rx_itemid_b,
+        'zabbix_optical_tx_itemid_b': segment.zabbix_optical_tx_itemid_b,
+        'zabbix_operstatus_itemid_b': segment.zabbix_operstatus_itemid_b,
     }
 
 
@@ -119,7 +125,9 @@ SEGMENT_OPTIONAL_FIELDS = (
     'waypoint_ids', 'port_name', 'zabbix_speed_itemid', 'zabbix_throughput_in_itemid',
     'zabbix_throughput_out_itemid', 'zabbix_optical_rx_itemid', 'zabbix_optical_tx_itemid',
     'zabbix_error_itemid', 'zabbix_operstatus_itemid', 'zabbix_snmp_available_itemid',
-    'signal_warn_threshold_dbm',
+    'signal_warn_threshold_dbm', 'zabbix_speed_itemid_b', 'zabbix_throughput_in_itemid_b',
+    'zabbix_throughput_out_itemid_b', 'zabbix_optical_rx_itemid_b', 'zabbix_optical_tx_itemid_b',
+    'zabbix_operstatus_itemid_b',
 )
 
 
@@ -156,6 +164,12 @@ def create_segment(circuit_id):
             zabbix_operstatus_itemid=data.get('zabbix_operstatus_itemid'),
             zabbix_snmp_available_itemid=data.get('zabbix_snmp_available_itemid'),
             signal_warn_threshold_dbm=data.get('signal_warn_threshold_dbm'),
+            zabbix_speed_itemid_b=data.get('zabbix_speed_itemid_b'),
+            zabbix_throughput_in_itemid_b=data.get('zabbix_throughput_in_itemid_b'),
+            zabbix_throughput_out_itemid_b=data.get('zabbix_throughput_out_itemid_b'),
+            zabbix_optical_rx_itemid_b=data.get('zabbix_optical_rx_itemid_b'),
+            zabbix_optical_tx_itemid_b=data.get('zabbix_optical_tx_itemid_b'),
+            zabbix_operstatus_itemid_b=data.get('zabbix_operstatus_itemid_b'),
         )
         session.add(segment)
         session.commit()
