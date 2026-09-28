@@ -30,46 +30,52 @@ window.renderCircuitOnEditorMap = function renderCircuitOnEditorMap(circuits, po
   });
 
   // Dá zoom só no circuito em destaque quando existe um; sem destaque (ex:
-  // formulário de "novo circuito" aberto), mostra o backbone inteiro.
+  // formulário de "novo circuito" aberto), mostra o backbone inteiro. Com um
+  // circuito em destaque, o cartão de legenda vai ocupar uma faixa de
+  // ~340px na direita -- mais padding aí evita que a própria linha
+  // destacada fique escondida atrás do cartão.
   const boundsSource = highlightLayers.length > 0 ? highlightLayers : Object.values(segmentLayersBySegmentId);
   if (boundsSource.length > 0) {
     const bounds = L.featureGroup(boundsSource).getBounds();
-    if (bounds.isValid()) editorMap.fitBounds(bounds, { padding: [30, 30] });
+    if (bounds.isValid()) {
+      const padding = highlightLayers.length > 0
+        ? { paddingTopLeft: [30, 30], paddingBottomRight: [350, 30] }
+        : { padding: [30, 30] };
+      editorMap.fitBounds(bounds, padding);
+    }
   }
 };
-
-let circuitLegendPopup = null;
 
 window.closeCircuitLegend = function closeCircuitLegend() {
-  if (circuitLegendPopup) {
-    editorMap.closePopup(circuitLegendPopup);
-    circuitLegendPopup = null;
-  }
+  document.getElementById('circuit-legend-card').hidden = true;
 };
+document.getElementById('circuit-legend-close').addEventListener('click', () => window.closeCircuitLegend());
 
-// Legenda do circuito selecionado, ancorada no meio do próprio trecho no
-// mapa (popup Leaflet) -- por pedido explícito, em vez de uma lista de
-// dados na lateral: selecionar um circuito leva a visão até ele e a
-// legenda (lado A/B, status, capacidade, throughput, sinal) já aparece
-// ali, colada na linha.
+// Legenda do circuito selecionado -- um cartão fixo encostado na direita do
+// mapa (não um popup Leaflet preso às coordenadas do trecho, por pedido
+// explícito: tampava a linha e pulava de lugar a cada pan/zoom). Selecionar
+// um circuito dá zoom nele (ver renderCircuitOnEditorMap) e o cartão mostra
+// lado A/B, status, capacidade, throughput e sinal óptico ao lado do mapa.
 window.showCircuitLegend = function showCircuitLegend(circuit, points, liveSegment) {
-  window.closeCircuitLegend();
   const segment = circuit.segments && circuit.segments[0];
-  if (!segment) return;
+  if (!segment) {
+    window.closeCircuitLegend();
+    return;
+  }
 
   const pointsById = Object.fromEntries(points.map((p) => [p.id, p]));
   const origin = pointsById[segment.origin_point_id];
   const dest = pointsById[segment.destination_point_id];
-  if (!origin || !dest) return;
-  const waypoints = (segment.waypoint_ids || []).map((id) => pointsById[id]).filter(Boolean);
-  const chain = [origin, ...waypoints, dest];
-  const mid = chain[Math.floor(chain.length / 2)];
+  if (!origin || !dest) {
+    window.closeCircuitLegend();
+    return;
+  }
 
   const [ifaceA, ifaceB] = (segment.port_name || '').split('↔').map((s) => (s || '').trim());
   const fmtMbps = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(1)} Mbps`);
   const fmtDbm = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(1)} dBm`);
 
-  const html = `
+  document.getElementById('circuit-legend-content').innerHTML = `
     <div class="circuit-legend">
       <div class="cl-title">${esc(circuit.name)}</div>
       <div class="cl-row"><span>Status</span><strong>${esc(liveSegment ? liveSegment.status : '—')}</strong></div>
@@ -83,13 +89,8 @@ window.showCircuitLegend = function showCircuitLegend(circuit, points, liveSegme
       <button id="circuit-legend-edit-btn" class="btn-secondary" type="button">Editar</button>
     </div>
   `;
-
-  circuitLegendPopup = L.popup({
-    className: 'circuit-legend-popup', closeButton: true, autoClose: false, closeOnClick: false, maxWidth: 280,
-  }).setLatLng([mid.lat, mid.lng]).setContent(html).openOn(editorMap);
-
-  const editBtn = document.getElementById('circuit-legend-edit-btn');
-  if (editBtn) editBtn.addEventListener('click', () => editCircuit(circuit.id));
+  document.getElementById('circuit-legend-card').hidden = false;
+  document.getElementById('circuit-legend-edit-btn').addEventListener('click', () => editCircuit(circuit.id));
 };
 
 let editingSegmentId = null;

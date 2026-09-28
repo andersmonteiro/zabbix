@@ -34,46 +34,45 @@
     .circuit-chip.selected { border-color: var(--accent); color: var(--accent); }
 
     /* ── Coluna direita: mapa, ocupa o resto da tela ─────────────────── */
-    .map-column { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 360px; }
+    .map-column { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 360px; position: relative; }
     #editor-map { flex: 1; min-height: 320px; border: 1px solid var(--border); box-shadow: var(--shadow-card); }
     #edit-path-btn { margin-top: 10px; align-self: flex-start; }
 
-    /* ── Legenda do circuito selecionado -- vive NO MAPA (popup Leaflet
-       ancorado no meio do trecho), não numa lista lateral. Clicar num
-       circuito leva a visão até ele e a legenda já aparece ali. ── */
-    /* Translúcida com desfoque (não opaca) -- pra não tapar o trecho embaixo
-       dela -- e com texto bem maior que a primeira versão, que ficou
-       pequena demais pra ler em cima do mapa. */
-    .circuit-legend-popup .leaflet-popup-content-wrapper {
-      background: rgba(8, 12, 8, 0.82); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-      color: var(--text-primary); border: 1px solid var(--border-2);
-      border-radius: 0; box-shadow: var(--shadow-card);
+    /* ── Legenda do circuito selecionado -- um cartão fixo encostado na
+       direita do mapa (não um popup preso às coordenadas do trecho): assim
+       nunca tampa a linha, e a posição não pula quando o mapa dá pan/zoom.
+       Fundo sólido (não precisa mais de transparência, já que não fica
+       em cima do traçado). ── */
+    .circuit-legend-card {
+      position: absolute; top: 16px; right: 16px; bottom: 16px; width: 320px;
+      background: var(--bg-panel); border: 1px solid var(--border-2); box-shadow: var(--shadow-card);
+      padding: 22px; overflow-y: auto; z-index: 500;
     }
-    .circuit-legend-popup .leaflet-popup-content { margin: 18px 20px; width: auto !important; }
-    .circuit-legend-popup .leaflet-popup-tip { background: rgba(8, 12, 8, 0.82); border: 1px solid var(--border-2); }
-    .circuit-legend-popup .leaflet-popup-close-button {
-      color: var(--text-muted); font-size: 20px; width: 26px; height: 26px;
+    .circuit-legend-close {
+      position: absolute; top: 10px; right: 10px; background: none; border: none;
+      color: var(--text-muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 4px;
     }
-    .circuit-legend { font-family: var(--mono); min-width: 300px; }
+    .circuit-legend-close:hover { color: var(--accent); }
+    .circuit-legend { font-family: var(--mono); }
     .cl-title {
-      font-size: 17px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
-      margin-bottom: 14px; word-break: break-word;
+      font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+      margin: 0 32px 16px 0; word-break: break-word; line-height: 1.4;
     }
     .cl-row {
-      display: flex; justify-content: space-between; gap: 14px; padding: 8px 0;
-      border-bottom: 1px solid var(--border-dim); font-size: 13.5px;
+      display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 9px 0;
+      border-bottom: 1px solid var(--border-dim); font-size: 12.5px;
     }
-    .cl-row span { color: var(--text-muted); text-transform: uppercase; }
+    .cl-row span { color: var(--text-muted); text-transform: uppercase; flex-shrink: 0; }
     .cl-row strong { color: var(--text-primary); font-weight: 600; text-align: right; }
-    .cl-sides { display: flex; gap: 12px; margin: 12px 0; }
+    .cl-sides { display: flex; gap: 10px; margin: 16px 0; }
     .cl-side {
-      flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 12px; background: rgba(255,255,255,0.04);
-      border: 1px solid var(--border-dim); font-size: 13px;
+      flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 12px;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border-dim); font-size: 12.5px;
     }
-    .cl-side span { color: var(--accent); text-transform: uppercase; font-size: 11px; }
-    .cl-side strong { color: var(--text-primary); word-break: break-word; font-size: 14px; }
-    .cl-side small { color: var(--text-muted); }
-    #circuit-legend-edit-btn { width: 100%; margin-top: 14px; padding: 12px; font-size: 13px; }
+    .cl-side span { color: var(--accent); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em; }
+    .cl-side strong { color: var(--text-primary); word-break: break-word; font-size: 13px; line-height: 1.35; }
+    .cl-side small { color: var(--text-muted); word-break: break-word; }
+    #circuit-legend-edit-btn { width: 100%; margin-top: 18px; padding: 12px; font-size: 13px; }
 
     /* ── Modal Lado A/B (com desfoque do fundo) ──────────────────────── */
     .modal-overlay {
@@ -187,6 +186,10 @@
 
         <div class="map-column">
           <div id="editor-map"></div>
+          <div id="circuit-legend-card" class="circuit-legend-card" hidden>
+            <button class="circuit-legend-close" id="circuit-legend-close" type="button">&times;</button>
+            <div id="circuit-legend-content"></div>
+          </div>
           <button class="btn-secondary" id="edit-path-btn">Ajustar trajeto</button>
         </div>
       </div>
