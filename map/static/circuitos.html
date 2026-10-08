@@ -9,7 +9,7 @@
   <style>
     .circuitos-shell { display: flex; flex: 1; min-height: 0; gap: 20px; padding: 20px; overflow-x: auto; }
     .section-label {
-      font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+      font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
       color: var(--text-muted); margin: 0 0 12px;
     }
     .section-label .slashes { color: var(--accent); margin-right: 6px; }
@@ -28,7 +28,7 @@
     .circuit-chip {
       width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
       text-align: left; padding: 16px 18px; border: 1px solid var(--border);
-      background: var(--bg-panel); font-family: var(--mono); font-size: 13.5px;
+      background: var(--bg-panel); font-family: var(--sans); font-size: 13.5px;
       cursor: pointer; letter-spacing: 0.03em;
     }
     .circuit-chip:hover { border-color: var(--text-secondary); }
@@ -65,7 +65,7 @@
       color: var(--text-muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 4px;
     }
     .circuit-legend-close:hover { color: var(--accent); }
-    .circuit-legend { font-family: var(--mono); }
+    .circuit-legend { font-family: var(--sans); }
     .cl-title {
       font-size: 16px; font-weight: 700; letter-spacing: 0.03em;
       margin: 0 32px 16px 0; word-break: break-word; line-height: 1.4;
@@ -106,7 +106,7 @@
     }
     .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
     .modal-header h2 {
-      font-family: var(--mono); font-size: 15px; letter-spacing: 0.05em;
+      font-family: var(--sans); font-size: 15px; letter-spacing: 0.05em;
       margin: 0; color: var(--text-primary);
     }
     .modal-close {
@@ -123,24 +123,24 @@
     .ab-side select { width: 100%; padding: 12px 14px; font-size: 14px; }
     .ab-arrow {
       display: flex; align-items: center; justify-content: center;
-      font-size: 26px; color: var(--accent); font-family: var(--mono); flex-shrink: 0; width: 20px;
+      font-size: 26px; color: var(--accent); font-family: var(--sans); flex-shrink: 0; width: 20px;
     }
     .side-label {
-      font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
+      font-family: var(--sans); font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
       color: var(--accent);
     }
     /* Rótulo persistente acima de cada campo -- diferente do placeholder,
        não some quando o campo já está preenchido, então dá pra saber o
        que aquele quadrado representa mesmo depois de ter dado. */
     .field-label {
-      display: block; font-family: var(--mono); font-size: 10.5px; font-weight: 700;
+      display: block; font-family: var(--sans); font-size: 10.5px; font-weight: 700;
       letter-spacing: 0.06em; color: var(--text-muted); margin: 8px 0 4px;
     }
     .field-label:first-child { margin-top: 0; }
     #segment-form select:disabled { opacity: 0.5; }
     #segment-iface-hint { font-size: 11px; }
     #segment-submit-btn { width: 100%; margin-top: 4px; padding: 14px; font-size: 14px; }
-    #segment-warning { font-family: var(--mono); font-size: 11.5px; }
+    #segment-warning { font-family: var(--sans); font-size: 11.5px; }
   </style>
 </head>
 <body>
@@ -148,7 +148,7 @@
     <div class="nav-wrap">
       <nav class="nav notch">
         <a href="/" class="nav-logo">
-          <span class="logo-main">NATVERK</span>
+          <span class="logo-main">NÄTVERK</span>
           <span class="logo-sub">NOC</span>
         </a>
         <div class="nav-section">
