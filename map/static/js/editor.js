@@ -22,7 +22,7 @@ window.renderCircuitOnEditorMap = function renderCircuitOnEditorMap(circuits, po
       const latlngs = [origin, ...waypoints, dest].map((p) => [p.lat, p.lng]);
 
       const line = L.polyline(latlngs, isHighlighted
-        ? { color: '#91dc0a', weight: 5 }
+        ? { color: '#ffffff', weight: 5 }
         : { color: '#3b7ef0', weight: 3, opacity: 0.55 }).addTo(editorMap);
       segmentLayersBySegmentId[segment.id] = line;
       if (isHighlighted) highlightLayers.push(line);
