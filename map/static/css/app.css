@@ -85,11 +85,10 @@ body {
 
 .nav-section { flex: 1; overflow-y: auto; padding: 10px 10px 12px; }
 .nav-section-label {
-  display: flex; align-items: center; gap: 8px; padding: 16px 8px 6px;
-  font-family: var(--sans); font-size: 11px; font-weight: 500;
+  display: flex; align-items: center; gap: 8px; padding: 18px 8px 6px;
+  font-family: var(--sans); font-size: 12px; font-weight: 600;
 }
-.nav-section-label .slashes { color: var(--text-muted); }
-.nav-section-label .label-text { color: var(--text-muted); }
+.nav-section-label .label-text { color: var(--text-secondary); }
 
 .nav-item {
   display: flex; align-items: center; gap: 10px; padding: 9px 10px;
@@ -130,12 +129,11 @@ body {
   padding: 0 24px; gap: 14px; color: var(--text-primary);
 }
 .topbar-title-row { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
-.topbar-slash { font-size: 13px; font-weight: 500; color: var(--text-muted); font-family: var(--sans); flex-shrink: 0; }
 .topbar h1 {
-  font-family: var(--sans); font-size: 18px; font-weight: 600; color: var(--text-primary);
+  font-family: var(--sans); font-size: 20px; font-weight: 700; color: var(--text-primary);
   white-space: nowrap; margin: 0; flex-shrink: 0;
 }
-.topbar-rule { flex: 1; height: 1px; background: var(--border); margin-left: 4px; }
+.topbar-rule { flex: 1; height: 1px; background: var(--border); margin-left: 12px; }
 
 /* ── Notification bell ────────────────────────────────────────────── */
 .topbar-actions { position: relative; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
@@ -326,10 +324,9 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
   overflow-y: auto; padding: 16px; font-size: 13px;
 }
 .section-label {
-  font-family: var(--sans); font-size: 12px; font-weight: 500;
-  color: var(--text-muted);
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  color: var(--text-secondary);
 }
-.section-label .slashes { color: var(--text-muted); margin-right: 6px; }
 .ops-panel .section-label { margin-top: 20px; }
 .ops-panel .section-label:first-child { margin-top: 0; }
 

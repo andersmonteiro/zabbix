@@ -12,7 +12,6 @@
       font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
       color: var(--text-muted); margin: 0 0 12px;
     }
-    .section-label .slashes { color: var(--accent); margin-right: 6px; }
 
     /* ── Coluna esquerda: lista de circuitos ─────────────────────────── */
     /* flex (não width fixa) -- numa janela mais estreita ela encolhe até o
@@ -27,7 +26,7 @@
     .circuits-chips { flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; }
     .circuit-chip {
       width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      text-align: left; padding: 16px 18px; border: 1px solid var(--border);
+      text-align: left; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius);
       background: var(--bg-panel); font-family: var(--sans); font-size: 13.5px;
       cursor: pointer; letter-spacing: 0.03em;
     }
@@ -38,14 +37,14 @@
        ali, em vez de um botão solto no topo do painel sem contexto. */
     .circuit-chip-edit {
       flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-      width: 26px; height: 26px; background: none; border: 1px solid var(--accent);
+      width: 26px; height: 26px; background: none; border: 1px solid var(--accent); border-radius: var(--radius-sm);
       color: var(--accent); cursor: pointer; padding: 0;
     }
     .circuit-chip-edit:hover { background: var(--accent); color: #000; }
 
     /* ── Coluna direita: mapa, ocupa o resto da tela ─────────────────── */
     .map-column { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 360px; position: relative; }
-    #editor-map { flex: 1; min-height: 320px; border: 1px solid var(--border); box-shadow: var(--shadow-card); }
+    #editor-map { flex: 1; min-height: 320px; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card); overflow: hidden; }
     #edit-path-btn { margin-top: 10px; align-self: flex-start; }
 
     /* ── Legenda do circuito selecionado -- um cartão fixo encostado na
@@ -57,7 +56,7 @@
     .circuit-legend-card {
       position: absolute; top: 16px; right: 16px; width: 320px; max-height: calc(100% - 32px);
       background: rgba(8, 12, 8, 0.82); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-      border: 1px solid var(--border-2); box-shadow: var(--shadow-card);
+      border: 1px solid var(--border-2); border-radius: var(--radius); box-shadow: var(--shadow-card);
       padding: 22px; overflow-y: auto; z-index: 500;
     }
     .circuit-legend-close {
@@ -88,7 +87,7 @@
        normais, tudo dentro do mesmo grupo. */
     .cl-side {
       display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px;
-      padding: 10px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-dim);
+      padding: 10px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-dim); border-radius: var(--radius-sm);
     }
     .cl-side strong { color: var(--text-primary); word-break: break-word; font-size: 13px; line-height: 1.35; }
     .cl-side small { color: var(--text-muted); word-break: break-word; }
@@ -102,7 +101,7 @@
     .modal-overlay[hidden] { display: none; }
     .modal-card {
       width: 100%; max-width: 1040px; max-height: 90vh; overflow-y: auto;
-      background: var(--bg-panel); border: 1px solid var(--border); box-shadow: var(--shadow-card); padding: 32px;
+      background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 32px;
     }
     .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
     .modal-header h2 {
@@ -152,7 +151,7 @@
           <span class="logo-sub">NOC</span>
         </a>
         <div class="nav-section">
-          <div class="nav-section-label"><span class="slashes">//</span><span class="label-text">Mapa</span></div>
+          <div class="nav-section-label"><span class="label-text">Mapa</span></div>
           <a href="/" class="nav-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             Início
@@ -173,7 +172,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             Alertas
           </a>
-          <div class="nav-section-label"><span class="slashes">//</span><span class="label-text">Sistema</span></div>
+          <div class="nav-section-label"><span class="label-text">Sistema</span></div>
           <a href="/configuracoes.html" class="nav-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Configurações
@@ -192,7 +191,6 @@
       <div class="topbar-wrap">
         <header class="topbar notch">
           <div class="topbar-title-row">
-            <span class="topbar-slash">//</span>
             <h1>Circuitos</h1>
             <div class="topbar-rule"></div>
           </div>
@@ -207,7 +205,7 @@
       <div class="circuitos-shell">
         <div class="circuits-panel">
           <button class="btn-primary" id="new-circuit-btn" type="button">+ Novo circuito</button>
-          <div class="section-label"><span class="slashes">//</span>Circuitos</div>
+          <div class="section-label">Circuitos</div>
           <div class="circuits-chips" id="circuits-chips"></div>
         </div>
 
