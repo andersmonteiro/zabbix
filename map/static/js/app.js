@@ -167,8 +167,8 @@ function glowIcon(color, pulseColor, pulseClass) {
     className: '',
     html:
       '<div class="glow-marker ' + (pulseClass || '') + '" style="position:relative;width:34px;height:34px;">' +
-        '<div class="glow-halo" style="position:absolute;inset:0;background:' + (pulseColor || color) + ';opacity:0.35;filter:blur(4px)"></div>' +
-        '<div style="position:absolute;top:6px;left:6px;width:22px;height:22px;background:' + color + ';border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">' +
+        '<div class="glow-halo" style="position:absolute;inset:0;border-radius:50%;background:' + (pulseColor || color) + ';opacity:0.35;filter:blur(4px)"></div>' +
+        '<div style="position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:50%;background:' + color + ';border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">' +
           EQUIPMENT_GLYPH +
         '</div>' +
       '</div>',
