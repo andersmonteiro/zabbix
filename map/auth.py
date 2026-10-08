@@ -11,7 +11,10 @@ _session_factory = None
 # that creates the session, static assets the login page needs, and the
 # Docker healthcheck (which has no way to authenticate).
 PUBLIC_PATHS = {'/login', '/api/login', '/health'}
-PUBLIC_PREFIXES = ('/css/', '/js/')
+# /api/agent-tools/ não é "público" de verdade -- tem seu próprio controle
+# de acesso por bearer token (ver routes_agent_tools.py), só não usa
+# cookie de sessão porque quem chama é o agente central, não um navegador.
+PUBLIC_PREFIXES = ('/css/', '/js/', '/api/agent-tools/')
 
 
 def init_auth(session_factory):
