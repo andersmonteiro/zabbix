@@ -238,6 +238,16 @@ form.inline label {
 form.inline button { padding: 9px; }
 .form-status { font-size: 12.5px; margin: 6px 0 0; min-height: 15px; color: var(--text-muted); font-family: var(--sans); }
 
+/* Rótulo persistente acima de cada campo -- diferente do placeholder, não
+   some quando o campo já está preenchido, então dá pra saber o que
+   aquele campo representa mesmo depois de ter dado. Promovido do
+   Circuitos (onde nasceu) pra cá, de uso geral em qualquer formulário. */
+.field-label {
+  display: block; font-family: var(--sans); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.06em; color: var(--text-muted); margin: 10px 0 4px;
+}
+.field-label:first-child { margin-top: 0; }
+
 /* ── Lists ────────────────────────────────────────────────────────── */
 .list-item {
   padding: 9px 11px; margin-bottom: 4px; border-radius: var(--radius-sm); cursor: pointer;
@@ -397,7 +407,7 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
   background: var(--bg-panel); border: 1px solid var(--border-2); border-radius: var(--radius);
   width: 340px; font-size: 13px; z-index: 1000;
   display: none; overflow: hidden; opacity: 0;
-  box-shadow: var(--shadow-card), 0 0 50px -18px var(--status-color, var(--accent));
+  box-shadow: var(--shadow-card);
   transition: width .18s ease;
 }
 .detail-modal.has-chart { width: min(640px, calc(100vw - 32px)); }

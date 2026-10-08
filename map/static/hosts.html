@@ -14,7 +14,9 @@
     .hosts-table-wrap { max-height: calc(100vh - 220px); overflow: auto; }
 
     .modal-form { width: 440px; max-height: 84vh; overflow-y: auto; }
-    .modal-form-body { padding: 14px 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .modal-form h4 { margin: 20px 20px 16px; }
+    .modal-form-body { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 2px; }
+    .modal-form-body input, .modal-form-body select { margin-bottom: 8px; }
     .modal-form-body .row2 { display: flex; gap: 8px; }
     .modal-form-body .row2 > * { flex: 1; }
     .modal-form-body summary {
@@ -118,36 +120,66 @@
   <div class="detail-modal modal-form" id="host-modal">
     <h4 id="host-modal-title">Novo host</h4>
     <form class="modal-form-body" id="host-form">
-      <input name="name" placeholder="Nome do host" required />
-      <input name="ip" placeholder="IP" required />
+      <label class="field-label" for="host-name">Nome do host</label>
+      <input id="host-name" name="name" placeholder="ex: KM30-SWITCH-01" required />
+
+      <label class="field-label" for="host-ip">IP</label>
+      <input id="host-ip" name="ip" placeholder="ex: 192.168.1.1" required />
+
+      <label class="field-label" for="group-select">Grupo</label>
       <select name="group_id" id="group-select">
         <option value="">Selecione o grupo...</option>
       </select>
+
       <div class="row2">
-        <select name="vendor">
-          <option value="">Fabricante...</option>
-          <option value="huawei">Huawei</option>
-          <option value="mikrotik">Mikrotik</option>
-          <option value="datacom">Datacom</option>
-          <option value="a10">A10</option>
-          <option value="outro">Outro</option>
-        </select>
-        <input name="model" placeholder="Modelo" />
+        <div>
+          <label class="field-label" for="host-vendor">Fabricante</label>
+          <select name="vendor" id="host-vendor">
+            <option value="">Selecione...</option>
+            <option value="huawei">Huawei</option>
+            <option value="mikrotik">Mikrotik</option>
+            <option value="datacom">Datacom</option>
+            <option value="a10">A10</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label" for="host-model">Modelo</label>
+          <input id="host-model" name="model" placeholder="ex: S5720" />
+        </div>
       </div>
+
       <div class="row2">
-        <input name="community" placeholder="Comunidade SNMP" value="public" />
-        <input name="port" placeholder="Porta SNMP" value="161" />
+        <div>
+          <label class="field-label" for="host-community">Comunidade SNMP</label>
+          <input id="host-community" name="community" placeholder="public" value="public" />
+        </div>
+        <div>
+          <label class="field-label" for="host-port">Porta SNMP</label>
+          <input id="host-port" name="port" placeholder="161" value="161" />
+        </div>
       </div>
+
       <div class="row2">
-        <input name="lat" placeholder="Latitude (opcional)" type="number" step="any" min="-90" max="90" />
-        <input name="lng" placeholder="Longitude (opcional)" type="number" step="any" min="-180" max="180" />
+        <div>
+          <label class="field-label" for="host-lat">Latitude (opcional)</label>
+          <input id="host-lat" name="lat" placeholder="ex: -4.34" type="number" step="any" min="-90" max="90" />
+        </div>
+        <div>
+          <label class="field-label" for="host-lng">Longitude (opcional)</label>
+          <input id="host-lng" name="lng" placeholder="ex: -55.78" type="number" step="any" min="-180" max="180" />
+        </div>
       </div>
+
       <details>
         <summary>Credenciais SSH (opcional)</summary>
-        <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
-          <input name="ssh_user" placeholder="Usuário SSH" />
-          <input name="ssh_pass" placeholder="Senha SSH" type="password" />
-          <input name="ssh_port" placeholder="Porta SSH (ex: 22)" />
+        <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+          <label class="field-label" for="host-ssh-user">Usuário SSH</label>
+          <input id="host-ssh-user" name="ssh_user" placeholder="ex: monitoramento" />
+          <label class="field-label" for="host-ssh-pass">Senha SSH</label>
+          <input id="host-ssh-pass" name="ssh_pass" placeholder="••••••••" type="password" />
+          <label class="field-label" for="host-ssh-port">Porta SSH</label>
+          <input id="host-ssh-port" name="ssh_port" placeholder="22" />
         </div>
       </details>
       <button class="btn-primary" type="submit" id="host-form-submit">Criar host</button>
