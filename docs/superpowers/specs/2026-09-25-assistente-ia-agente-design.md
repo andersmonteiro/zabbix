@@ -37,12 +37,15 @@ desde o desenho inicial, não só para o cliente atual.
   pelo catálogo ser pequeno e testado manualmente.
 - **MVP cobre dois fabricantes**: Huawei VRP (NE8000) e Mikrotik
   RouterOS — os dois já presentes no backbone real do primeiro cliente.
-- **Modelo de IA: Claude Sonnet 5.** Ver seção "Modelo de IA e custo" para
-  o raciocínio completo (benchmarks de tool-calling, comparação de preço
-  com Gemini/GPT, e por que não usar Opus ou um modelo "mini/nano" agora).
+- **Modelo de IA: Claude Sonnet 5 no MVP, com plano de teste A/B do Haiku
+  4.5 depois.** Ver seção "Modelo de IA e custo" para o raciocínio
+  completo (benchmarks de tool-calling, comparação de preço com
+  Gemini/GPT, custo de self-host open-source, e o plano concreto de
+  validar um modelo mais barato com dado real de uso antes de trocar).
 - **Arquitetura centralizada desde o início** (não uma instância isolada
   por cliente, ao contrário do resto da plataforma — ver justificativa na
-  próxima seção). Roda numa VM da própria Natverk, já disponível.
+  próxima seção). Roda numa VM nova, dedicada só a isso (ver seção "VM
+  dedicada ao serviço central" — não reaproveita a VM de DNS existente).
 - **Chat substitui o mapa como tela inicial.** O mapa passa a ser um item
   próprio da barra lateral (ver seção "Interface de chat").
 - **Fases de acesso**: Fase 1 só equipe Natverk; Fase 2 abre para o
@@ -93,6 +96,36 @@ serviço central cair, todos os clientes perdem o agente ao mesmo tempo) e
 uma peça de infraestrutura a mais para manter no ar. A VM onde esse
 serviço roda já existe (infra própria da Natverk, fora das VMs de
 cliente).
+
+## VM dedicada ao serviço central
+
+Avaliamos reaproveitar a VM `control.natverk.com.br` (131.72.97.10), que já
+roda um painel de DNS (`dns-block-proxy`, projeto `dns-bind9`) atrás de
+Caddy. Investigando por SSH: essa VM já guarda credenciais sensíveis
+próprias (GitHub PAT, acesso SSH a múltiplos hosts numerados via
+`/admin/ssh-test/*`) — ou seja, já é uma peça de control-plane sensível
+por conta própria, antes mesmo de qualquer coisa do agente. Juntar o
+agente ali concentraria duas superfícies de risco distintas (chave Claude
++ credenciais de DNS/SSH de outros sistemas) no mesmo processo/host.
+
+**Decidido: VM nova, dedicada, sem nenhum outro serviço.** Requisitos:
+
+- 2 vCPU / 4GB RAM / 40-60GB disco — suficiente para o serviço central
+  (`chat.py`/`claude_agent.py`/`clients.py`/`audit.py`), Postgres próprio
+  e Caddy.
+- Debian ou Ubuntu + Docker, mesmo padrão das outras VMs da Natverk.
+- Portas 80/443 (TLS via Caddy, mesmo padrão observado em
+  `control.natverk.com.br`) + uma porta SSH não-padrão.
+- Provedor: qualquer um barato (Hetzner, Contabo, DigitalOcean) — estimativa
+  de R$25-50/mês.
+- Subdomínio: `agent.natverk.com.br` (ou `agente.natverk.com.br` — as duas
+  formas são equivalentes tecnicamente; falta só a escolha final do
+  usuário antes do deploy). Este documento usa `agente.natverk.com.br`
+  nos exemplos abaixo até a confirmação.
+
+Provisionamento em andamento pelo usuário; uma vez disponível (IP, porta
+SSH, usuário, chave), o setup segue o padrão já usado nas outras VMs da
+Natverk (Docker + docker-compose + Caddy para TLS automático).
 
 ## Arquitetura
 
@@ -252,6 +285,43 @@ foi discutido:
 - Migrar de Sonnet para Opus depois é uma troca de uma linha de código
   (mesmo SDK, mesma arquitetura de tools) — não é uma decisão que trava o
   projeto.
+
+**Por que não self-hostar um modelo open-source.** Um modelo aberto capaz
+de tool-calling confiável (~30B-70B+ parâmetros) precisa de ~140GB de VRAM
+em precisão cheia ou ~40-48GB quantizado — uma GPU como A100 alugada custa
+~$1,5-3/hora (~R$5.000-10.000+/mês rodando contínuo). Isso é muito mais
+caro que a estimativa de uso via API Claude projetada pra Fase 1
+(~$15-90/mês), fora o trabalho operacional extra de manter a GPU no ar.
+Reavaliar só se o volume crescer substancialmente — é uma troca
+reversível, não um lock-in arquitetural.
+
+**Modelo mais barato + instruções bem explícitas também é um caminho
+válido, não só "Sonnet ou nada".** A tarefa do agente é mais perto de
+classificação ("qual ferramenta + qual parâmetro") do que raciocínio
+aberto — exatamente o tipo de tarefa que modelo rápido/barato costuma
+fazer bem, principalmente com poucos exemplos no prompt (catálogo
+pequeno, ~10-15 ferramentas) e com um "freio de mão" validando em código
+cada chamada antes de executar (confere se o host escolhido existe de
+verdade, se porta/interface é válida, etc. — pega erro do modelo antes do
+SSH rodar, funciona com qualquer modelo). Como a regra de "nunca comando
+livre" já elimina o pior cenário de erro (o modelo só escolhe entre
+comandos de leitura pré-testados), o risco de um modelo mais fraco é
+menor do que pareceria à primeira vista.
+
+Onde isso custa caro é na manutenção: "ensinar o caminho todo" pra um
+modelo mais fraco é trabalho contínuo nosso — cada fabricante novo, cada
+jeito diferente de perguntar, cada cliente com nomenclatura própria de
+host exige reescrever prompt. Um modelo mais capaz generaliza sozinho; um
+mais barato exige ajuste manual toda vez que aparece um caso novo. E a
+diferença de custo real projetada (R$15-90/mês) é pequena o bastante pra
+não justificar essa manutenção extra agora.
+
+**Plano concreto**: validar o MVP com Sonnet 5 primeiro. Depois, com
+perguntas reais já logadas em produção (`agent_messages`), rodar as
+mesmas perguntas contra Claude Haiku 4.5 (camada barata da própria
+Anthropic, não um modelo genérico qualquer) e comparar acerto de
+ferramenta/parâmetro. Decisão data-driven, não achismo — e troca de uma
+linha se o Haiku segurar bem.
 
 ## Fora de escopo (Fase 2 ou além)
 
