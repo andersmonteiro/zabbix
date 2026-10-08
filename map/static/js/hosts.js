@@ -24,6 +24,16 @@ async function api(path, options) {
   return resp.json();
 }
 
+function sshStatusBadge(h) {
+  if (h.ssh_last_ok === null || h.ssh_last_ok === undefined) {
+    return '<span class="badge" title="Nunca testado">—</span>';
+  }
+  const when = h.ssh_last_checked_at ? new Date(h.ssh_last_checked_at).toLocaleString('pt-BR') : '';
+  return h.ssh_last_ok
+    ? `<span class="row-edit" title="Testado em ${esc(when)}">OK</span>`
+    : `<span class="row-delete" title="Testado em ${esc(when)}">Falhou</span>`;
+}
+
 function renderHosts(hosts) {
   const tbody = document.getElementById('hosts-tbody');
   tbody.innerHTML = hosts.map((h) => `
@@ -35,8 +45,10 @@ function renderHosts(hosts) {
       <td>${esc(h.model)}</td>
       <td>${h.groups.map((g) => `<span class="badge">${esc(g)}</span>`).join(' ')}</td>
       <td>${esc(h.ssh_user)}</td>
+      <td>${sshStatusBadge(h)}</td>
       <td>${h.lat !== null && h.lng !== null ? `${esc(h.lat)}, ${esc(h.lng)}` : '—'}</td>
       <td>
+        <button class="row-edit test-ssh" data-id="${esc(h.hostid)}" type="button">Testar SSH</button>
         <button class="row-edit" data-id="${esc(h.hostid)}" type="button">Editar</button>
         <button class="row-delete" data-id="${esc(h.hostid)}" type="button">Remover</button>
       </td>
@@ -53,7 +65,24 @@ function renderHosts(hosts) {
       }
     });
   });
-  tbody.querySelectorAll('.row-edit').forEach((btn) => {
+  tbody.querySelectorAll('.test-ssh').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const original = btn.textContent;
+      btn.textContent = 'Testando...';
+      btn.disabled = true;
+      try {
+        const result = await api(`/api/zabbix/hosts/${btn.dataset.id}/test-ssh`, { method: 'POST' });
+        alert(result.ok ? `OK: ${result.message}` : `Falhou: ${result.message}`);
+      } catch (err) {
+        alert(`Falha ao testar: ${err.message}`);
+      } finally {
+        btn.textContent = original;
+        btn.disabled = false;
+        await loadHosts();
+      }
+    });
+  });
+  tbody.querySelectorAll('.row-edit:not(.test-ssh)').forEach((btn) => {
     btn.addEventListener('click', () => {
       const host = allHosts.find((h) => String(h.hostid) === btn.dataset.id);
       if (host) openEditModal(host);

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, JSON, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, JSON, DateTime, Boolean
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 Base = declarative_base()
@@ -36,6 +36,46 @@ class Point(Base):
     zabbix_latency_itemid = Column(String, nullable=True)  # icmppingsec, in seconds
     equipment_model = Column(String, nullable=True)  # used to look up the photo
     equipment_ip = Column(String, nullable=True)
+
+    # Resultado do último teste de conexão SSH (botão "Testar SSH" na tela de
+    # Hosts, ou uma chamada real do agente de IA) -- None = nunca testado,
+    # diferente de False (testado e falhou). Credenciais em si continuam só
+    # nas macros do host no Zabbix ({$SSH_USER}/{$SSH_PASS}/{$SSH_PORT}),
+    # nunca duplicadas aqui.
+    ssh_last_ok = Column(Boolean, nullable=True)
+    ssh_last_checked_at = Column(DateTime, nullable=True)
+
+
+class InterfaceCache(Base):
+    """Config "que não muda o tempo todo" de cada interface, pré-buscada via
+    SSH a cada ciclo do ssh_poller (ver ssh_poller.py) em vez de consultada
+    ao vivo toda vez que o agente pergunta -- IP, descrição (pra responder
+    "qual porta vai pra localidade Y") e sinal óptico. BGP e log ficam de
+    fora de propósito: são estado ao vivo, não config, cachear dá resposta
+    errada."""
+    __tablename__ = 'netmap_interface_cache'
+
+    id = Column(Integer, primary_key=True)
+    point_id = Column(Integer, ForeignKey('netmap_points.id'), nullable=False)
+    interface_name = Column(String, nullable=False)
+    ip_address = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    optical_rx_dbm = Column(Float, nullable=True)
+    optical_tx_dbm = Column(Float, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class RouteCache(Base):
+    """Rotas estáticas de cada host -- mesma lógica do InterfaceCache, config
+    que raramente muda."""
+    __tablename__ = 'netmap_route_cache'
+
+    id = Column(Integer, primary_key=True)
+    point_id = Column(Integer, ForeignKey('netmap_points.id'), nullable=False)
+    destination = Column(String, nullable=False)
+    next_hop = Column(String, nullable=True)
+    interface_name = Column(String, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class Circuit(Base):

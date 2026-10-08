@@ -5,3 +5,4 @@ requests==2.32.3
 # create_engine() imports the DBAPI driver eagerly — without this the
 # container crash-loops on every real (non-SQLite) install.
 psycopg2-binary==2.9.9
+netmiko==4.4.0

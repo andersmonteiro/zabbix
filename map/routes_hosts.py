@@ -1,8 +1,10 @@
 import re
+from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
 from models import Point
+from ssh_tools import SSHToolError, test_ssh
 from zabbix_client import ZabbixAPIError
 
 hosts_bp = Blueprint('zbx_hosts', __name__, url_prefix='/api/zabbix')
@@ -150,6 +152,12 @@ def _serialize_host(h, point=None):
         'status': 'enabled' if h.get('status') == '0' else 'disabled',
         'lat': point.lat if point is not None else None,
         'lng': point.lng if point is not None else None,
+        'ssh_last_ok': point.ssh_last_ok if point is not None else None,
+        'ssh_last_checked_at': (
+            point.ssh_last_checked_at.isoformat()
+            if point is not None and point.ssh_last_checked_at
+            else None
+        ),
     }
 
 
@@ -338,6 +346,26 @@ def update_host(hostid):
 
     _upsert_point(hostid, data)
     return jsonify({'ok': True})
+
+
+@hosts_bp.route('/hosts/<hostid>/test-ssh', methods=['POST'])
+def test_host_ssh(hostid):
+    session = _session_factory()
+    try:
+        point = session.query(Point).filter(Point.zabbix_hostid == hostid).first()
+        try:
+            message = test_ssh(hostid, _zabbix_client)
+            ok = True
+        except SSHToolError as e:
+            message = str(e)
+            ok = False
+        if point is not None:
+            point.ssh_last_ok = ok
+            point.ssh_last_checked_at = datetime.now(timezone.utc)
+            session.commit()
+        return jsonify({'ok': ok, 'message': message})
+    finally:
+        session.close()
 
 
 @hosts_bp.route('/hosts/<hostid>', methods=['DELETE'])

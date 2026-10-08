@@ -806,7 +806,7 @@ async function refresh() {
         .bindTooltip('Poste / caixa (só trajeto)', { className: 'mini-tip' });
       return;
     }
-    const { color, pulseColor, pulseClass } = alertVisual(point.status, point.alert_severity, point.snmp_offline);
+    const { color, pulseColor, pulseClass } = alertVisual(point.status, point.alert_severity, point.snmp_offline || point.ssh_offline);
     const marker = L.marker([point.lat, point.lng], { icon: glowIcon(color, pulseColor, pulseClass) }).addTo(markerLayer);
     markersByPointId[point.id] = marker;
     // Reposiciona as linhas conectadas na hora (sem esperar o servidor) e só
@@ -828,6 +828,7 @@ async function refresh() {
         ['IP', point.equipment_ip || '—'],
         ['Ping', fmtUpDown(pingUp), pingUp === false ? 'crit' : pingUp === true ? 'ok' : ''],
         ['SNMP', point.snmp_offline ? 'down' : 'up', point.snmp_offline ? 'crit' : 'ok'],
+        ...(point.ssh_offline ? [['SSH', 'falhou no último teste', 'crit']] : []),
         ['Latência', fmtLatency(point.latency_ms)],
         ['Uptime', fmtUptime(point.uptime_seconds)],
         ...(point.alert_severity !== null && point.alert_severity !== undefined

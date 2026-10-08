@@ -133,6 +133,24 @@ atexit.register(_alert_poller_stop_event.set)
 init_alerts_routes(alert_cache, STALE_THRESHOLD_SECONDS)
 app.register_blueprint(alerts_bp)
 
+from routes_agent_tools import agent_tools_bp, init_agent_tools_routes
+
+init_agent_tools_routes(zabbix_client, SessionLocal)
+app.register_blueprint(agent_tools_bp)
+
+from ssh_poller import ssh_cache_poll_loop
+
+SSH_CACHE_POLL_INTERVAL_SECONDS = int(os.environ.get('SSH_CACHE_POLL_INTERVAL_SECONDS', '300'))
+_ssh_poller_stop_event = threading.Event()
+_ssh_poller_thread = threading.Thread(
+    target=ssh_cache_poll_loop,
+    args=(SessionLocal, zabbix_client),
+    kwargs={'interval_seconds': SSH_CACHE_POLL_INTERVAL_SECONDS, 'stop_event': _ssh_poller_stop_event},
+    daemon=True,
+)
+_ssh_poller_thread.start()
+atexit.register(_ssh_poller_stop_event.set)
+
 # alert_cache feeds both the notification bell (above) and each equipment
 # Point's alert_severity/alert_count on the map -- a real Zabbix problem
 # open on that host, not just the raw ping/SNMP items.

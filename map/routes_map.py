@@ -116,6 +116,10 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
             entry['snmp_offline'] = (
                 point.zabbix_snmp_available_itemid is not None and snmp_available == 0
             )
+            # Resultado do último "Testar SSH" (tela de Hosts) ou de uma
+            # chamada real do agente de IA -- None = nunca testado, só vira
+            # badge quando é explicitamente False (testado e falhou).
+            entry['ssh_offline'] = point.ssh_last_ok is False
             entry['uptime_seconds'] = None if stale else _lastvalue(cache, point.zabbix_uptime_itemid, float)
             latency_seconds = None if stale else _lastvalue(cache, point.zabbix_latency_itemid, float)
             entry['latency_ms'] = None if latency_seconds is None else latency_seconds * 1000
