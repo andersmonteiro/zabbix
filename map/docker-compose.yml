@@ -19,6 +19,8 @@ services:
       - MAP_SECRET_KEY=${MAP_SECRET_KEY}
       - MAP_ADMIN_USER=${MAP_ADMIN_USER:-admin}
       - MAP_ADMIN_PASSWORD=${MAP_ADMIN_PASSWORD}
+      - AGENT_TOOLS_TOKEN=${AGENT_TOOLS_TOKEN}
+      - SSH_CACHE_POLL_INTERVAL_SECONDS=${SSH_CACHE_POLL_INTERVAL_SECONDS:-300}
     volumes:
       - map-equipment-images:/app/equipment-images
     networks:
