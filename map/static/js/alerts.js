@@ -71,13 +71,19 @@ async function refreshAlerts() {
 
   // O badge do sino sempre reflete TODOS os alertas, independente de um
   // filtro por host estar ativo na lista abaixo dele.
+  const navBadge = document.getElementById('nav-alerts-badge');
   if (allProblems.length === 0) {
     badge.hidden = true;
+    if (navBadge) navBadge.hidden = true;
   } else {
     badge.hidden = false;
     badge.textContent = allProblems.length > 99 ? '99+' : String(allProblems.length);
     const worst = Math.max(...allProblems.map((p) => p.severity));
     badge.className = `alerts-badge ${alertsSeverityClass(worst)}`;
+    if (navBadge) {
+      navBadge.hidden = false;
+      navBadge.textContent = badge.textContent;
+    }
   }
 
   if (state.stale) {

@@ -102,6 +102,14 @@ body {
 
 .nav-item:hover, .nav-item.active { background: var(--bg-canvas); color: var(--text-primary); }
 
+.nav-badge {
+  margin-left: auto; min-width: 18px; height: 18px; padding: 0 6px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--red); color: #fff; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; font-family: var(--sans); line-height: 1;
+}
+.nav-badge[hidden] { display: none; }
+
 .nav-footer { border-top: 1px solid var(--border); padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
 .nav-avatar {
   width: 26px; height: 26px; border-radius: var(--radius-sm); background: var(--accent); flex-shrink: 0;
@@ -178,17 +186,26 @@ body {
 }
 .alerts-filter-bar button:hover { color: var(--text-primary); }
 .alerts-empty { padding: 20px 14px; text-align: center; color: var(--text-muted); font-family: var(--sans); font-size: 12.5px; }
-.alert-row { display: flex; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--border-dim); }
-.alert-row:first-child { border-top: none; }
-.alert-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-.alert-dot.sev-info { background: var(--text-muted); }
-.alert-dot.sev-warn { background: var(--yellow); }
-.alert-dot.sev-crit { background: var(--red); }
-.alert-dot.sev-resolved { background: var(--green); }
+/* Cada alerta é seu próprio card (não uma linha separada por borda) --
+   ícone colorido num círculo em vez de um pontinho solto, igual ao
+   padrão de banner de sistema por status. */
+.alert-row {
+  display: flex; gap: 10px; padding: 12px; margin: 8px; border-radius: var(--radius-sm);
+  background: var(--bg-canvas); border: 1px solid var(--border-dim);
+}
+.alert-dot {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.alert-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.alert-dot.sev-info { background: rgba(138, 138, 138, 0.14); color: var(--text-muted); }
+.alert-dot.sev-warn { background: rgba(245, 166, 35, 0.14); color: var(--yellow); }
+.alert-dot.sev-crit { background: rgba(229, 72, 77, 0.14); color: var(--red); }
+.alert-dot.sev-resolved { background: rgba(62, 207, 106, 0.14); color: var(--green); }
 .alert-body { min-width: 0; flex: 1; }
-.alert-name { font-size: 12.5px; color: var(--text-primary); font-weight: 500; font-family: var(--sans); }
-.alert-meta { font-size: 11.5px; color: var(--text-muted); font-family: var(--sans); margin-top: 2px; }
-.alert-time { font-size: 11px; color: var(--text-muted); font-family: var(--sans); margin-top: 3px; opacity: 0.85; }
+.alert-name { font-size: 12.5px; color: var(--text-primary); font-weight: 600; font-family: var(--sans); }
+.alert-meta { font-size: 11.5px; color: var(--text-muted); font-family: var(--sans); margin-top: 3px; }
+.alert-time { font-size: 11px; color: var(--text-muted); font-family: var(--sans); margin-top: 6px; opacity: 0.85; }
 .alert-time b { color: var(--text-secondary); font-weight: 500; }
 .alert-ack { color: var(--text-primary); }
 
