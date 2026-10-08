@@ -118,14 +118,32 @@ agente ali concentraria duas superfícies de risco distintas (chave Claude
   `control.natverk.com.br`) + uma porta SSH não-padrão.
 - Provedor: qualquer um barato (Hetzner, Contabo, DigitalOcean) — estimativa
   de R$25-50/mês.
-- Subdomínio: `agent.natverk.com.br` (ou `agente.natverk.com.br` — as duas
-  formas são equivalentes tecnicamente; falta só a escolha final do
-  usuário antes do deploy). Este documento usa `agente.natverk.com.br`
-  nos exemplos abaixo até a confirmação.
+- Subdomínio confirmado: **`agent.natverk.com.br`**.
 
-Provisionamento em andamento pelo usuário; uma vez disponível (IP, porta
-SSH, usuário, chave), o setup segue o padrão já usado nas outras VMs da
-Natverk (Docker + docker-compose + Caddy para TLS automático).
+**Status: VM no ar e primeiro deploy funcionando (2026-10-08).**
+Provisionada em Proxmox próprio (não num provedor cloud), Debian 13,
+IP `131.72.97.11`, porta SSH `2220`, usuário `natverk` com sudo sem senha
+(chave dedicada `natverk_agent_central`), login SSH root desativado.
+Docker + Compose instalados. Repositório próprio criado:
+`github.com/andersmonteiro/natverk-ai-agent` (deploy key dedicada,
+mesmo padrão do `zabbix`), clonado em `/opt/natverk-agent-central`.
+Stack rodando: `agent` (FastAPI), `db` (Postgres 16), `caddy` (TLS
+automático via Let's Encrypt, já emitido e confirmado para
+`agent.natverk.com.br`).
+
+Primeira entrega (walking skeleton): endpoint `/chat` (streaming SSE via
+Claude Sonnet 5, sem tool-calling ainda) **e um painel de administração**
+(`/admin`, protegido por senha) com cadastro de clientes
+(`agent_clients` — gera `AGENT_TOKEN`, mostrado uma única vez, salvo só
+como hash) e visualização do log de auditoria (`agent_audit_log`) —
+movido para o MVP a pedido do usuário, em vez de ficar pra Fase 2.
+Visual próprio desse painel (fundo escuro, tipografia limpa, cantos
+arredondados — inspirado no Claude.ai/Anthropic Console), deliberadamente
+diferente do design system do `map/` (produtos/repositórios distintos).
+
+Próximos passos: construir o catálogo de ferramentas SSH (`agent_tools/`)
+e o Zabbix MCP Server na VM do primeiro cliente real (WNP), e a tela de
+chat no `map/` dele.
 
 ## Arquitetura
 
