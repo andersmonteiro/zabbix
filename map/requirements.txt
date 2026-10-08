@@ -6,3 +6,7 @@ requests==2.32.3
 # container crash-loops on every real (non-SQLite) install.
 psycopg2-binary==2.9.9
 netmiko==4.4.0
+# pyasn1 pinned below 0.5: pysnmp 4.4.12's hlapi imports pyasn1.compat.octets,
+# removed in pyasn1>=0.5 -- confirmed broken on 0.6.4, confirmed working on 0.4.8.
+pysnmp==4.4.12
+pyasn1==0.4.8
