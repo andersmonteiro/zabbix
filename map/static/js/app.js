@@ -153,24 +153,13 @@ function alertVisual(status, alertSeverity, snmpOffline) {
   return { color, pulseColor: color, pulseClass: '' };
 }
 
-// Switch de rede (retângulo com 3 portas) em vez do glifo de wifi anterior
-// -- o wifi em 9px virava um borrão irreconhecível; um retângulo com
-// divisórias grossas lê como "equipamento com portas" mesmo pequeno, e
-// combina com os cantos retos do resto da UI (nada de curvas finas).
-const EQUIPMENT_GLYPH =
-  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00110a" stroke-width="2.6" ' +
-  'stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12"/>' +
-  '<line x1="8.5" y1="6" x2="8.5" y2="18"/><line x1="15.5" y1="6" x2="15.5" y2="18"/></svg>';
-
 function glowIcon(color, pulseColor, pulseClass) {
   return L.divIcon({
     className: '',
     html:
       '<div class="glow-marker ' + (pulseClass || '') + '" style="position:relative;width:34px;height:34px;">' +
         '<div class="glow-halo" style="position:absolute;inset:0;border-radius:50%;background:' + (pulseColor || color) + ';opacity:0.35;filter:blur(4px)"></div>' +
-        '<div style="position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:50%;background:' + color + ';border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">' +
-          EQUIPMENT_GLYPH +
-        '</div>' +
+        '<div style="position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:50%;background:' + color + ';border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 6px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.35);"></div>' +
       '</div>',
     iconSize: [34, 34], iconAnchor: [17, 17],
   });
