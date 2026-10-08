@@ -88,8 +88,13 @@ function initTileLayers(cfg) {
   const overlays = { 'Nomes dos locais': labelLayer };
   L.control.layers(layers, overlays, { position: 'topright' }).addTo(map);
 
-  let labelsOn = false;
-  try { labelsOn = localStorage.getItem(MAP_LABELS_STORAGE_KEY) === '1'; } catch (err) { /* private mode etc. */ }
+  // Ligado por padrão -- só respeita um "0" salvo se o usuário já desligou
+  // antes manualmente; sem nada salvo ainda (primeira visita), mostra.
+  let labelsOn = true;
+  try {
+    const stored = localStorage.getItem(MAP_LABELS_STORAGE_KEY);
+    if (stored !== null) labelsOn = stored === '1';
+  } catch (err) { /* private mode etc. */ }
   if (labelsOn) labelLayer.addTo(map);
 
   map.on('baselayerchange', (e) => {
