@@ -137,9 +137,44 @@ document.getElementById('edit-path-btn').addEventListener('click', async () => {
   }
 
   layer.pm.enable({ allowSelfIntersection: true, draggable: true });
+  attachLiveSnap(layer);
   editingSegmentId = segment.id;
   document.getElementById('edit-path-btn').textContent = 'Salvar trajeto';
 });
+
+// Encaixe "ao vivo" durante o arrasto -- em vez de só ajustar quando o
+// operador solta o vértice (pm:edit, no fim de qualquer edição), escuta
+// pm:markerdrag (dispara continuamente enquanto o vértice se move) e
+// faz o snap pela via mais próxima com um pequeno debounce. Sem o debounce
+// seria uma chamada de rede por pixel de movimento -- lento e sobrecarrega
+// o servidor OSRM público sem necessidade; com ele, o traçado vai se
+// "colando" na estrada pouco depois de cada pausa no arrasto, em vez de só
+// no final.
+const DRAG_SNAP_DEBOUNCE_MS = 180;
+let dragSnapTimer = null;
+
+function attachLiveSnap(layer) {
+  layer.off('pm:markerdrag', onLiveDrag); // evita acumular o listener se chamado mais de uma vez na mesma layer
+  layer.on('pm:markerdrag', onLiveDrag);
+}
+
+function onLiveDrag(e) {
+  const marker = e.markerEvent ? e.markerEvent.target : e.target;
+  if (!marker || typeof marker.setLatLng !== 'function') return;
+  clearTimeout(dragSnapTimer);
+  dragSnapTimer = setTimeout(async () => {
+    const current = marker.getLatLng();
+    try {
+      const snapped = await snapVertexToRoad(current);
+      if (snapped.lat !== current.lat || snapped.lng !== current.lng) {
+        marker.setLatLng(snapped);
+      }
+    } catch (err) {
+      // Falha de rede/OSRM fora do ar durante o arrasto -- não interrompe a
+      // edição, o encaixe final ao soltar (saveEditedPath) ainda tenta de novo.
+    }
+  }, DRAG_SNAP_DEBOUNCE_MS);
+}
 
 // "Laço magnético" (mesma ideia do Photoshop: o traçado vai se colando à
 // borda mais próxima enquanto o operador desenha, não recalculando um
