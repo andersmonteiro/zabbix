@@ -384,10 +384,10 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 
 .ops-empty { color: var(--text-muted); font-family: var(--sans); font-size: 12.5px; padding: 4px 0 12px; }
 
-.ops-host-list { display: flex; flex-direction: column; }
+.ops-host-list { display: flex; flex-direction: column; gap: 4px; }
 .ops-host-item {
-  display: flex; align-items: center; gap: 8px; padding: 9px 8px; cursor: pointer;
-  border: 1px solid transparent; border-bottom: 1px solid var(--border-dim); transition: background .1s, border-color .1s;
+  display: flex; align-items: center; gap: 8px; padding: 12px 10px; cursor: pointer;
+  border: 1px solid transparent; border-bottom: 1px solid var(--border-2); transition: background .1s, border-color .1s;
 }
 .ops-host-item:last-child { border-bottom: 1px solid transparent; }
 .ops-host-item:hover { background: var(--bg-canvas); border-color: var(--border-2); }
