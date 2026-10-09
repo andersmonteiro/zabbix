@@ -24,12 +24,12 @@ async function api(path, options) {
   return resp.json();
 }
 
-// Tri-state (true/false/null) -> pill de status, usado tanto pra SSH
-// (ssh_last_ok) quanto SNMP (snmp_offline, invertido: null/false = ok).
+// Tri-state (true/false/null) -> pill de status. Só a cor já diz tudo (ok
+// /falha/sem teste) -- o texto fica só com o nome do protocolo, sem repetir
+// "OK"/"Falha" que seria redundante com a própria cor.
 function statusPill(label, state) {
   const cls = state === null || state === undefined ? 'unknown' : (state ? 'ok' : 'fail');
-  const text = state === null || state === undefined ? label : (state ? `${label} OK` : `${label} Falha`);
-  return `<span class="status-pill ${cls}">${esc(text)}</span>`;
+  return `<span class="status-pill ${cls}" data-proto="${label}">${esc(label)}</span>`;
 }
 
 function sshState(h) {
@@ -42,11 +42,6 @@ function snmpState(h) {
   return !h.snmp_offline;
 }
 
-// Ids de host atualmente expandidos (mostrando o painel "Mais detalhes") --
-// guardado fora do HTML pra sobreviver a um re-render (busca/filtro não deve
-// fechar o que o operador já tinha aberto.
-const expandedHosts = new Set();
-
 function renderHosts(hosts) {
   const list = document.getElementById('hosts-list');
   if (hosts.length === 0) {
@@ -55,81 +50,88 @@ function renderHosts(hosts) {
   }
   list.innerHTML = hosts.map((h) => {
     const id = esc(h.hostid);
-    const expanded = expandedHosts.has(String(h.hostid));
-    const coords = h.lat !== null && h.lng !== null ? `${esc(h.lat)}, ${esc(h.lng)}` : '—';
-    const sshWhen = h.ssh_last_checked_at ? new Date(h.ssh_last_checked_at).toLocaleString('pt-BR') : 'nunca testado';
     return `
-    <div class="host-item${expanded ? ' expanded' : ''}" data-id="${id}">
-      <div class="host-row" data-id="${id}" title="Clique para mais detalhes, botão direito para ações">
+    <div class="host-item" data-id="${id}">
+      <div class="host-row" data-id="${id}" title="Clique para editar, botão direito para ações rápidas">
         <div class="host-col host-col-name" title="${esc(h.host)}">${esc(h.host)}</div>
         <div class="host-col" title="${esc(h.vendor)}">${esc(h.vendor) || '—'}</div>
         <div class="host-col" title="${esc(h.groups.join(', '))}">${esc(h.groups.join(', ')) || '—'}</div>
         <div class="host-col host-col-ip">${esc(h.ip) || '—'}</div>
         <div class="host-col">${statusPill('SSH', sshState(h))}</div>
         <div class="host-col">${statusPill('SNMP', snmpState(h))}</div>
-        <button class="host-expand-btn" type="button" aria-label="Mais detalhes" title="Mais detalhes">
+        <button class="host-expand-btn" type="button" aria-label="Editar host" title="Editar host">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-      </div>
-      <div class="host-detail" ${expanded ? '' : 'hidden'}>
-        <div><div class="host-detail-label">Modelo</div><div class="host-detail-value">${esc(h.model) || '—'}</div></div>
-        <div><div class="host-detail-label">Usuário SSH</div><div class="host-detail-value">${esc(h.ssh_user) || '—'}</div></div>
-        <div><div class="host-detail-label">Porta SSH</div><div class="host-detail-value">${esc(h.ssh_port) || '—'}</div></div>
-        <div><div class="host-detail-label">Último teste SSH</div><div class="host-detail-value">${esc(sshWhen)}</div></div>
-        <div><div class="host-detail-label">Comunidade SNMP</div><div class="host-detail-value">${esc(h.community) || '—'}</div></div>
-        <div><div class="host-detail-label">Porta SNMP</div><div class="host-detail-value">${esc(h.port) || '—'}</div></div>
-        <div><div class="host-detail-label">Coordenadas</div><div class="host-detail-value">${coords}</div></div>
-        <div class="host-detail-actions">
-          <button class="btn-secondary test-ssh" data-id="${id}" type="button">Testar SSH</button>
-          <button class="btn-secondary test-snmp" data-id="${id}" type="button">Testar SNMP</button>
-          <button class="btn-secondary edit" data-id="${id}" type="button">Editar</button>
-          <button class="btn-secondary delete" data-id="${id}" type="button" style="color: var(--red);">Remover</button>
-        </div>
       </div>
     </div>
   `;
   }).join('');
 
+  const openEdit = (hostid) => {
+    const host = allHosts.find((h) => String(h.hostid) === hostid);
+    if (host) openEditModal(host);
+  };
   list.querySelectorAll('.host-expand-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleExpanded(btn.closest('.host-item').dataset.id);
+      openEdit(btn.closest('.host-item').dataset.id);
     });
   });
   list.querySelectorAll('.host-row').forEach((row) => {
-    row.addEventListener('click', () => toggleExpanded(row.dataset.id));
+    row.addEventListener('click', () => openEdit(row.dataset.id));
     row.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       openContextMenu(e.clientX, e.clientY, row.dataset.id);
     });
   });
-  list.querySelectorAll('.delete').forEach((btn) => {
-    btn.addEventListener('click', (e) => { e.stopPropagation(); deleteHost(btn.dataset.id); });
-  });
-  list.querySelectorAll('.test-ssh').forEach((btn) => {
-    btn.addEventListener('click', (e) => { e.stopPropagation(); testSsh(btn.dataset.id, btn); });
-  });
-  list.querySelectorAll('.test-snmp').forEach((btn) => {
-    btn.addEventListener('click', (e) => { e.stopPropagation(); testSnmp(btn.dataset.id, btn); });
-  });
-  list.querySelectorAll('.edit').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const host = allHosts.find((h) => String(h.hostid) === btn.dataset.id);
-      if (host) openEditModal(host);
-    });
-  });
+
+  autoTestVisibleHosts(hosts);
 }
 
-function toggleExpanded(hostid) {
-  const item = document.querySelector(`.host-item[data-id="${CSS.escape(hostid)}"]`);
-  if (!item) return;
-  const detail = item.querySelector('.host-detail');
-  const nowExpanded = !item.classList.contains('expanded');
-  item.classList.toggle('expanded', nowExpanded);
-  detail.hidden = !nowExpanded;
-  if (nowExpanded) expandedHosts.add(String(hostid));
-  else expandedHosts.delete(String(hostid));
+// Pill de status de um host específico, sem re-renderizar a lista inteira
+// (evita perder scroll/seleção enquanto os testes automáticos vão chegando).
+function updatePill(hostid, proto, ok) {
+  const row = document.querySelector(`.host-row[data-id="${CSS.escape(hostid)}"]`);
+  if (!row) return;
+  const pill = row.querySelector(`.status-pill[data-proto="${proto}"]`);
+  if (!pill) return;
+  pill.className = `status-pill ${ok ? 'ok' : 'fail'}`;
+}
+
+// Testa SSH (só hosts com credencial já cadastrada) e SNMP (todos, já que
+// community/porta sempre têm um valor) de cada host visível, automaticamente
+// ao carregar a lista -- em vez de depender de alguém clicar "Testar" host
+// por host. Concorrência limitada pra não abrir dezenas de conexões SSH/SNMP
+// de uma vez só.
+const AUTO_TEST_CONCURRENCY = 4;
+
+async function autoTestVisibleHosts(hosts) {
+  const queue = [];
+  hosts.forEach((h) => {
+    queue.push(async () => {
+      try {
+        const r = await api(`/api/zabbix/hosts/${h.hostid}/test-snmp`, { method: 'POST' });
+        updatePill(h.hostid, 'SNMP', r.ok);
+      } catch (err) { /* mantém o estado anterior se a chamada falhar */ }
+    });
+    if (h.ssh_user) {
+      queue.push(async () => {
+        try {
+          const r = await api(`/api/zabbix/hosts/${h.hostid}/test-ssh`, { method: 'POST' });
+          updatePill(h.hostid, 'SSH', r.ok);
+        } catch (err) { /* idem */ }
+      });
+    }
+  });
+
+  let next = 0;
+  async function worker() {
+    while (next < queue.length) {
+      const task = queue[next++];
+      await task();
+    }
+  }
+  await Promise.all(Array.from({ length: AUTO_TEST_CONCURRENCY }, worker));
 }
 
 async function deleteHost(hostid) {
@@ -142,36 +144,31 @@ async function deleteHost(hostid) {
   }
 }
 
-async function testSsh(hostid, btn) {
-  const original = btn ? btn.textContent : null;
-  if (btn) { btn.textContent = 'Testando...'; btn.disabled = true; }
+// Re-teste manual avulso via menu de clique-direito -- atualiza só o pill
+// daquele host (sem recarregar a lista inteira e sem re-disparar o teste
+// automático dos outros hosts).
+async function testSsh(hostid) {
   try {
     const result = await api(`/api/zabbix/hosts/${hostid}/test-ssh`, { method: 'POST' });
-    alert(result.ok ? `OK: ${result.message}` : `Falhou: ${result.message}`);
+    updatePill(hostid, 'SSH', result.ok);
+    if (!result.ok) alert(`SSH falhou: ${result.message}`);
   } catch (err) {
-    alert(`Falha ao testar: ${err.message}`);
-  } finally {
-    if (btn) { btn.textContent = original; btn.disabled = false; }
-    await loadHosts();
+    alert(`Falha ao testar SSH: ${err.message}`);
   }
 }
 
-async function testSnmp(hostid, btn) {
-  const original = btn ? btn.textContent : null;
-  if (btn) { btn.textContent = 'Testando...'; btn.disabled = true; }
+async function testSnmp(hostid) {
   try {
     const result = await api(`/api/zabbix/hosts/${hostid}/test-snmp`, { method: 'POST' });
-    alert(result.ok ? `OK: ${result.message}` : `Falhou: ${result.message}`);
+    updatePill(hostid, 'SNMP', result.ok);
+    if (!result.ok) alert(`SNMP falhou: ${result.message}`);
   } catch (err) {
-    alert(`Falha ao testar: ${err.message}`);
-  } finally {
-    if (btn) { btn.textContent = original; btn.disabled = false; }
+    alert(`Falha ao testar SNMP: ${err.message}`);
   }
 }
 
-// Menu de clique-direito -- reusa as mesmas três ações já disponíveis no
-// painel "Mais detalhes" (editar/testar SSH/remover), só que sem precisar
-// expandir a linha primeiro.
+// Menu de clique-direito -- editar/testar SSH/testar SNMP/remover sem
+// precisar abrir o modal de edição primeiro.
 const ctxMenu = document.getElementById('host-ctx-menu');
 let ctxMenuHostId = null;
 
@@ -204,9 +201,9 @@ ctxMenu.querySelectorAll('button[data-action]').forEach((btn) => {
       const host = allHosts.find((h) => String(h.hostid) === hostid);
       if (host) openEditModal(host);
     } else if (action === 'test-ssh') {
-      testSsh(hostid, null);
+      testSsh(hostid);
     } else if (action === 'test-snmp') {
-      testSnmp(hostid, null);
+      testSnmp(hostid);
     } else if (action === 'delete') {
       deleteHost(hostid);
     }
@@ -218,27 +215,13 @@ async function loadHosts() {
   applyFilters();
 }
 
-let currentStatusFilter = 'all';
-
 function applyFilters() {
   const q = document.getElementById('host-search').value.trim().toLowerCase();
-  let filtered = q
+  const filtered = q
     ? allHosts.filter((h) => [h.host, h.ip, ...h.groups].join(' ').toLowerCase().includes(q))
     : allHosts;
-  if (currentStatusFilter === 'ssh-ok') filtered = filtered.filter((h) => h.ssh_last_ok === true);
-  else if (currentStatusFilter === 'ssh-fail') filtered = filtered.filter((h) => h.ssh_last_ok === false);
-  else if (currentStatusFilter === 'ssh-unknown') filtered = filtered.filter((h) => h.ssh_last_ok === null || h.ssh_last_ok === undefined);
   renderHosts(filtered);
 }
-
-document.getElementById('host-filter-pills').addEventListener('click', (e) => {
-  const btn = e.target.closest('.filter-pill');
-  if (!btn) return;
-  document.querySelectorAll('.filter-pill').forEach((p) => p.classList.remove('active'));
-  btn.classList.add('active');
-  currentStatusFilter = btn.dataset.filter;
-  applyFilters();
-});
 
 async function loadGroups() {
   const groups = await api('/api/zabbix/host-groups');
