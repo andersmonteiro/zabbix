@@ -5,7 +5,14 @@
   <title>Natverk NOC — Agente</title>
   <link rel="stylesheet" href="css/app.css" />
   <style>
-    .agente-shell { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-canvas); }
+    /* margin + cantos arredondados -- igual ao resto do app (.topbar/.nav
+       flutuam com a mesma margem lateral/inferior), em vez de um bloco colado
+       nas bordas físicas da tela, que deixava a caixa de digitar "mais baixa"
+       que o fim da barra lateral mesmo sem a página ter overflow nenhum. */
+    .agente-shell {
+      flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-canvas);
+      margin: 0 24px 16px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+    }
     .agente-messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
     .agente-welcome { margin: auto; text-align: center; max-width: 520px; }
     .agente-welcome-icon {
