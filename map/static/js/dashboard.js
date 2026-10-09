@@ -92,7 +92,7 @@ function renderMapDependentPanels(mapState, hosts) {
 
   healthSub.textContent = `${points.length} ponto(s)`;
   const sorted = [...points].sort((a, b) => (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9));
-  healthList.innerHTML = sorted.slice(0, 8).map((p) => {
+  healthList.innerHTML = sorted.map((p) => {
     const host = hostsByHostid.get(String(p.zabbix_hostid));
     const meta = host ? [host.vendor, host.groups[0]].filter(Boolean).join(' · ') : '—';
     const latency = p.latency_ms !== null && p.latency_ms !== undefined ? `${Math.round(p.latency_ms)} ms` : '—';
@@ -154,7 +154,7 @@ function renderAlerts(state) {
 
   const now = Math.floor(Date.now() / 1000);
   const sorted = [...active].sort((a, b) => b.severity - a.severity || b.clock - a.clock);
-  list.innerHTML = sorted.slice(0, 6).map((p) => `
+  list.innerHTML = sorted.slice(0, 10).map((p) => `
     <div class="action-item">
       <div class="action-icon ${dashSevClass(p.severity)}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>

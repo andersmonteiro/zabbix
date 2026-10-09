@@ -6,7 +6,11 @@
   <link rel="stylesheet" href="css/app.css" />
   <style>
     .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 20px; }
-    .kpi-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow-card); }
+    .kpi-card {
+      background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;
+      box-shadow: var(--shadow-card); display: block; text-decoration: none; transition: border-color .12s;
+    }
+    .kpi-card:hover { border-color: var(--text-muted); }
     .kpi-card-label {
       display: flex; align-items: center; gap: 6px; font-family: var(--sans); font-size: 11px;
       color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.04em;
@@ -19,7 +23,6 @@
     .kpi-card-sub { font-family: var(--sans); font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
     .dash-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 16px; align-items: start; }
-    .dash-bottom { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
     .dash-panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card); overflow: hidden; }
     .dash-panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
     .dash-panel-title { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--text-primary); }
@@ -29,8 +32,9 @@
     .dash-empty { padding: 24px 16px; text-align: center; color: var(--text-muted); font-family: var(--sans); font-size: 12px; }
 
     .status-pill {
-      display: inline-flex; align-items: center; gap: 5px; font-family: var(--sans); font-size: 10.5px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-family: var(--sans); font-size: 10.5px;
       font-weight: 600; padding: 3px 8px; border-radius: 999px; letter-spacing: 0.02em; white-space: nowrap;
+      text-transform: uppercase; justify-self: start;
     }
     .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
     .status-pill.up { background: rgba(62,207,106,0.14); color: var(--green); }
@@ -76,13 +80,6 @@
     .status-legend-dot.down { background: var(--red); }
     .status-legend-dot.unknown { background: var(--text-muted); }
 
-    .quick-actions { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; }
-    .quick-action-btn {
-      display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-canvas); border: 1px solid var(--border-2);
-      border-radius: var(--radius-sm); color: var(--text-primary); text-decoration: none; font-family: var(--sans); font-size: 12.5px; font-weight: 600;
-    }
-    .quick-action-btn:hover { border-color: var(--text-muted); }
-    .quick-action-btn svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -151,46 +148,46 @@
       </div>
       <main class="content-area">
         <div class="kpi-row">
-          <div class="kpi-card">
+          <a class="kpi-card" href="/hosts.html">
             <div class="kpi-card-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>
               Hosts monitorados
             </div>
             <div class="kpi-card-value" id="kpi-hosts-total">—</div>
             <div class="kpi-card-sub" id="kpi-hosts-sub">carregando...</div>
-          </div>
-          <div class="kpi-card">
+          </a>
+          <a class="kpi-card" href="/mapa.html">
             <div class="kpi-card-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               Operacionais
             </div>
             <div class="kpi-card-value ok" id="kpi-hosts-up">—</div>
             <div class="kpi-card-sub" id="kpi-hosts-up-sub">carregando...</div>
-          </div>
-          <div class="kpi-card">
+          </a>
+          <a class="kpi-card" href="/alertas.html">
             <div class="kpi-card-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
               Alertas ativos
             </div>
             <div class="kpi-card-value" id="kpi-alerts">—</div>
             <div class="kpi-card-sub" id="kpi-alerts-sub">carregando...</div>
-          </div>
-          <div class="kpi-card">
+          </a>
+          <a class="kpi-card" href="/hosts.html">
             <div class="kpi-card-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
               SSH indisponível
             </div>
             <div class="kpi-card-value" id="kpi-ssh-fail">—</div>
             <div class="kpi-card-sub" id="kpi-ssh-sub">carregando...</div>
-          </div>
-          <div class="kpi-card">
+          </a>
+          <a class="kpi-card" href="/circuitos.html">
             <div class="kpi-card-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2H9a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2h6"/></svg>
               Circuitos
             </div>
             <div class="kpi-card-value" id="kpi-circuits">—</div>
             <div class="kpi-card-sub" id="kpi-circuits-sub">carregando...</div>
-          </div>
+          </a>
         </div>
 
         <div class="dash-grid">
@@ -214,30 +211,11 @@
           </div>
         </div>
 
-        <div class="dash-bottom">
-          <div class="dash-panel">
-            <div class="dash-panel-header"><div class="dash-panel-title">Status geral da rede</div></div>
-            <div style="padding: 16px;">
-              <div class="status-bar-track" id="status-bar-track"></div>
-              <div class="status-legend" id="status-legend"></div>
-            </div>
-          </div>
-          <div class="dash-panel">
-            <div class="dash-panel-header"><div class="dash-panel-title">Atalhos</div></div>
-            <div class="quick-actions">
-              <a class="quick-action-btn" href="/hosts.html">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Novo host
-              </a>
-              <a class="quick-action-btn" href="/mapa.html">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-                Abrir mapa
-              </a>
-              <a class="quick-action-btn" href="/alertas.html">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                Ver alertas
-              </a>
-            </div>
+        <div class="dash-panel">
+          <div class="dash-panel-header"><div class="dash-panel-title">Status geral da rede</div></div>
+          <div style="padding: 16px;">
+            <div class="status-bar-track" id="status-bar-track"></div>
+            <div class="status-legend" id="status-legend"></div>
           </div>
         </div>
       </main>
