@@ -383,7 +383,7 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
   font-family: var(--sans); font-size: 13px; font-weight: 600;
   color: var(--text-secondary);
 }
-.ops-panel .section-label { margin-top: 20px; }
+.ops-panel .section-label { margin: 20px 0 10px; }
 .ops-panel .section-label:first-child { margin-top: 0; }
 
 .ops-empty { color: var(--text-muted); font-family: var(--sans); font-size: 12.5px; padding: 4px 0 12px; }
