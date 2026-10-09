@@ -384,13 +384,16 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 
 .ops-empty { color: var(--text-muted); font-family: var(--sans); font-size: 12.5px; padding: 4px 0 12px; }
 
-.ops-host-list { display: flex; flex-direction: column; gap: 4px; }
+/* Cada host é seu próprio "widget" (fundo + cantos arredondados) -- o gap
+   entre eles mostra o fundo do painel por trás, em vez de uma borda fina
+   separando linhas de uma lista contínua. */
+.ops-host-list { display: flex; flex-direction: column; gap: 8px; }
 .ops-host-item {
-  display: flex; align-items: center; gap: 8px; padding: 12px 10px; cursor: pointer;
-  border: 1px solid transparent; border-bottom: 1px solid var(--border-2); transition: background .1s, border-color .1s;
+  display: flex; align-items: center; gap: 8px; padding: 11px 12px; cursor: pointer;
+  background: var(--bg-canvas); border: 1px solid var(--border-dim); border-radius: var(--radius-sm);
+  transition: background .1s, border-color .1s;
 }
-.ops-host-item:last-child { border-bottom: 1px solid transparent; }
-.ops-host-item:hover { background: var(--bg-canvas); border-color: var(--border-2); }
+.ops-host-item:hover { border-color: var(--border-2); }
 .ops-host-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .ops-host-dot.up { background: var(--green); }
 .ops-host-dot.warn { background: var(--yellow); }
@@ -401,14 +404,16 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
   color: var(--text-secondary); font-size: 12.5px; font-family: var(--sans);
 }
 .ops-host-badge {
-  flex-shrink: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--sans); font-size: 10.5px; font-weight: 700; color: #fff;
+  flex-shrink: 0; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+  font-family: var(--sans); font-size: 11px; font-weight: 700; color: #fff;
   border: none; text-decoration: none; cursor: pointer;
 }
 .ops-host-badge:hover { opacity: 0.8; }
 .ops-host-badge.crit { background: var(--red); }
-.ops-host-badge.warn { background: var(--yellow); color: #1a1a1a; }
+/* Contorno escuro próprio (não só a cor) -- um círculo pequeno de 20px num
+   fundo já escuro deixava o laranja perto demais do vermelho a olho nu. */
+.ops-host-badge.warn { background: var(--yellow); color: #1a1a1a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5) inset; }
 
 /* ── Tooltips em tabela (ponto/segmento) ───────────────────────────── */
 /* width:100% -- sem isso a tabela encolhe pro conteúdo das colunas e fica
