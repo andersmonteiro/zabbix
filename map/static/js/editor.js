@@ -141,23 +141,42 @@ document.getElementById('edit-path-btn').addEventListener('click', async () => {
   document.getElementById('edit-path-btn').textContent = 'Salvar trajeto';
 });
 
-// Reencaixa o traçado desenhado à mão na rua/estrada real mais próxima --
-// passa TODOS os vértices (incluindo os que o operador acabou de arrastar)
-// pro OSRM como pontos de passagem obrigatórios, na ordem, e usa a geometria
-// de rua que ele devolve entre eles. Assim o ajuste manual continua servindo
-// pra corrigir a ROTA (por onde passar), mas o traçado final sempre gruda na
-// via real, em vez de ficar em linha reta entre os pontos arrastados.
-async function snapPathToRoad(latlngs) {
-  if (latlngs.length < 2) return latlngs;
-  const coordsParam = latlngs.map((ll) => `${ll.lng},${ll.lat}`).join(';');
-  const url = `https://router.project-osrm.org/route/v1/driving/${coordsParam}?overview=simplified&geometries=geojson`;
+// "Laço magnético" (mesma ideia do Photoshop: o traçado vai se colando à
+// borda mais próxima enquanto o operador desenha, não recalculando um
+// caminho ótimo do zero) -- cada vértice arrastado é puxado individualmente
+// pra via mais próxima via OSRM Nearest, dentro de SNAP_RADIUS_METERS.
+//
+// Chegou aqui depois de duas tentativas que não funcionavam:
+// - Route (/route/v1/driving, todos os vértices como waypoints
+//   obrigatórios): calcula o MELHOR CAMINHO entre os extremos, e numa área
+//   com malha viária esparsa (zona rural da Amazônia) isso às vezes
+//   "inventava" uma ligação reta entre dois pontos sem via real nenhuma
+//   entre eles -- exatamente o bug relatado.
+// - Match (/match/v1/driving, map matching): pensado pra um RASTRO GPS
+//   denso (ponto a cada poucos metros); com só 2-4 vértices bem espaçados
+//   (o caso normal aqui -- origem, um ou dois pontos arrastados, destino)
+//   ele simplesmente devolve "NoMatch" na maioria das vezes, confirmado
+//   testando contra a API pública.
+// Nearest resolve ponto a ponto, sem tentar inferir rota nenhuma entre
+// eles -- exatamente "colar esse vértice na borda mais próxima", e nada
+// além disso. Vértice sem via a menos de SNAP_RADIUS_METERS fica exatamente
+// onde o operador arrastou (ex: enlace de rádio sobre mata, sem estrada
+// nenhuma por baixo) em vez de ser puxado pra longe por engano.
+const SNAP_RADIUS_METERS = 60;
+
+async function snapVertexToRoad(ll) {
+  const url = `https://router.project-osrm.org/nearest/v1/driving/${ll.lng},${ll.lat}?number=1`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`OSRM HTTP ${resp.status}`);
   const data = await resp.json();
-  if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
-    throw new Error(`OSRM: ${data.code || 'sem rota encontrada'}`);
-  }
-  return data.routes[0].geometry.coordinates.map(([lng, lat]) => L.latLng(lat, lng));
+  const nearest = data.code === 'Ok' ? data.waypoints?.[0] : null;
+  if (!nearest || nearest.distance > SNAP_RADIUS_METERS) return ll;
+  const [lng, lat] = nearest.location;
+  return L.latLng(lat, lng);
+}
+
+async function snapPathToRoad(latlngs) {
+  return Promise.all(latlngs.map((ll) => snapVertexToRoad(ll).catch(() => ll)));
 }
 
 async function saveEditedPath(segment, latlngs) {
