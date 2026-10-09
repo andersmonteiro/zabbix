@@ -220,6 +220,11 @@ async function viewCircuit(circuitId) {
 
   const circuit = allCircuits.find((c) => c.id === circuitId);
   if (!circuit) return;
+  // "Ajustar trajeto" (editor.js) edita o circuito em foco no mapa -- antes
+  // só ficava setado depois de abrir o modal "Lado A/B" (editCircuit),
+  // então só selecionar o circuito na lista não bastava: o botão não tinha
+  // nenhum circuito pra editar e não fazia nada.
+  window.currentCircuit = circuit;
 
   let liveSegment = null;
   try {
