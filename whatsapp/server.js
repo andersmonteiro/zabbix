@@ -45,6 +45,19 @@ const CHART_PERIOD  = parseInt(process.env.CHART_PERIOD || '3600', 10);
 const CHART_WIDTH   = parseInt(process.env.CHART_WIDTH  || '900',  10);
 const CHART_HEIGHT  = parseInt(process.env.CHART_HEIGHT || '200',  10);
 
+// ─── IA (agent.natverk.com.br) ────────────────────────────────────────────────
+// Token de um cliente cadastrado em /admin/clients no painel do agente central
+// (ex: nome "whatsapp") -- sem ele, a integração fica desligada e mensagens
+// recebidas são só ignoradas (não quebra o resto do serviço).
+const AI_AGENT_URL          = process.env.AI_AGENT_URL          || 'https://agent.natverk.com.br/chat';
+const AI_AGENT_TOKEN        = process.env.AI_AGENT_TOKEN        || '';
+const AI_CHAT_ENABLED       = AI_AGENT_TOKEN !== '';
+// Vazio = responde qualquer DM (e grupos, se mencionado). Preenchido = só
+// responde os chats/grupos nessa lista (IDs no formato "5511999999999@c.us"
+// ou "XXXXXXXXXX@g.us", iguais aos retornados por GET /groups).
+const AI_ALLOWED_CHATS      = (process.env.AI_ALLOWED_CHATS || '').split(',').map(s => s.trim()).filter(Boolean);
+const AI_REQUEST_TIMEOUT_MS = parseInt(process.env.AI_REQUEST_TIMEOUT_MS || '60000', 10);
+
 if (process.env.ZABBIX_INSECURE === '1') {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     log('WARN', 'Verificação SSL desativada (ZABBIX_INSECURE=1)');
@@ -97,7 +110,92 @@ function setupClientEvents(c) {
     });
 }
 
+// ─── Chat com o agente de IA central ──────────────────────────────────────────
+async function askAgent(message, conversationId) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
+    try {
+        const response = await fetch(AI_AGENT_URL, {
+            method:  'POST',
+            headers: {
+                'Content-Type':  'application/json',
+                'X-Agent-Token': AI_AGENT_TOKEN,
+            },
+            body:   JSON.stringify({ message, conversation_id: conversationId }),
+            signal: controller.signal,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Agente respondeu HTTP ${response.status}`);
+        }
+
+        // O agente responde em SSE (server-sent events): várias linhas
+        // "data: <pedaço de texto>" conforme o modelo gera, terminando em
+        // "event: done". Concatena tudo até o fim do stream.
+        const reader  = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let text   = '';
+        let done   = false;
+        while (!done) {
+            const { done: readerDone, value } = await reader.read();
+            if (readerDone) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (const line of lines) {
+                if (line.startsWith('data: ')) text += line.slice(6);
+                if (line.startsWith('event: done')) done = true;
+            }
+        }
+        return text.trim() || '(sem resposta)';
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+function setupAiChatHandler(c) {
+    if (!AI_CHAT_ENABLED) {
+        log('WARN', 'IA desabilitada: defina AI_AGENT_TOKEN no .env para responder mensagens do WhatsApp pelo chat.');
+        return;
+    }
+
+    c.on('message', async (msg) => {
+        // fromMe evita que o bot responda a si mesmo (inclusive os alertas
+        // que ele mesmo manda pros grupos via /webhook). type !== 'chat'
+        // ignora mídia/figurinhas/status sem texto de verdade pra mandar à IA.
+        if (msg.fromMe || msg.type !== 'chat' || !msg.body?.trim()) return;
+
+        const chat = await msg.getChat();
+
+        if (AI_ALLOWED_CHATS.length > 0 && !AI_ALLOWED_CHATS.includes(chat.id._serialized)) {
+            return;
+        }
+
+        if (chat.isGroup) {
+            // Em grupo só responde se o bot foi mencionado -- senão toda
+            // conversa do grupo (incluindo os próprios alertas do Zabbix)
+            // dispararia uma resposta da IA, virando spam.
+            const mentions = await msg.getMentions();
+            const botId = c.info?.wid?._serialized;
+            const isMentioned = botId && mentions.some((m) => m.id._serialized === botId);
+            if (!isMentioned) return;
+        }
+
+        try {
+            await chat.sendStateTyping();
+            const reply = await askAgent(msg.body, chat.id._serialized);
+            await msg.reply(reply);
+            log('INFO', `IA respondeu em ${chat.id._serialized}`);
+        } catch (err) {
+            log('ERROR', `IA falhou em ${chat.id._serialized}: ${err.message}`);
+            await msg.reply('Desculpe, não consegui falar com o assistente agora. Tente novamente em instantes.').catch(() => {});
+        }
+    });
+}
+
 setupClientEvents(client);
+setupAiChatHandler(client);
 client.initialize();
 
 // ─── Sessão Zabbix ────────────────────────────────────────────────────────────

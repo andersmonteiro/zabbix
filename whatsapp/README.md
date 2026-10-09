@@ -13,8 +13,38 @@ Sem Twilio, sem Meta Business API, sem custo.
 - Mensagem formatada com ícones por severidade
 - Autenticação por token (`X-Webhook-Token`)
 - Auto re-login quando a sessão Zabbix expira
+- Responde mensagens recebidas no WhatsApp usando o agente de IA central
+  (`agent.natverk.com.br`) — mesmo assistente do painel do cliente
 - Logs com timestamp em todas as saídas
 - Suporte a instalação via **systemd** ou **Docker**
+
+---
+
+## IA no WhatsApp
+
+Além de enviar alertas, o bot pode **responder** mensagens recebidas usando o
+agente central (o mesmo backend de IA do painel do cliente, com acesso ao
+Zabbix via MCP).
+
+1. No painel `agent.natverk.com.br/admin/clients`, cadastre um cliente com
+   nome `whatsapp` (URL base pode ser qualquer coisa, não é usada pra isso).
+2. Copie o token gerado e cole em `AI_AGENT_TOKEN` no `.env`.
+3. Reinicie o serviço.
+
+Regras de quando a IA responde:
+
+- **DM (conversa direta):** sempre responde, a menos que `AI_ALLOWED_CHATS`
+  esteja preenchido (aí só responde os IDs da lista).
+- **Grupo:** só responde se o bot for **mencionado** na mensagem — evita que
+  toda conversa do grupo (inclusive os próprios alertas do Zabbix que o bot
+  manda) dispare uma resposta.
+- Mensagens enviadas pelo próprio bot (`fromMe`) e mídia/figurinhas sem texto
+  são sempre ignoradas.
+- Cada chat mantém sua própria conversa (o agente lembra do histórico
+  daquele número/grupo entre mensagens).
+
+Sem `AI_AGENT_TOKEN` configurado, essa parte fica desligada e o bot continua
+funcionando normalmente só para o webhook de alertas.
 
 ---
 
@@ -205,6 +235,10 @@ docker logs -f zabbix-whatsapp
 | `CHART_WIDTH` | ❌ | `900` | Largura do PNG |
 | `CHART_HEIGHT` | ❌ | `200` | Altura do PNG |
 | `ZABBIX_INSECURE` | ❌ | `0` | `1` para ignorar SSL autoassinado |
+| `AI_AGENT_URL` | ❌ | `https://agent.natverk.com.br/chat` | Endpoint de chat do agente central |
+| `AI_AGENT_TOKEN` | ❌ | — | Token do cliente "whatsapp" cadastrado no agente. Vazio = IA desligada |
+| `AI_ALLOWED_CHATS` | ❌ | — | IDs de chats/grupos autorizados a usar a IA, separados por vírgula. Vazio = qualquer DM + grupos onde for mencionado |
+| `AI_REQUEST_TIMEOUT_MS` | ❌ | `60000` | Timeout esperando resposta do agente |
 
 ---
 

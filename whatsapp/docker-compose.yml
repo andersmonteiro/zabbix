@@ -25,6 +25,10 @@ services:
       - CHART_WIDTH=${CHART_WIDTH:-900}
       - CHART_HEIGHT=${CHART_HEIGHT:-200}
       - ZABBIX_INSECURE=${ZABBIX_INSECURE:-0}
+      - AI_AGENT_URL=${AI_AGENT_URL:-https://agent.natverk.com.br/chat}
+      - AI_AGENT_TOKEN=${AI_AGENT_TOKEN}
+      - AI_ALLOWED_CHATS=${AI_ALLOWED_CHATS}
+      - AI_REQUEST_TIMEOUT_MS=${AI_REQUEST_TIMEOUT_MS:-60000}
     volumes:
       - whatsapp-session:/app/.wwebjs_auth
     extra_hosts:
