@@ -358,19 +358,22 @@ function utilizationClass(pct) {
 // desalinhado. `cls` opcional ('crit'/'warn'/'ok') colore só o valor.
 // `photoUrl` opcional (só pontos de equipamento) mostra o mesmo logo do
 // popup já ao passar o mouse, sem precisar clicar.
-function tipTable(title, rows, photoUrl) {
+// Uma entrada com só 1 item (`[label]`, sem valor) é um cabeçalho de seção
+// (ex: "Lado A" / "Lado B") em vez de uma linha label/valor normal -- usado
+// pra separar o sinal óptico de cada ponta do segmento, que senão ficava
+// tudo misturado como se fosse de um lado só.
+function tipTable(title, rows) {
   const body = rows
-    .map(([label, value, cls]) => `<tr><td>${esc(label)}</td><td class="${esc(cls || '')}">${esc(value)}</td></tr>`)
+    .map((row) => (row.length === 1
+      ? `<tr><td colspan="2" class="tip-section">${esc(row[0])}</td></tr>`
+      : `<tr><td>${esc(row[0])}</td><td class="${esc(row[2] || '')}">${esc(row[1])}</td></tr>`))
     .join('');
-  const photo = photoUrl ? `<img class="tip-photo" src="${esc(photoUrl)}" alt="" />` : '';
-  return `${photo}<div class="tip-table-title">${esc(title)}</div><table class="tip-table">${body}</table>`;
+  return `<div class="tip-table-title">${esc(title)}</div><table class="tip-table">${body}</table>`;
 }
 
 const STATUS_LABEL_PT = { up: 'Operacional', warn: 'Atenção', down: 'Crítico', unknown: 'Sem dados' };
 
-function openModal({ photoUrl, title, statusClass, kicker, rows, utilizationPct, alertsHost }) {
-  document.getElementById('modal-photo-img').src = photoUrl;
-
+function openModal({ title, statusClass, kicker, rows, utilizationPct, alertsHost }) {
   const modal = document.getElementById('detail-modal');
   const cls = STATUS_COLOR[statusClass] ? statusClass : 'unknown';
   modal.classList.remove('status-up', 'status-warn', 'status-down', 'status-unknown');
@@ -616,14 +619,6 @@ function closeModal() {
 document.getElementById('modal-close').addEventListener('click', closeModal);
 document.getElementById('backdrop').addEventListener('click', closeModal);
 
-function equipmentPhotoUrl(model) {
-  // No local static fallback file exists — always route through the API,
-  // which already returns a generic SVG server-side when no image is
-  // uploaded for the given model (including the 'generic' placeholder
-  // used here when a circuit segment, not an equipment point, was clicked).
-  return `/api/equipment-images/${encodeURIComponent(model || 'generic')}`;
-}
-
 function formatAge(seconds) {
   if (seconds === null || seconds === undefined) return 'nunca';
   if (seconds < 90) return `${seconds}s`;
@@ -710,6 +705,22 @@ function renderOpsPanel(state) {
   });
 }
 
+// Fabricante não vem no /api/map-state (é macro do Zabbix, não campo do
+// Point) -- /api/zabbix/hosts já busca isso pra tela de Hosts, então só
+// reusa, cruzando por zabbix_hostid em vez de duplicar a consulta no
+// backend. Só muda se alguém editar o host, então não precisa refazer a
+// cada refresh() de 30s -- só na primeira carga da página.
+let vendorByHostid = {};
+async function loadHostVendors() {
+  try {
+    const hosts = await (await fetch('/api/zabbix/hosts')).json();
+    vendorByHostid = Object.fromEntries(hosts.map((h) => [String(h.hostid), h.vendor]));
+  } catch (err) {
+    console.error('Falha ao buscar /api/zabbix/hosts (fabricante)', err);
+  }
+}
+loadHostVendors();
+
 async function refresh() {
   let state;
   try {
@@ -758,20 +769,25 @@ async function refresh() {
           ...(segment.port_name ? [['Porta', segment.port_name]] : []),
           ['Status', segment.status, statusCls],
           ...(segment.endpoint_down ? [['Motivo', 'host inalcançável', 'crit']] : []),
-          ['Sinal RX', fmt(segment.optical_rx_dbm, ' dBm')],
-          ['Sinal TX', fmt(segment.optical_tx_dbm, ' dBm')],
-          ['Entrada', fmtThroughput(segment.throughput_in_mbps)],
-          ['Saída', fmtThroughput(segment.throughput_out_mbps)],
           ...(utilPct !== null && utilPct !== undefined
             ? [['Utilização', `${utilPct.toFixed(0)}%`, utilizationClass(utilPct)]]
             : []),
           ...(segment.snmp_offline ? [['SNMP', 'indisponível', 'warn']] : []),
+          [`Lado A · ${origin.name}`],
+          ['Sinal RX', fmt(segment.optical_rx_dbm, ' dBm')],
+          ['Sinal TX', fmt(segment.optical_tx_dbm, ' dBm')],
+          ['Entrada', fmtThroughput(segment.throughput_in_mbps)],
+          ['Saída', fmtThroughput(segment.throughput_out_mbps)],
+          [`Lado B · ${dest.name}`],
+          ['Sinal RX', fmt(segment.optical_rx_dbm_b, ' dBm')],
+          ['Sinal TX', fmt(segment.optical_tx_dbm_b, ' dBm')],
+          ['Entrada', fmtThroughput(segment.throughput_in_mbps_b)],
+          ['Saída', fmtThroughput(segment.throughput_out_mbps_b)],
         ]),
         { className: 'mini-tip', sticky: true },
       );
       line.on('click', () => {
         openModal({
-          photoUrl: equipmentPhotoUrl(null),
           title: `${origin.name} ↔ ${dest.name}`,
           statusClass: segment.status,
           kicker: 'Circuito',
@@ -828,8 +844,11 @@ async function refresh() {
       }).catch((err) => console.error('Falha ao salvar nova posição do host', err));
     });
     const pingUp = point.status === 'unknown' ? null : point.status !== 'down';
+    const vendor = vendorByHostid[String(point.zabbix_hostid)];
     marker.bindTooltip(
       tipTable(point.name, [
+        ['Fabricante', vendor || '—'],
+        ['Modelo', point.equipment_model || '—'],
         ['IP', point.equipment_ip || '—'],
         ['Ping', fmtUpDown(pingUp), pingUp === false ? 'crit' : pingUp === true ? 'ok' : ''],
         ['SNMP', point.snmp_offline ? 'down' : 'up', point.snmp_offline ? 'crit' : 'ok'],
@@ -839,17 +858,17 @@ async function refresh() {
         ...(point.alert_severity !== null && point.alert_severity !== undefined
           ? [['Alertas', `${point.alert_count} aberto(s)`, point.alert_severity >= 4 ? 'crit' : 'warn']]
           : []),
-      ], equipmentPhotoUrl(point.equipment_model)),
+      ]),
       { className: 'mini-tip' },
     );
     const hasAlert = point.alert_severity !== null && point.alert_severity !== undefined;
     marker.on('click', () => openModal({
-      photoUrl: equipmentPhotoUrl(point.equipment_model),
       title: point.name,
       statusClass: point.status,
       kicker: 'Equipamento',
       alertsHost: hasAlert ? { hostid: String(point.zabbix_hostid), hostName: point.name } : null,
       rows: [
+        ['Fabricante', vendor || '—'],
         ['Modelo', point.equipment_model || '—'],
         ['IP', point.equipment_ip || '—'],
         ['Status', point.status],

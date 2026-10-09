@@ -411,22 +411,27 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .ops-host-badge.warn { background: var(--yellow); color: #1a1a1a; }
 
 /* ── Tooltips em tabela (ponto/segmento) ───────────────────────────── */
-.tip-photo {
-  display: block; width: 100%; height: 42px; object-fit: contain;
-  background: #f4f4f2; border-radius: 6px; padding: 6px; box-sizing: border-box;
-  margin-bottom: 8px;
-}
-.tip-table { border-collapse: collapse; }
+/* width:100% -- sem isso a tabela encolhe pro conteúdo das colunas e fica
+   mais estreita que o balão (que é largo por causa do título, ex: "DTC -
+   MASTER GRAOS <-> 6730H..."), sobrando um vão vazio à direita em vez do
+   valor esticar até a borda do balão. */
+.tip-table { border-collapse: collapse; width: 100%; }
 .tip-table-title {
   font-family: var(--sans); font-weight: 600; color: var(--text-primary); font-size: 12.5px;
   margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border-2);
 }
 .tip-table td { padding: 2px 0; white-space: nowrap; font-size: 12px; font-family: var(--mono); }
-.tip-table td:first-child { color: var(--text-muted); padding-right: 14px; font-size: 11px; }
+.tip-table td:first-child { color: var(--text-muted); padding-right: 14px; font-size: 11px; width: 1%; }
 .tip-table td:last-child { color: var(--text-primary); text-align: right; font-variant-numeric: tabular-nums; }
 .tip-table td.crit { color: var(--red); font-weight: 700; }
 .tip-table td.warn { color: var(--yellow); font-weight: 700; }
 .tip-table td.ok { color: var(--green); }
+.tip-table td.tip-section {
+  color: var(--text-muted); font-family: var(--sans); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; white-space: normal;
+  padding: 8px 0 3px; border-top: 1px solid var(--border-dim);
+}
+.tip-table tr:first-child td.tip-section { border-top: none; padding-top: 2px; }
 
 .leaflet-tooltip.mini-tip {
   background: var(--bg-panel); color: var(--text-primary); border: 1px solid var(--border-2); border-radius: var(--radius-sm);
@@ -465,31 +470,23 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .detail-modal.status-unknown { --status-color: var(--status-unknown); }
 
 .modal-status-bar { height: 3px; background: var(--status-color, var(--accent)); }
-.modal-photo {
-  width: 100%; height: 116px; position: relative; display: flex; align-items: center; justify-content: center;
-  background:
-    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--status-color, var(--accent)) 14%, transparent), transparent 60%),
-    linear-gradient(135deg, #1a1a1a, #232323);
-  border-bottom: 1px solid var(--border);
+/* Sem foto do equipamento -- fabricante/modelo entram como linhas normais
+   da tabela, então o botão de fechar fica direto sobre o modal em vez de
+   dentro da faixa de foto que existia antes. */
+.modal-close {
+  position: absolute; top: 12px; right: 12px; width: 24px; height: 24px; display: flex; align-items: center;
+  justify-content: center; cursor: pointer; color: var(--text-muted); font-size: 18px; line-height: 1;
+  border: 1px solid var(--border-2); border-radius: 50%; background: var(--bg-canvas); transition: color .12s, border-color .12s;
+  z-index: 2;
 }
-.modal-photo img {
-  width: 88px; height: 88px; object-fit: contain; position: relative; z-index: 1;
-  background: #f4f4f2; border-radius: 12px; padding: 10px; box-sizing: border-box;
-  filter: drop-shadow(0 8px 14px rgba(0,0,0,0.55));
-}
-.modal-photo .close {
-  position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; display: flex; align-items: center;
-  justify-content: center; cursor: pointer; color: var(--text-secondary); font-size: 18px; line-height: 1;
-  border: 1px solid var(--border-2); border-radius: 50%; background: rgba(0,0,0,0.35); transition: color .12s, border-color .12s;
-}
-.modal-photo .close:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+.modal-close:hover { color: var(--text-primary); border-color: var(--text-secondary); }
 
 .modal-kicker {
-  margin: 14px 16px 0; font-family: var(--sans); font-size: 11px; font-weight: 500;
+  margin: 16px 36px 0 16px; font-family: var(--sans); font-size: 11px; font-weight: 500;
   color: var(--status-color, var(--text-muted));
 }
 .detail-modal h4 {
-  margin: 3px 16px 12px; display: flex; align-items: center; gap: 8px;
+  margin: 3px 36px 12px 16px; display: flex; align-items: center; gap: 8px;
   font-family: var(--sans); font-weight: 600; font-size: 16px;
   color: var(--text-primary); line-height: 1.3;
 }
