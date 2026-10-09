@@ -46,7 +46,7 @@
     .status-pill {
       display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-family: var(--sans); font-size: 10.5px;
       font-weight: 600; padding: 3px 8px; border-radius: 999px; letter-spacing: 0.02em; white-space: nowrap;
-      text-transform: uppercase; justify-self: start;
+      text-transform: uppercase; justify-self: center;
     }
     .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
     .status-pill.up { background: rgba(62,207,106,0.14); color: var(--green); }
@@ -57,8 +57,14 @@
     /* Mesmas colunas (Host/Status/SSH/SNMP/Uptime/Latência/Alertas) nas
        outras telas que já listam hosts -- menos uma pequena "tabela
        resumo" própria do dashboard, a tela toda repete o mesmo vocabulário. */
+    /* minmax trava a coluna de Host num teto razoável (nomes são curtos,
+       "DTC - ARURI - 7") em vez de 1.4fr comer todo o espaço sobrando até
+       as colunas de dados; a coluna 1fr vazia logo depois absorve esse
+       sobra, empurrando Status/SSH/SNMP/... pra um grupo alinhado à
+       direita em vez de espalhado. */
     .health-row {
-      display: grid; grid-template-columns: 1.4fr 64px 34px 34px 56px 56px 34px; align-items: center; gap: 8px;
+      display: grid; grid-template-columns: minmax(130px, 260px) 1fr 64px 34px 34px 56px 56px 34px;
+      align-items: center; gap: 8px;
       padding: 9px 16px; border-bottom: 1px solid var(--border-dim); font-family: var(--sans); font-size: 12.5px;
     }
     .health-row:last-child { border-bottom: none; }
@@ -227,7 +233,7 @@
               <div class="dash-panel-sub" id="health-panel-sub">—</div>
             </div>
             <div class="health-row health-header-row">
-              <div>Host</div><div>Status</div><div>SSH</div><div>SNMP</div><div>Uptime</div><div>Latência</div><div>Alertas</div>
+              <div>Host</div><div></div><div>Status</div><div>SSH</div><div>SNMP</div><div>Uptime</div><div>Latência</div><div>Alertas</div>
             </div>
             <div class="dash-panel-body" id="health-list">
               <div class="dash-empty">Carregando...</div>
