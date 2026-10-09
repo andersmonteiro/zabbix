@@ -427,9 +427,9 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .tip-table td.warn { color: var(--yellow); font-weight: 700; }
 .tip-table td.ok { color: var(--green); }
 .tip-table td.tip-section {
-  color: var(--text-muted); font-family: var(--sans); font-size: 10px; font-weight: 700;
-  letter-spacing: 0.06em; text-transform: uppercase; white-space: normal;
-  padding: 8px 0 3px; border-top: 1px solid var(--border-dim);
+  color: var(--text-secondary); font-family: var(--sans); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; white-space: normal; text-align: center;
+  padding: 10px 0 5px; border-top: 1px solid var(--border-dim);
 }
 .tip-table tr:first-child td.tip-section { border-top: none; padding-top: 2px; }
 

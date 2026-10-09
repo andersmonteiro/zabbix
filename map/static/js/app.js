@@ -362,13 +362,14 @@ function utilizationClass(pct) {
 // (ex: "Lado A" / "Lado B") em vez de uma linha label/valor normal -- usado
 // pra separar o sinal óptico de cada ponta do segmento, que senão ficava
 // tudo misturado como se fosse de um lado só.
-function tipTable(title, rows) {
+function tipTable(title, rows, photoUrl) {
   const body = rows
     .map((row) => (row.length === 1
       ? `<tr><td colspan="2" class="tip-section">${esc(row[0])}</td></tr>`
       : `<tr><td>${esc(row[0])}</td><td class="${esc(row[2] || '')}">${esc(row[1])}</td></tr>`))
     .join('');
-  return `<div class="tip-table-title">${esc(title)}</div><table class="tip-table">${body}</table>`;
+  const photo = photoUrl ? `<img class="tip-photo" src="${esc(photoUrl)}" alt="" />` : '';
+  return `${photo}<div class="tip-table-title">${esc(title)}</div><table class="tip-table">${body}</table>`;
 }
 
 const STATUS_LABEL_PT = { up: 'Operacional', warn: 'Atenção', down: 'Crítico', unknown: 'Sem dados' };
@@ -619,6 +620,14 @@ function closeModal() {
 document.getElementById('modal-close').addEventListener('click', closeModal);
 document.getElementById('backdrop').addEventListener('click', closeModal);
 
+function equipmentPhotoUrl(model) {
+  // No local static fallback file exists — always route through the API,
+  // which already returns a generic SVG server-side when no image is
+  // uploaded for the given model (including the 'generic' placeholder
+  // used here when a circuit segment, not an equipment point, was clicked).
+  return `/api/equipment-images/${encodeURIComponent(model || 'generic')}`;
+}
+
 function formatAge(seconds) {
   if (seconds === null || seconds === undefined) return 'nunca';
   if (seconds < 90) return `${seconds}s`;
@@ -769,20 +778,21 @@ async function refresh() {
           ...(segment.port_name ? [['Porta', segment.port_name]] : []),
           ['Status', segment.status, statusCls],
           ...(segment.endpoint_down ? [['Motivo', 'host inalcançável', 'crit']] : []),
+          ['Entrada', fmtThroughput(segment.throughput_in_mbps)],
+          ['Saída', fmtThroughput(segment.throughput_out_mbps)],
           ...(utilPct !== null && utilPct !== undefined
             ? [['Utilização', `${utilPct.toFixed(0)}%`, utilizationClass(utilPct)]]
             : []),
           ...(segment.snmp_offline ? [['SNMP', 'indisponível', 'warn']] : []),
+          // Lado A/B só pro sinal óptico -- throughput é do link como um
+          // todo (entrada de um lado é saída do outro), já mostrado uma
+          // vez só acima, em vez de duplicado por lado.
           [`Lado A · ${origin.name}`],
           ['Sinal RX', fmt(segment.optical_rx_dbm, ' dBm')],
           ['Sinal TX', fmt(segment.optical_tx_dbm, ' dBm')],
-          ['Entrada', fmtThroughput(segment.throughput_in_mbps)],
-          ['Saída', fmtThroughput(segment.throughput_out_mbps)],
           [`Lado B · ${dest.name}`],
           ['Sinal RX', fmt(segment.optical_rx_dbm_b, ' dBm')],
           ['Sinal TX', fmt(segment.optical_tx_dbm_b, ' dBm')],
-          ['Entrada', fmtThroughput(segment.throughput_in_mbps_b)],
-          ['Saída', fmtThroughput(segment.throughput_out_mbps_b)],
         ]),
         { className: 'mini-tip', sticky: true },
       );
