@@ -199,3 +199,10 @@ function renderCircuits(circuits) {
 }
 
 loadDashboard();
+
+// Mesmo intervalo de 30s já usado no mapa/sino de alertas/tela de Alertas --
+// sem isso o Dashboard (a "capa" da ferramenta, a mais provável de ficar
+// aberta numa tela de NOC o dia inteiro) só atualizava ao recarregar a
+// página manualmente.
+const DASHBOARD_REFRESH_INTERVAL_MS = 30000;
+setInterval(loadDashboard, DASHBOARD_REFRESH_INTERVAL_MS);
