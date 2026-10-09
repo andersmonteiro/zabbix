@@ -46,7 +46,7 @@
     .status-pill {
       display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-family: var(--sans); font-size: 10.5px;
       font-weight: 600; padding: 3px 8px; border-radius: 999px; letter-spacing: 0.02em; white-space: nowrap;
-      text-transform: uppercase; justify-self: center;
+      text-transform: uppercase;
     }
     .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
     .status-pill.up { background: rgba(62,207,106,0.14); color: var(--green); }
@@ -56,15 +56,16 @@
 
     /* Mesmas colunas (Host/Status/SSH/SNMP/Uptime/Latência/Alertas) nas
        outras telas que já listam hosts -- menos uma pequena "tabela
-       resumo" própria do dashboard, a tela toda repete o mesmo vocabulário. */
-    /* minmax trava a coluna de Host num teto razoável (nomes são curtos,
-       "DTC - ARURI - 7") em vez de 1.4fr comer todo o espaço sobrando até
-       as colunas de dados; a coluna 1fr vazia logo depois absorve esse
-       sobra, empurrando Status/SSH/SNMP/... pra um grupo alinhado à
-       direita em vez de espalhado. */
+       resumo" própria do dashboard, a tela toda repete o mesmo vocabulário.
+
+       Flexbox, não grid: misturar minmax() com uma coluna 1fr fazia o
+       grid track-sizing colapsar a coluna flexível pra 0 e empurrar as
+       colunas de dado inteiras pra longe do header (um dos cantos mais
+       imprevisíveis do algoritmo de grid) -- flex: 1 no nome + flex: 0 0
+       <largura> fixo nas demais é exatamente "uma coluna cresce, as
+       outras têm largura fixa" sem essa armadilha. */
     .health-row {
-      display: grid; grid-template-columns: minmax(130px, 260px) 1fr 64px 34px 34px 56px 56px 34px;
-      align-items: center; gap: 8px;
+      display: flex; align-items: center; gap: 8px;
       padding: 9px 16px; border-bottom: 1px solid var(--border-dim); font-family: var(--sans); font-size: 12.5px;
     }
     .health-row:last-child { border-bottom: none; }
@@ -72,20 +73,24 @@
       border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 600; color: var(--text-muted);
       text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;
     }
-    .health-header-row > div:not(:first-child) { text-align: center; }
-    .health-name { color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .health-latency, .health-uptime { color: var(--text-muted); font-family: var(--mono); font-size: 11px; text-align: center; }
-    .health-dot { width: 8px; height: 8px; border-radius: 50%; margin: 0 auto; }
+    .health-header-row .health-name { color: var(--text-muted); font-weight: 600; }
+    .health-col { flex: 0 0 auto; text-align: center; }
+    .health-col-status { width: 64px; }
+    .health-col-ssh, .health-col-snmp { width: 40px; }
+    .health-col-uptime, .health-col-latency { width: 60px; }
+    .health-col-alert { width: 80px; }
+    .health-name {
+      flex: 1; min-width: 0; color: var(--text-primary); font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .health-latency, .health-uptime { color: var(--text-muted); font-family: var(--mono); font-size: 11px; }
+    .health-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .health-dot.ok { background: var(--green); }
     .health-dot.fail { background: var(--red); }
     .health-dot.unknown { background: var(--text-muted); opacity: 0.4; }
-    .health-alert-badge {
-      min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; margin: 0 auto;
-      display: flex; align-items: center; justify-content: center; line-height: 1;
-      font-family: var(--sans); font-size: 10.5px; font-weight: 700; color: #fff;
-    }
-    .health-alert-badge.crit { background: var(--red); }
-    .health-alert-badge.warn { background: var(--yellow); color: #1a1a1a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5) inset; }
+    .health-alert-text { font-family: var(--sans); font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .health-alert-text.crit { color: var(--red); }
+    .health-alert-text.warn { color: var(--yellow); }
 
     .action-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border-dim); }
     .action-item:last-child { border-bottom: none; }
@@ -233,7 +238,13 @@
               <div class="dash-panel-sub" id="health-panel-sub">—</div>
             </div>
             <div class="health-row health-header-row">
-              <div>Host</div><div></div><div>Status</div><div>SSH</div><div>SNMP</div><div>Uptime</div><div>Latência</div><div>Alertas</div>
+              <div class="health-name">Host</div>
+              <div class="health-col health-col-status">Status</div>
+              <div class="health-col health-col-ssh">SSH</div>
+              <div class="health-col health-col-snmp">SNMP</div>
+              <div class="health-col health-col-uptime">Uptime</div>
+              <div class="health-col health-col-latency">Latência</div>
+              <div class="health-col health-col-alert">Alertas</div>
             </div>
             <div class="dash-panel-body" id="health-list">
               <div class="dash-empty">Carregando...</div>

@@ -107,19 +107,18 @@ function renderMapDependentPanels(mapState, hosts) {
     const sshCls = host && host.ssh_last_ok !== null && host.ssh_last_ok !== undefined ? (host.ssh_last_ok ? 'ok' : 'fail') : 'unknown';
     const snmpCls = p.snmp_offline === null || p.snmp_offline === undefined ? 'unknown' : (p.snmp_offline ? 'fail' : 'ok');
     const hasAlert = p.alert_severity !== null && p.alert_severity !== undefined;
-    const alertBadge = hasAlert
-      ? `<div class="health-alert-badge ${p.alert_severity >= 4 ? 'crit' : 'warn'}" title="${p.alert_count} alerta(s) aberto(s)">${p.alert_count}</div>`
-      : '';
+    const alertText = hasAlert
+      ? `<span class="health-alert-text ${p.alert_severity >= 4 ? 'crit' : 'warn'}">${p.alert_count} ${p.alert_count > 1 ? 'alertas' : 'alerta'}</span>`
+      : '<span class="health-alert-text">—</span>';
     return `
       <div class="health-row">
         <div class="health-name" title="${dashEsc(p.name)}">${dashEsc(p.name)}</div>
-        <div></div>
-        <span class="status-pill ${dashEsc(p.status)}">${dashEsc(p.status)}</span>
-        <div class="health-dot ${sshCls}" title="SSH"></div>
-        <div class="health-dot ${snmpCls}" title="SNMP"></div>
-        <div class="health-uptime">${dashEsc(dashFmtUptime(p.uptime_seconds))}</div>
-        <div class="health-latency">${dashEsc(latency)}</div>
-        ${alertBadge}
+        <div class="health-col health-col-status"><span class="status-pill ${dashEsc(p.status)}">${dashEsc(p.status)}</span></div>
+        <div class="health-col health-col-ssh"><span class="health-dot ${sshCls}" title="SSH"></span></div>
+        <div class="health-col health-col-snmp"><span class="health-dot ${snmpCls}" title="SNMP"></span></div>
+        <div class="health-col health-col-uptime health-uptime">${dashEsc(dashFmtUptime(p.uptime_seconds))}</div>
+        <div class="health-col health-col-latency health-latency">${dashEsc(latency)}</div>
+        <div class="health-col health-col-alert">${alertText}</div>
       </div>
     `;
   }).join('');
