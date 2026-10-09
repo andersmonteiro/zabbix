@@ -84,8 +84,10 @@
             <div class="panel-body">
               <p>O nome do modelo deve ser exatamente igual ao campo "Modelo" usado ao cadastrar um ponto em Circuitos.</p>
               <form class="inline" id="upload-form">
-                <input name="model" placeholder="Modelo, ex: Huawei MA5800-X2" required />
-                <input name="file" type="file" accept=".png,.jpg,.jpeg,.svg,.webp" required />
+                <label class="field-label" for="upload-model">Modelo</label>
+                <input id="upload-model" name="model" placeholder="ex: Huawei MA5800-X2" required />
+                <label class="field-label" for="upload-file">Imagem</label>
+                <input id="upload-file" name="file" type="file" accept=".png,.jpg,.jpeg,.svg,.webp" required />
                 <button class="btn-primary" type="submit">Enviar imagem</button>
               </form>
               <p id="upload-status" class="form-status"></p>
@@ -97,8 +99,10 @@
             <div class="panel-body">
               <div id="users-list"></div>
               <form class="inline" id="user-form">
-                <input name="username" placeholder="Usuário" required />
-                <input name="password" type="password" placeholder="Senha (mín. 6 caracteres)" required minlength="6" />
+                <label class="field-label" for="user-username">Usuário</label>
+                <input id="user-username" name="username" placeholder="ex: joao.silva" required />
+                <label class="field-label" for="user-password">Senha</label>
+                <input id="user-password" name="password" type="password" placeholder="mín. 6 caracteres" required minlength="6" />
                 <button class="btn-primary" type="submit">Criar usuário</button>
               </form>
               <p id="user-status" class="form-status"></p>
