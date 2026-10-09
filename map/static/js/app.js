@@ -16,6 +16,11 @@ function esc(str) {
 // Corredor BR-163 (PA/MT) — região de cobertura do cliente.
 const map = L.map('map').setView([-8.3, -55.4], 7);
 
+// #map cresce via flex -- sem isso os tiles só cobrem a altura que o
+// container tinha no instante em que o Leaflet foi criado (ver mesmo
+// comentário em circuitos.js).
+new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('map'));
+
 const MAP_LAYER_STORAGE_KEY = 'natverk-map-layer';
 const MAP_LABELS_STORAGE_KEY = 'natverk-map-labels';
 const labelLayer = L.layerGroup();

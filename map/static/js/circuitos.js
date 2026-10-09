@@ -1,6 +1,13 @@
 // Corredor BR-163 (PA/MT) — região de cobertura do cliente.
 const editorMap = L.map('editor-map').setView([-8.3, -55.4], 7);
 
+// #editor-map cresce via flex (ocupa o resto da altura disponível ao lado
+// da lista de circuitos) -- o Leaflet só sabe o tamanho do container no
+// instante em que foi criado, então sem isso os tiles só cobrem a altura
+// que existia nesse primeiro instante, deixando uma faixa vazia embaixo
+// (e o mapa "mais baixo" que a lista ao lado, mesmo com o mesmo container).
+new ResizeObserver(() => editorMap.invalidateSize()).observe(document.getElementById('editor-map'));
+
 async function addTileLayer() {
   let cfg = { tile_provider: 'osm', mapbox_token: '' };
   try {
