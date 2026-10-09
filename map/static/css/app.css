@@ -294,12 +294,14 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .row-delete:hover, .row-edit:hover { text-decoration: underline; }
 
 /* ── Map view specifics ───────────────────────────────────────────── */
-.map-shell {
-  flex: 1; display: flex; min-width: 0; min-height: 0;
-  margin: 0 24px 24px; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card);
-  overflow: hidden;
+/* Mapa e painel de hosts são dois cards próprios lado a lado (gap entre
+   eles), não um card único com uma borda interna separando as duas
+   metades -- cada um com sua própria moldura/cantos arredondados. */
+.map-shell { flex: 1; display: flex; gap: 16px; min-width: 0; min-height: 0; margin: 0 24px 24px; }
+.map-col {
+  flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card); overflow: hidden;
 }
-.map-col { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 #map { flex: 1; min-height: 0; background: var(--bg-canvas); }
 
 /* Mapa escuro sem trocar de provedor -- ver nota original em app.js
@@ -370,9 +372,11 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 }
 
 /* ── Painel lateral do mapa (circuitos + hosts) ──────────────────────
-   Vive dentro de .map-shell, à direita do mapa, separado por uma borda. */
+   Seu próprio card (ver .map-shell), ao lado do mapa -- não mais uma
+   metade de um card único dividido por borda interna. */
 .ops-panel {
-  width: 280px; flex-shrink: 0; background: var(--bg-panel); border-left: 1px solid var(--border);
+  width: 280px; flex-shrink: 0; background: var(--bg-canvas);
+  border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card);
   overflow-y: auto; padding: 16px; font-size: 13px;
 }
 .section-label {
@@ -390,7 +394,7 @@ table.data-table tr:hover td { background: rgba(255,255,255,0.03); }
 .ops-host-list { display: flex; flex-direction: column; gap: 8px; }
 .ops-host-item {
   display: flex; align-items: center; gap: 8px; padding: 11px 12px; cursor: pointer;
-  background: var(--bg-canvas); border: 1px solid var(--border-dim); border-radius: var(--radius-sm);
+  background: var(--bg-panel); border: 1px solid var(--border-dim); border-radius: var(--radius-sm);
   transition: background .1s, border-color .1s;
 }
 .ops-host-item:hover { border-color: var(--border-2); }
