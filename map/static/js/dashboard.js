@@ -113,7 +113,6 @@ function renderMapDependentPanels(mapState, hosts) {
     return `
       <div class="health-row">
         <div class="health-name" title="${dashEsc(p.name)}">${dashEsc(p.name)}</div>
-        <div class="health-spacer"></div>
         <div class="health-col health-col-status"><span class="status-pill ${dashEsc(p.status)}">${dashEsc(p.status)}</span></div>
         <div class="health-col health-col-ssh"><span class="health-dot ${sshCls}" title="SSH"></span></div>
         <div class="health-col health-col-snmp"><span class="health-dot ${snmpCls}" title="SNMP"></span></div>
