@@ -360,3 +360,11 @@ document.getElementById('host-form').addEventListener('submit', async (e) => {
 (async function init() {
   await Promise.all([loadHosts(), loadGroups()]);
 })();
+
+// Mesmo intervalo de 30s das outras telas. O modal de editar host é um
+// overlay independente da lista (os valores já estão nos campos quando
+// abre), então recarregar a lista por baixo não afeta um cadastro em
+// andamento -- diferente do editor de trajeto em Circuitos, que de fato
+// pausa durante a edição.
+const HOSTS_REFRESH_INTERVAL_MS = 30000;
+setInterval(loadHosts, HOSTS_REFRESH_INTERVAL_MS);

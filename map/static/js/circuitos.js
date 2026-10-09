@@ -487,3 +487,23 @@ document.getElementById('segment-form').addEventListener('submit', async (e) => 
   await loadCircuits();
   resetFormForNewCircuit();
 })();
+
+// Mesmo intervalo de 30s das outras telas -- mas pausa enquanto o operador
+// está arrastando o trajeto (editingSegmentId, declarado em editor.js):
+// um reload de dados por baixo enquanto ele edita reconstruiria a linha
+// (renderCircuitOnEditorMap recria a layer do zero) e derrubaria a edição
+// em andamento no leaflet-geoman sem aviso nenhum.
+const CIRCUITOS_REFRESH_INTERVAL_MS = 30000;
+
+async function refreshCircuitosData() {
+  if (editingSegmentId !== null) return;
+  allPoints = await api('/api/points');
+  allCircuits = await api('/api/circuits');
+  if (selectedCircuitId !== null) {
+    await viewCircuit(selectedCircuitId); // re-renderiza chips, mapa e legenda com dados frescos
+  } else {
+    renderCircuitChips();
+    window.renderCircuitOnEditorMap(allCircuits, allPoints, null);
+  }
+}
+setInterval(refreshCircuitosData, CIRCUITOS_REFRESH_INTERVAL_MS);
