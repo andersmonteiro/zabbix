@@ -79,10 +79,16 @@
     .health-col-ssh, .health-col-snmp { width: 40px; }
     .health-col-uptime, .health-col-latency { width: 60px; }
     .health-col-alert { width: 80px; }
+    /* Nome trava num teto (nomes são curtos, "DTC - ARURI - 7") e NÃO
+       cresce -- é o .health-spacer (flex:1, vazio) quem absorve o espaço
+       sobrando, empurrando o grupo de colunas de dado pra ficarem coladas
+       à direita (alinhadas com o header) em vez do nome tomar ~metade do
+       painel com um vão enorme até as colunas. */
     .health-name {
-      flex: 1; min-width: 0; color: var(--text-primary); font-weight: 600;
+      flex: 0 1 220px; max-width: 220px; min-width: 0; color: var(--text-primary); font-weight: 600;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+    .health-spacer { flex: 1; }
     .health-latency, .health-uptime { color: var(--text-muted); font-family: var(--mono); font-size: 11px; }
     .health-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .health-dot.ok { background: var(--green); }
@@ -239,6 +245,7 @@
             </div>
             <div class="health-row health-header-row">
               <div class="health-name">Host</div>
+              <div class="health-spacer"></div>
               <div class="health-col health-col-status">Status</div>
               <div class="health-col health-col-ssh">SSH</div>
               <div class="health-col health-col-snmp">SNMP</div>
