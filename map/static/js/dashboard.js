@@ -24,6 +24,15 @@ function dashSevClass(severity) {
   return 'sev-info';
 }
 
+function dashFmtUptime(seconds) {
+  if (seconds === null || seconds === undefined) return '—';
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  if (days > 0) return `${days}d ${hours}h`;
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${minutes}min`;
+}
+
 // Pior-primeiro: um host "down" importa mais que um "up" no painel de saúde.
 const STATUS_RANK = { down: 0, warn: 1, unknown: 2, up: 3 };
 
@@ -94,14 +103,22 @@ function renderMapDependentPanels(mapState, hosts) {
   const sorted = [...points].sort((a, b) => (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9));
   healthList.innerHTML = sorted.map((p) => {
     const host = hostsByHostid.get(String(p.zabbix_hostid));
-    const meta = host ? [host.vendor, host.groups[0]].filter(Boolean).join(' · ') : '—';
     const latency = p.latency_ms !== null && p.latency_ms !== undefined ? `${Math.round(p.latency_ms)} ms` : '—';
+    const sshCls = host && host.ssh_last_ok !== null && host.ssh_last_ok !== undefined ? (host.ssh_last_ok ? 'ok' : 'fail') : 'unknown';
+    const snmpCls = p.snmp_offline === null || p.snmp_offline === undefined ? 'unknown' : (p.snmp_offline ? 'fail' : 'ok');
+    const hasAlert = p.alert_severity !== null && p.alert_severity !== undefined;
+    const alertBadge = hasAlert
+      ? `<div class="health-alert-badge ${p.alert_severity >= 4 ? 'crit' : 'warn'}" title="${p.alert_count} alerta(s) aberto(s)">${p.alert_count}</div>`
+      : '';
     return `
       <div class="health-row">
         <div class="health-name" title="${dashEsc(p.name)}">${dashEsc(p.name)}</div>
-        <div class="health-meta" title="${dashEsc(meta)}">${dashEsc(meta)}</div>
         <span class="status-pill ${dashEsc(p.status)}">${dashEsc(p.status)}</span>
+        <div class="health-dot ${sshCls}" title="SSH"></div>
+        <div class="health-dot ${snmpCls}" title="SNMP"></div>
+        <div class="health-uptime">${dashEsc(dashFmtUptime(p.uptime_seconds))}</div>
         <div class="health-latency">${dashEsc(latency)}</div>
+        ${alertBadge}
       </div>
     `;
   }).join('');

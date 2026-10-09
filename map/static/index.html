@@ -5,7 +5,13 @@
   <title>Natverk NOC — Dashboard</title>
   <link rel="stylesheet" href="css/app.css" />
   <style>
-    .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 20px; }
+    /* O dashboard inteiro cabe na altura da tela (mesma altura da nav
+       lateral) em vez de empurrar a página pra rolar: .content-area vira
+       uma coluna flex, kpi-row/status geral ficam do tamanho do conteúdo
+       e dash-grid (Hosts Monitorados + Alertas) cresce pra ocupar o resto
+       -- os dois painéis lado a lado herdam essa altura igualmente. */
+    .content-area { display: flex; flex-direction: column; min-height: 0; }
+    .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 20px; flex-shrink: 0; }
     .kpi-card {
       background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;
       box-shadow: var(--shadow-card); display: block; text-decoration: none; transition: border-color .12s;
@@ -22,13 +28,19 @@
     .kpi-card-value.ok { color: var(--green); }
     .kpi-card-sub { font-family: var(--sans); font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
-    .dash-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 16px; align-items: start; }
-    .dash-panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card); overflow: hidden; }
-    .dash-panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .dash-grid {
+      display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 16px;
+      flex: 1; min-height: 0;
+    }
+    .dash-panel {
+      background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card);
+      overflow: hidden; display: flex; flex-direction: column; min-height: 0;
+    }
+    .dash-panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
     .dash-panel-title { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--text-primary); }
     .dash-panel-sub { font-family: var(--sans); font-size: 11px; color: var(--text-muted); text-decoration: none; }
     .dash-panel-sub:hover { color: var(--text-primary); }
-    .dash-panel-body { max-height: 360px; overflow-y: auto; }
+    .dash-panel-body { flex: 1; min-height: 0; overflow-y: auto; }
     .dash-empty { padding: 24px 16px; text-align: center; color: var(--text-muted); font-family: var(--sans); font-size: 12px; }
 
     .status-pill {
@@ -42,14 +54,32 @@
     .status-pill.down { background: rgba(229,72,77,0.14); color: var(--red); }
     .status-pill.unknown { background: rgba(138,138,138,0.14); color: var(--text-muted); }
 
+    /* Mesmas colunas (Host/Status/SSH/SNMP/Uptime/Latência/Alertas) nas
+       outras telas que já listam hosts -- menos uma pequena "tabela
+       resumo" própria do dashboard, a tela toda repete o mesmo vocabulário. */
     .health-row {
-      display: grid; grid-template-columns: 1.3fr 1fr 78px 64px; align-items: center; gap: 10px;
+      display: grid; grid-template-columns: 1.4fr 64px 34px 34px 56px 56px 34px; align-items: center; gap: 8px;
       padding: 9px 16px; border-bottom: 1px solid var(--border-dim); font-family: var(--sans); font-size: 12.5px;
     }
     .health-row:last-child { border-bottom: none; }
+    .health-header-row {
+      border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;
+    }
+    .health-header-row > div:not(:first-child) { text-align: center; }
     .health-name { color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .health-meta { color: var(--text-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .health-latency { color: var(--text-muted); font-family: var(--mono); font-size: 11px; text-align: right; }
+    .health-latency, .health-uptime { color: var(--text-muted); font-family: var(--mono); font-size: 11px; text-align: center; }
+    .health-dot { width: 8px; height: 8px; border-radius: 50%; margin: 0 auto; }
+    .health-dot.ok { background: var(--green); }
+    .health-dot.fail { background: var(--red); }
+    .health-dot.unknown { background: var(--text-muted); opacity: 0.4; }
+    .health-alert-badge {
+      min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: center; line-height: 1;
+      font-family: var(--sans); font-size: 10.5px; font-weight: 700; color: #fff;
+    }
+    .health-alert-badge.crit { background: var(--red); }
+    .health-alert-badge.warn { background: var(--yellow); color: #1a1a1a; box-shadow: 0 0 0 1px rgba(0,0,0,0.5) inset; }
 
     .action-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border-dim); }
     .action-item:last-child { border-bottom: none; }
@@ -193,8 +223,11 @@
         <div class="dash-grid">
           <div class="dash-panel">
             <div class="dash-panel-header">
-              <div class="dash-panel-title">Saúde da rede</div>
+              <div class="dash-panel-title">Hosts Monitorados</div>
               <div class="dash-panel-sub" id="health-panel-sub">—</div>
+            </div>
+            <div class="health-row health-header-row">
+              <div>Host</div><div>Status</div><div>SSH</div><div>SNMP</div><div>Uptime</div><div>Latência</div><div>Alertas</div>
             </div>
             <div class="dash-panel-body" id="health-list">
               <div class="dash-empty">Carregando...</div>
@@ -211,7 +244,7 @@
           </div>
         </div>
 
-        <div class="dash-panel">
+        <div class="dash-panel" style="flex-shrink: 0;">
           <div class="dash-panel-header"><div class="dash-panel-title">Status geral da rede</div></div>
           <div style="padding: 16px;">
             <div class="status-bar-track" id="status-bar-track"></div>
