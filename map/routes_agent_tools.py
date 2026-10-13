@@ -11,10 +11,16 @@ from flask import Blueprint, jsonify, request
 from models import InterfaceCache, Point, RouteCache, User
 from ssh_tools import (
     SSHToolError,
+    get_bgp_config,
+    get_bgp_peer_detail,
+    get_bgp_peers,
     get_bgp_prefixes,
     get_device_logs,
     get_interface_arp,
     get_interface_config,
+    get_ip_prefix_list,
+    get_ipv6_prefix_list,
+    get_route_policy_config,
 )
 
 agent_tools_bp = Blueprint('agent_tools', __name__, url_prefix='/api/agent-tools')
@@ -118,6 +124,93 @@ def bgp_prefixes():
         return jsonify({'error': 'hostid e neighbor_ip são obrigatórios'}), 400
     try:
         output = get_bgp_prefixes(hostid, neighbor_ip, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/bgp-peers', methods=['POST'])
+def bgp_peers():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora. Lista
+    TODAS as sessões BGP (nome do peer é o próprio IP, estado, tempo de
+    atividade) -- use pra achar o vizinho certo quando não se sabe de
+    antemão o IP dele."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid = data.get('hostid')
+    if not hostid:
+        return jsonify({'error': 'hostid é obrigatório'}), 400
+    try:
+        output = get_bgp_peers(hostid, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/bgp-peer-detail', methods=['POST'])
+def bgp_peer_detail():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid, peer_ip = data.get('hostid'), data.get('peer_ip')
+    if not hostid or not peer_ip:
+        return jsonify({'error': 'hostid e peer_ip são obrigatórios'}), 400
+    try:
+        output = get_bgp_peer_detail(hostid, peer_ip, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/bgp-config', methods=['POST'])
+def bgp_config():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid = data.get('hostid')
+    if not hostid:
+        return jsonify({'error': 'hostid é obrigatório'}), 400
+    try:
+        output = get_bgp_config(hostid, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/route-policy-config', methods=['POST'])
+def route_policy_config():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid = data.get('hostid')
+    if not hostid:
+        return jsonify({'error': 'hostid é obrigatório'}), 400
+    try:
+        output = get_route_policy_config(hostid, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/ip-prefix-list', methods=['POST'])
+def ip_prefix_list():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid = data.get('hostid')
+    if not hostid:
+        return jsonify({'error': 'hostid é obrigatório'}), 400
+    try:
+        output = get_ip_prefix_list(hostid, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/ipv6-prefix-list', methods=['POST'])
+def ipv6_prefix_list():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid = data.get('hostid')
+    if not hostid:
+        return jsonify({'error': 'hostid é obrigatório'}), 400
+    try:
+        output = get_ipv6_prefix_list(hostid, _zabbix_client)
         return jsonify({'output': output})
     except SSHToolError as e:
         return jsonify({'error': str(e)}), 502

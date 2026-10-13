@@ -196,6 +196,68 @@ def get_bgp_prefixes(hostid, neighbor_ip, zabbix_client):
         conn.disconnect()
 
 
+def _huawei_only_display(hostid, zabbix_client, command, feature_label):
+    """Compartilhado pelos comandos de BGP/route-policy/prefix-list que só
+    têm comando catalogado pra Huawei até agora -- mesma recusa explícita
+    (em vez de adivinhar o comando de outro fabricante) que o resto do
+    arquivo já usa pra capacidades não catalogadas."""
+    info = _fetch_host_info(hostid, zabbix_client)
+    if info['vendor'] != 'huawei':
+        raise SSHToolError(
+            f'{feature_label} só catalogado pra Huawei por enquanto '
+            f'(fabricante "{info["vendor"]}" ainda não tem esse comando)'
+        )
+    conn = _connect(info)
+    try:
+        return conn.send_command(command)
+    finally:
+        conn.disconnect()
+
+
+def get_bgp_peers(hostid, zabbix_client):
+    """Lista todas as sessões BGP configuradas, com estado e tempo de
+    atividade -- "display bgp peer". Útil pra achar o IP de um vizinho
+    pelo contexto quando não se sabe de antemão qual peer corresponde ao
+    equipamento perguntado (ver caso real: interface "SERVIDOR-PROXMOX"
+    sem nenhum peer configurado nos IPs prováveis do /30)."""
+    return _huawei_only_display(hostid, zabbix_client, 'display bgp peer', 'Listagem de sessões BGP')
+
+
+def get_bgp_peer_detail(hostid, peer_ip, zabbix_client):
+    """Estado de UM vizinho BGP específico -- "display bgp peer | include
+    <IP>", mais direto que pedir a lista inteira e filtrar na mão."""
+    return _huawei_only_display(
+        hostid, zabbix_client, f'display bgp peer | include {peer_ip}',
+        'Consulta de sessão BGP específica',
+    )
+
+
+def get_bgp_config(hostid, zabbix_client):
+    """Configuração completa de BGP (AS, vizinhos, route-policy aplicada a
+    cada um, etc) -- "display current-configuration bgp"."""
+    return _huawei_only_display(hostid, zabbix_client, 'display current-configuration bgp', 'Configuração de BGP')
+
+
+def get_route_policy_config(hostid, zabbix_client):
+    """Configuração de todos os filtros de rota (route-policy) usados nos
+    IN/OUT de BGP -- "display current-configuration route-policy"."""
+    return _huawei_only_display(
+        hostid, zabbix_client, 'display current-configuration route-policy', 'Configuração de route-policy',
+    )
+
+
+def get_ip_prefix_list(hostid, zabbix_client):
+    """Todos os prefixos IPv4 cadastrados pra uso em filtros de BGP --
+    "display ip ip-prefix"."""
+    return _huawei_only_display(hostid, zabbix_client, 'display ip ip-prefix', 'Lista de prefixos IPv4')
+
+
+def get_ipv6_prefix_list(hostid, zabbix_client):
+    """Todos os prefixos IPv6 cadastrados pra uso em filtros de BGP --
+    "display ip ipv6-prefix"."""
+    return _huawei_only_display(hostid, zabbix_client, 'display ip ipv6-prefix', 'Lista de prefixos IPv6')
+
+
 def get_vlan_ip(hostid, vlan_id, zabbix_client):
     info = _fetch_host_info(hostid, zabbix_client)
     if info['vendor'] == 'datacom':
