@@ -107,9 +107,13 @@ async function streamToAgent(message, assistantEl) {
 
       const lines = record.split('\n');
       const isDone = lines.some((l) => l.startsWith('event: done'));
-      const dataLine = lines.find((l) => l.startsWith('data: '));
-      if (!dataLine) continue;
-      const data = dataLine.slice('data: '.length);
+      // Um valor com quebra de linha (comum em saída de equipamento) vira
+      // VÁRIAS linhas "data: " nesse mesmo registro (ver sse_data em
+      // chat.py) -- pegar só a primeira cortava o resto da saída. Junta
+      // todas com "\n", igual o padrão SSE de campo multi-linha.
+      const dataLines = lines.filter((l) => l.startsWith('data: '));
+      if (dataLines.length === 0) continue;
+      const data = dataLines.map((l) => l.slice('data: '.length)).join('\n');
 
       if (isDone) {
         try {
