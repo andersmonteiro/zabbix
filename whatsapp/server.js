@@ -178,60 +178,53 @@ function escapeHtml(str) {
     }[c]));
 }
 
-function replyMarkdownToHtml(text) {
-    const parts = text.split(/(```[\s\S]*?```)/g);
-    return parts.map((part) => {
-        if (part.startsWith('```')) {
-            const inner = part.replace(/^```[^\n]*\n?/, '').replace(/```$/, '');
-            return `<pre>${escapeHtml(inner)}</pre>`;
-        }
-        return escapeHtml(part)
-            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/`([^`]+)`/g, '<code>$1</code>')
-            .replace(/\n/g, '<br>');
-    }).join('');
+// Pega só o CONTEÚDO dos blocos ``` -- a imagem enviada ao WhatsApp é saída
+// crua de equipamento pura (como o operador vê no próprio terminal), sem a
+// narração da IA misturada junto (confirmado: a tabela "display bgp peer"
+// tem colunas largas, e a mistura de texto + código fazia tanto a IA
+// quanto a tabela saírem apertadas e com a tabela quebrando linha).
+function extractCodeBlocks(text) {
+    return [...text.matchAll(/```[^\n]*\n?([\s\S]*?)```/g)].map((m) => m[1].replace(/\n$/, ''));
 }
 
-async function renderReplyAsImage(replyText) {
+// Texto da IA antes do primeiro bloco e depois do último -- vira mensagem
+// de texto normal (legenda da imagem + uma mensagem extra se tiver
+// observação depois da tabela), formatado com markdownToWhatsApp.
+function splitAroundCode(text) {
+    const firstFence = text.indexOf('```');
+    const lastFence = text.lastIndexOf('```');
+    if (firstFence === -1) return { before: text.trim(), after: '' };
+    const before = text.slice(0, firstFence).trim();
+    const after = lastFence > firstFence ? text.slice(lastFence + 3).trim() : '';
+    return { before, after };
+}
+
+async function renderCodeAsImage(codeBlocks) {
+    const content = codeBlocks.join('\n\n');
     const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-        * { box-sizing: border-box; }
         body {
-            margin: 0; padding: 20px; width: 640px; background: #0a0a0a;
-            font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            font-size: 14px; line-height: 1.6; color: #d4d4d4;
+            display: inline-block; margin: 0; padding: 18px; background: #0a0a0a;
+            font-family: "SF Mono", Consolas, "Courier New", monospace;
+            font-size: 14px; line-height: 1.45; white-space: pre; color: #fff;
         }
-        strong { color: #fff; font-weight: 700; }
-        code {
-            font-family: "SF Mono", Consolas, monospace; font-size: 12.5px;
-            background: #141414; border: 1px solid #333; border-radius: 4px; padding: 1px 5px;
-        }
-        pre {
-            font-family: "SF Mono", Consolas, monospace; font-size: 12.5px; line-height: 1.5;
-            background: #1a1a1a; border: 1px solid #333; border-left: 3px solid #888;
-            border-radius: 8px; padding: 14px 16px; margin: 10px 0; white-space: pre-wrap;
-            word-break: break-word; color: #fff;
-        }
-    </style></head><body>${replyMarkdownToHtml(replyText)}</body></html>`;
+    </style></head><body>${escapeHtml(content)}</body></html>`;
 
     const browser = await getRenderBrowser();
     const page = await browser.newPage();
     try {
-        await page.setViewport({ width: 680, height: 100 });
+        // Viewport bem largo pra medir a largura real do conteúdo sem
+        // quebrar linha (white-space:pre não quebra, mas um viewport
+        // estreito demais cortava a tabela antes de conseguir medir) --
+        // depois encolhe pro tamanho exato que o conteúdo ocupou.
+        await page.setViewport({ width: 2000, height: 100 });
         await page.setContent(html, { waitUntil: 'load' });
         const bodyHandle = await page.$('body');
         const box = await bodyHandle.boundingBox();
-        await page.setViewport({ width: 680, height: Math.ceil(box.height) });
+        await page.setViewport({ width: Math.ceil(box.width) + 4, height: Math.ceil(box.height) + 4 });
         return await page.screenshot({ type: 'png' });
     } finally {
         await page.close();
     }
-}
-
-// Primeiro parágrafo (antes do primeiro bloco ``` ou quebra dupla) -- vira a
-// legenda da imagem, o que aparece na pré-visualização da conversa.
-function replySummary(text) {
-    const before = text.split('```')[0].trim();
-    return before.split(/\n\s*\n/)[0].trim() || 'Resultado da consulta:';
 }
 
 async function askAgent(message, conversationId, senderPhone) {
@@ -357,14 +350,21 @@ function setupAiChatHandler(c) {
         try {
             const reply = await askAgent(msg.body, chatId, senderPhone);
 
-            if (reply.includes('```')) {
+            const codeBlocks = extractCodeBlocks(reply);
+            if (codeBlocks.length > 0) {
                 // Consulta ao vivo com saída crua de equipamento -- manda
-                // como imagem formatada (negrito, caixa de código) em vez
-                // de texto puro, que perderia essa formatação no WhatsApp.
+                // como imagem (só o conteúdo do bloco de código, igual
+                // aparece no terminal do próprio equipamento), e o texto
+                // da IA ao redor (resumo antes, observação depois) como
+                // mensagem de texto normal, não misturado na imagem.
+                const { before, after } = splitAroundCode(reply);
                 try {
-                    const png = await renderReplyAsImage(reply);
+                    const png = await renderCodeAsImage(codeBlocks);
                     const media = new MessageMedia('image/png', png.toString('base64'), 'resposta.png');
-                    await msg.reply(media, undefined, { caption: replySummary(reply) });
+                    await msg.reply(media, undefined, { caption: before ? markdownToWhatsApp(before) : undefined });
+                    if (after) {
+                        await msg.reply(markdownToWhatsApp(after));
+                    }
                 } catch (renderErr) {
                     log('WARN', `Falha ao renderizar imagem, mandando texto puro: ${renderErr.message}`);
                     await msg.reply(markdownToWhatsApp(reply));
