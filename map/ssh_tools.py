@@ -416,8 +416,22 @@ def fetch_host_cache_data(hostid, zabbix_client):
             for name, data in ifaces.items():
                 optical_out = conn.send_command(f'display interface {name} optical-info')
                 data['optical_rx_dbm'], data['optical_tx_dbm'] = _parse_optical(optical_out, 'huawei')
-            routes_out = conn.send_command('display ip routing-table')
-            routes = _parse_huawei_routes(routes_out)
+            try:
+                # Tabela de rotas de um roteador BGP grande pode ser enorme
+                # -- confirmado em produção um NE40 estourar o read_timeout
+                # padrão do netmiko nesse comando. Isolado no próprio
+                # try/except: se isso falhar mesmo com mais tempo, as
+                # interfaces (já coletadas com sucesso acima) não podem
+                # ser descartadas também -- sem isso, um timeout aqui
+                # jogava fora TUDO, inclusive o que já tinha funcionado.
+                routes_out = conn.send_command('display ip routing-table', read_timeout=60)
+                routes = _parse_huawei_routes(routes_out)
+            except Exception:
+                logger.warning(
+                    'Falha ao coletar rotas de %s, mantendo as interfaces já coletadas',
+                    info['name'], exc_info=True,
+                )
+                routes = []
         elif info['vendor'] == 'datacom':
             # Ao contrário de Huawei/Mikrotik, 'show interface transceivers'
             # (sem argumento) já devolve o sinal óptico de TODAS as portas
