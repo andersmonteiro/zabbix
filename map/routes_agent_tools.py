@@ -32,6 +32,22 @@ def _require_agent_token():
         return jsonify({'error': 'Token inválido'}), 401
 
 
+def _cache_miss_note(point):
+    """Uma lista vazia sozinha é ambígua pro agente: "sem dado ainda" e
+    "esse host realmente não tem nada disso" ficam indistinguíveis, e sem
+    isso o modelo depende só da instrução geral de "não inventar" pra não
+    concluir a coisa errada. Devolver esse aviso junto da lista reforça
+    explicitamente qual dos dois casos é, pro agente nunca precisar
+    adivinhar -- não muda nada quando o cache tem dado de verdade."""
+    if point is None:
+        return 'Host sem Point associado no map/ -- nunca foi processado pelo poller de cache SSH, sem dado disponível ainda.'
+    return (
+        'Point existe mas o cache está vazio -- o poller pode não ter rodado '
+        'com sucesso ainda pra esse host, ou esse fabricante não tem suporte '
+        'a essa consulta implementado.'
+    )
+
+
 @agent_tools_bp.route('/interfaces/<hostid>', methods=['GET'])
 def interfaces(hostid):
     """IP e descrição de cada interface, + sinal óptico quando o
@@ -40,20 +56,23 @@ def interfaces(hostid):
     session = _session_factory()
     try:
         point = session.query(Point).filter_by(zabbix_hostid=hostid).first()
-        if point is None:
-            return jsonify([])
-        rows = session.query(InterfaceCache).filter_by(point_id=point.id).all()
-        return jsonify([
-            {
-                'interface': r.interface_name,
-                'ip_address': r.ip_address,
-                'description': r.description,
-                'optical_rx_dbm': r.optical_rx_dbm,
-                'optical_tx_dbm': r.optical_tx_dbm,
-                'updated_at': r.updated_at.isoformat(),
-            }
-            for r in rows
-        ])
+        rows = session.query(InterfaceCache).filter_by(point_id=point.id).all() if point is not None else []
+        result = {
+            'interfaces': [
+                {
+                    'interface': r.interface_name,
+                    'ip_address': r.ip_address,
+                    'description': r.description,
+                    'optical_rx_dbm': r.optical_rx_dbm,
+                    'optical_tx_dbm': r.optical_tx_dbm,
+                    'updated_at': r.updated_at.isoformat(),
+                }
+                for r in rows
+            ],
+        }
+        if not rows:
+            result['note'] = _cache_miss_note(point)
+        return jsonify(result)
     finally:
         session.close()
 
@@ -64,18 +83,21 @@ def routes(hostid):
     session = _session_factory()
     try:
         point = session.query(Point).filter_by(zabbix_hostid=hostid).first()
-        if point is None:
-            return jsonify([])
-        rows = session.query(RouteCache).filter_by(point_id=point.id).all()
-        return jsonify([
-            {
-                'destination': r.destination,
-                'next_hop': r.next_hop,
-                'interface': r.interface_name,
-                'updated_at': r.updated_at.isoformat(),
-            }
-            for r in rows
-        ])
+        rows = session.query(RouteCache).filter_by(point_id=point.id).all() if point is not None else []
+        result = {
+            'routes': [
+                {
+                    'destination': r.destination,
+                    'next_hop': r.next_hop,
+                    'interface': r.interface_name,
+                    'updated_at': r.updated_at.isoformat(),
+                }
+                for r in rows
+            ],
+        }
+        if not rows:
+            result['note'] = _cache_miss_note(point)
+        return jsonify(result)
     finally:
         session.close()
 
