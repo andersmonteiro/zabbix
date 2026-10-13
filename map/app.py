@@ -151,10 +151,26 @@ _ssh_poller_thread = threading.Thread(
 _ssh_poller_thread.start()
 atexit.register(_ssh_poller_stop_event.set)
 
+from ping_poller import PingCache, ping_poll_loop
+
+PING_POLL_INTERVAL_SECONDS = int(os.environ.get('PING_POLL_INTERVAL_SECONDS', '30'))
+ping_cache = PingCache()
+_ping_poller_stop_event = threading.Event()
+_ping_poller_thread = threading.Thread(
+    target=ping_poll_loop,
+    args=(SessionLocal, ping_cache),
+    kwargs={'interval_seconds': PING_POLL_INTERVAL_SECONDS, 'stop_event': _ping_poller_stop_event},
+    daemon=True,
+)
+_ping_poller_thread.start()
+atexit.register(_ping_poller_stop_event.set)
+
 # alert_cache feeds both the notification bell (above) and each equipment
 # Point's alert_severity/alert_count on the map -- a real Zabbix problem
-# open on that host, not just the raw ping/SNMP items.
-init_map_routes(SessionLocal, status_cache, STALE_THRESHOLD_SECONDS, alert_cache=alert_cache)
+# open on that host, not just the raw ping/SNMP items. ping_cache is the
+# fallback status source for a point with no Zabbix availability item
+# configured (or no data yet) -- see build_map_state.
+init_map_routes(SessionLocal, status_cache, STALE_THRESHOLD_SECONDS, alert_cache=alert_cache, ping_cache=ping_cache)
 app.register_blueprint(map_state_bp)
 
 from routes_equipment_images import equipment_images_bp, init_equipment_images_routes

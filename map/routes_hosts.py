@@ -149,19 +149,27 @@ def _upsert_point(hostid, data):
     except (TypeError, ValueError):
         return
 
+    # ip já é obrigatório no formulário de Hosts -- propagar pra
+    # equipment_ip aqui garante que todo Point criado por essa tela tenha
+    # um alvo de ping (ping_poller.py), em vez de só ganhar IP pra quem
+    # passasse por Circuitos/Pontos separadamente.
+    ip = data.get('ip')
+
     session = _session_factory()
     try:
         point = session.query(Point).filter(Point.zabbix_hostid == hostid).first()
         if point is None:
             session.add(Point(
                 name=data.get('name') or hostid, point_type='equipment',
-                zabbix_hostid=hostid, lat=lat, lng=lng,
+                zabbix_hostid=hostid, lat=lat, lng=lng, equipment_ip=ip,
             ))
         else:
             point.lat = lat
             point.lng = lng
             if data.get('name'):
                 point.name = data['name']
+            if ip:
+                point.equipment_ip = ip
         session.commit()
     finally:
         session.close()

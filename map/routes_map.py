@@ -10,15 +10,17 @@ map_state_bp = Blueprint('map_state', __name__, url_prefix='/api')
 _session_factory = None
 _cache = None
 _alert_cache = None
+_ping_cache = None
 _stale_threshold_seconds = 120
 
 
-def init_map_routes(session_factory, cache, stale_threshold_seconds=120, alert_cache=None):
-    global _session_factory, _cache, _stale_threshold_seconds, _alert_cache
+def init_map_routes(session_factory, cache, stale_threshold_seconds=120, alert_cache=None, ping_cache=None):
+    global _session_factory, _cache, _stale_threshold_seconds, _alert_cache, _ping_cache
     _session_factory = session_factory
     _cache = cache
     _stale_threshold_seconds = stale_threshold_seconds
     _alert_cache = alert_cache
+    _ping_cache = ping_cache
 
 
 def _lastvalue(cache, itemid, cast=str):
@@ -89,7 +91,7 @@ def _worst_alert_by_hostid(alert_cache):
     return worst
 
 
-def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=None):
+def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=None, ping_cache=None):
     stale = _is_stale(cache, stale_threshold_seconds)
     last_refresh_seconds_ago = _last_refresh_seconds_ago(cache)
     alerts_by_hostid = _worst_alert_by_hostid(alert_cache)
@@ -102,6 +104,13 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
         }
         if point.point_type == 'equipment':
             operstatus = None if stale else _lastvalue(cache, point.zabbix_status_itemid, int)
+            if operstatus is None and ping_cache is not None:
+                # Sem item de disponibilidade do Zabbix configurado (ou sem
+                # dado ainda) -- cai pro ping ICMP direto (ping_poller.py)
+                # em vez de deixar o ponto "unknown" pra sempre só porque
+                # ninguém vinculou o item certo a ele.
+                ping_ok = ping_cache.get(point.id)
+                operstatus = None if ping_ok is None else (1 if ping_ok else 2)
             entry['status'] = compute_status(operstatus=operstatus)
             entry['equipment_model'] = point.equipment_model
             entry['equipment_ip'] = point.equipment_ip
@@ -252,6 +261,6 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
 def map_state():
     session = _session_factory()
     try:
-        return jsonify(build_map_state(session, _cache, _stale_threshold_seconds, _alert_cache))
+        return jsonify(build_map_state(session, _cache, _stale_threshold_seconds, _alert_cache, _ping_cache))
     finally:
         session.close()
