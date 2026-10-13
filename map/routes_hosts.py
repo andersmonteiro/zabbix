@@ -16,6 +16,7 @@ _zabbix_client = None
 _session_factory = None
 _cache = None
 _stale_threshold_seconds = 120
+_ping_cache = None
 
 # Confirmado contra dado real de produção (item.get num host Huawei com
 # segmento já funcionando) -- são os templates padrão IF-MIB aplicados por
@@ -67,12 +68,13 @@ VENDOR_TEMPLATE_SETS = {
 }
 
 
-def init_hosts_routes(zabbix_client, session_factory, cache=None, stale_threshold_seconds=120):
-    global _zabbix_client, _session_factory, _cache, _stale_threshold_seconds
+def init_hosts_routes(zabbix_client, session_factory, cache=None, stale_threshold_seconds=120, ping_cache=None):
+    global _zabbix_client, _session_factory, _cache, _stale_threshold_seconds, _ping_cache
     _zabbix_client = zabbix_client
     _session_factory = session_factory
     _cache = cache
     _stale_threshold_seconds = stale_threshold_seconds
+    _ping_cache = ping_cache
 
 
 def _snmp_offline(point):
@@ -215,6 +217,10 @@ def _serialize_host(h, point=None, conn_status=None):
             else None
         ),
         'snmp_offline': snmp_status,
+        # Ping ICMP direto (ping_poller.py) -- só existe se o ponto já tem
+        # equipment_ip e o poller já rodou um ciclo pra ele; None = sem
+        # dado ainda, não "offline".
+        'ping_up': _ping_cache.get(point.id) if point is not None and _ping_cache is not None else None,
     }
 
 

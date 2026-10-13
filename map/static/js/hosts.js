@@ -41,6 +41,10 @@ function snmpState(h) {
   return h.snmp_offline === false;
 }
 
+function pingState(h) {
+  return h.ping_up === true;
+}
+
 function renderHosts(hosts) {
   const list = document.getElementById('hosts-list');
   if (hosts.length === 0) {
@@ -56,6 +60,7 @@ function renderHosts(hosts) {
         <div class="host-col" title="${esc(h.vendor)}">${esc(h.vendor) || '—'}</div>
         <div class="host-col" title="${esc(h.groups.join(', '))}">${esc(h.groups.join(', ')) || '—'}</div>
         <div class="host-col host-col-ip">${esc(h.ip) || '—'}</div>
+        <div class="host-col">${statusPill('Ping', pingState(h))}</div>
         <div class="host-col">${statusPill('SSH', sshState(h))}</div>
         <div class="host-col">${statusPill('SNMP', snmpState(h))}</div>
         <button class="host-expand-btn" type="button" aria-label="Editar host" title="Editar host">

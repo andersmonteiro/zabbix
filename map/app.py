@@ -188,7 +188,7 @@ app.register_blueprint(equipment_images_bp)
 
 from routes_hosts import hosts_bp, init_hosts_routes
 
-init_hosts_routes(zabbix_client, SessionLocal, status_cache, STALE_THRESHOLD_SECONDS)
+init_hosts_routes(zabbix_client, SessionLocal, status_cache, STALE_THRESHOLD_SECONDS, ping_cache=ping_cache)
 app.register_blueprint(hosts_bp)
 
 
