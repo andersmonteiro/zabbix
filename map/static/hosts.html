@@ -70,17 +70,34 @@
     .ctx-menu button.danger:hover { background: rgba(229,72,77,0.14); }
     .ctx-menu button svg { width: 14px; height: 14px; flex-shrink: 0; }
 
-    .modal-form { width: 440px; max-height: 84vh; overflow-y: auto; }
-    .modal-form h4 { margin: 20px 20px 16px; }
-    .modal-form-body { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 2px; }
-    .modal-form-body input, .modal-form-body select { margin-bottom: 8px; }
-    .modal-form-body .row2 { display: flex; gap: 8px; }
-    .modal-form-body .row2 > * { flex: 1; }
-    .modal-form-body summary {
+    /* Header (título) e footer (botão + status dos testes) ficam fora da
+       área que rola -- título sumia ao rolar o form, e a mensagem "Host
+       salvo"/testes (que só aparece DEPOIS de clicar salvar) empurrava o
+       conteúdo, fazendo a barra de rolagem aparecer e esconder o próprio
+       resultado que o clique acabou de gerar. */
+    .detail-modal.modal-form.open { display: flex; flex-direction: column; }
+    .modal-form { width: 440px; max-height: 84vh; }
+    .modal-form h4 {
+      margin: 0; padding: 20px 20px 16px; flex-shrink: 0;
+      background: var(--bg-panel); border-bottom: 1px solid var(--border-dim);
+    }
+    .modal-form-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .modal-form-scroll {
+      flex: 1; min-height: 0; overflow-y: auto;
+      padding: 16px 20px 0; display: flex; flex-direction: column; gap: 2px;
+    }
+    .modal-form-scroll input, .modal-form-scroll select { margin-bottom: 8px; }
+    .modal-form-scroll .row2 { display: flex; gap: 8px; }
+    .modal-form-scroll .row2 > * { flex: 1; }
+    .modal-form-scroll summary {
       cursor: pointer; color: var(--text-muted); font-size: 11.5px; font-family: var(--sans);
       letter-spacing: 0.06em; margin-top: 4px;
     }
-    .modal-form-body summary:hover { color: var(--accent); }
+    .modal-form-scroll summary:hover { color: var(--accent); }
+    .modal-form-footer {
+      flex-shrink: 0; padding: 14px 20px 20px;
+      border-top: 1px solid var(--border-dim); background: var(--bg-panel);
+    }
   </style>
 </head>
 <body>
@@ -196,73 +213,77 @@
   <div class="detail-modal modal-form" id="host-modal">
     <h4 id="host-modal-title">Novo host</h4>
     <form class="modal-form-body" id="host-form">
-      <label class="field-label" for="host-name">Nome do host</label>
-      <input id="host-name" name="name" placeholder="ex: KM30-SWITCH-01" required />
+      <div class="modal-form-scroll">
+        <label class="field-label" for="host-name">Nome do host</label>
+        <input id="host-name" name="name" placeholder="ex: KM30-SWITCH-01" required />
 
-      <label class="field-label" for="host-ip">IP</label>
-      <input id="host-ip" name="ip" placeholder="ex: 192.168.1.1" required />
+        <label class="field-label" for="host-ip">IP</label>
+        <input id="host-ip" name="ip" placeholder="ex: 192.168.1.1" required />
 
-      <label class="field-label" for="group-select">Grupo</label>
-      <select name="group_id" id="group-select">
-        <option value="">Selecione o grupo...</option>
-      </select>
+        <label class="field-label" for="group-select">Grupo</label>
+        <select name="group_id" id="group-select">
+          <option value="">Selecione o grupo...</option>
+        </select>
 
-      <div class="row2">
-        <div>
-          <label class="field-label" for="host-vendor">Fabricante</label>
-          <select name="vendor" id="host-vendor">
-            <option value="">Selecione...</option>
-            <option value="huawei">Huawei</option>
-            <option value="mikrotik">Mikrotik</option>
-            <option value="datacom">Datacom</option>
-            <option value="a10">A10</option>
-            <option value="outro">Outro</option>
-          </select>
+        <div class="row2">
+          <div>
+            <label class="field-label" for="host-vendor">Fabricante</label>
+            <select name="vendor" id="host-vendor">
+              <option value="">Selecione...</option>
+              <option value="huawei">Huawei</option>
+              <option value="mikrotik">Mikrotik</option>
+              <option value="datacom">Datacom</option>
+              <option value="a10">A10</option>
+              <option value="outro">Outro</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="host-model">Modelo</label>
+            <input id="host-model" name="model" placeholder="ex: S5720" />
+          </div>
         </div>
-        <div>
-          <label class="field-label" for="host-model">Modelo</label>
-          <input id="host-model" name="model" placeholder="ex: S5720" />
+
+        <div class="row2">
+          <div>
+            <label class="field-label" for="host-community">Comunidade SNMP</label>
+            <input id="host-community" name="community" placeholder="public" value="public" />
+          </div>
+          <div>
+            <label class="field-label" for="host-port">Porta SNMP</label>
+            <input id="host-port" name="port" placeholder="161" value="161" />
+          </div>
         </div>
+
+        <div class="row2">
+          <div>
+            <label class="field-label" for="host-lat">Latitude (opcional)</label>
+            <input id="host-lat" name="lat" placeholder="ex: -4.34" type="number" step="any" min="-90" max="90" />
+          </div>
+          <div>
+            <label class="field-label" for="host-lng">Longitude (opcional)</label>
+            <input id="host-lng" name="lng" placeholder="ex: -55.78" type="number" step="any" min="-180" max="180" />
+          </div>
+        </div>
+
+        <details>
+          <summary>Credenciais SSH (opcional)</summary>
+          <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+            <label class="field-label" for="host-ssh-user">Usuário SSH</label>
+            <input id="host-ssh-user" name="ssh_user" placeholder="ex: monitoramento" />
+            <label class="field-label" for="host-ssh-pass">Senha SSH</label>
+            <input id="host-ssh-pass" name="ssh_pass" placeholder="••••••••" type="password" />
+            <label class="field-label" for="host-ssh-port">Porta SSH</label>
+            <input id="host-ssh-port" name="ssh_port" placeholder="22" />
+          </div>
+        </details>
       </div>
-
-      <div class="row2">
-        <div>
-          <label class="field-label" for="host-community">Comunidade SNMP</label>
-          <input id="host-community" name="community" placeholder="public" value="public" />
+      <div class="modal-form-footer">
+        <button class="btn-primary" type="submit" id="host-form-submit">Criar host</button>
+        <div id="host-form-status" class="form-status">
+          <p id="host-form-status-main"></p>
+          <p id="host-form-status-ssh" class="form-status-line" hidden></p>
+          <p id="host-form-status-snmp" class="form-status-line" hidden></p>
         </div>
-        <div>
-          <label class="field-label" for="host-port">Porta SNMP</label>
-          <input id="host-port" name="port" placeholder="161" value="161" />
-        </div>
-      </div>
-
-      <div class="row2">
-        <div>
-          <label class="field-label" for="host-lat">Latitude (opcional)</label>
-          <input id="host-lat" name="lat" placeholder="ex: -4.34" type="number" step="any" min="-90" max="90" />
-        </div>
-        <div>
-          <label class="field-label" for="host-lng">Longitude (opcional)</label>
-          <input id="host-lng" name="lng" placeholder="ex: -55.78" type="number" step="any" min="-180" max="180" />
-        </div>
-      </div>
-
-      <details>
-        <summary>Credenciais SSH (opcional)</summary>
-        <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
-          <label class="field-label" for="host-ssh-user">Usuário SSH</label>
-          <input id="host-ssh-user" name="ssh_user" placeholder="ex: monitoramento" />
-          <label class="field-label" for="host-ssh-pass">Senha SSH</label>
-          <input id="host-ssh-pass" name="ssh_pass" placeholder="••••••••" type="password" />
-          <label class="field-label" for="host-ssh-port">Porta SSH</label>
-          <input id="host-ssh-port" name="ssh_port" placeholder="22" />
-        </div>
-      </details>
-      <button class="btn-primary" type="submit" id="host-form-submit">Criar host</button>
-      <div id="host-form-status" class="form-status">
-        <p id="host-form-status-main"></p>
-        <p id="host-form-status-ssh" class="form-status-line" hidden></p>
-        <p id="host-form-status-snmp" class="form-status-line" hidden></p>
       </div>
     </form>
   </div>
