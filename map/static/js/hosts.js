@@ -284,42 +284,70 @@ backdrop.addEventListener('click', () => {
 });
 
 // Depois de salvar, testa SSH (só se uma credencial foi informada) e SNMP
-// (sempre tem community/porta, mesmo que seja o default "public"/161) na
-// hora -- é o "faz um teste rápido pra saber se tá acessível" pedido, em vez
-// de precisar abrir a linha e clicar em "Testar SSH" manualmente depois.
-async function runPostSaveChecks(hostid, hasSsh, statusEl) {
+// (sempre tem community/porta, mesmo que seja o default "public"/161) --
+// cada um atualiza a tela assim que RESPONDER, em vez de esperar os dois
+// juntos: um equipamento que responde rápido no SSH não devia ficar preso
+// esperando o SNMP (ou vice-versa) só porque os dois foram pedidos juntos.
+function runPostSaveChecks(hostid, hasSsh, statusEl) {
   statusEl.style.color = '';
-  statusEl.textContent = 'Host salvo. Testando conectividade...';
+  const state = {
+    ssh: hasSsh ? undefined : null, // undefined = ainda testando, null = não configurado
+    snmp: undefined,
+  };
 
-  const [sshResult, snmpResult] = await Promise.all([
-    hasSsh
-      ? api(`/api/zabbix/hosts/${hostid}/test-ssh`, { method: 'POST' }).catch((err) => ({ ok: false, message: err.message }))
-      : Promise.resolve(null),
-    api(`/api/zabbix/hosts/${hostid}/test-snmp`, { method: 'POST' }).catch((err) => ({ ok: false, message: err.message })),
-  ]);
-
-  const parts = [];
-  let allOk = true;
-  if (sshResult) {
-    parts.push(`SSH ${sshResult.ok ? 'OK' : 'falhou'}`);
-    if (!sshResult.ok) allOk = false;
-  } else {
-    parts.push('SSH não configurado');
+  function render() {
+    const parts = [];
+    let pending = false;
+    let anyFail = false;
+    if (state.ssh === null) {
+      parts.push('SSH não configurado');
+    } else if (state.ssh === undefined) {
+      parts.push('SSH testando...');
+      pending = true;
+    } else {
+      parts.push(`SSH ${state.ssh.ok ? 'OK' : 'falhou'}`);
+      anyFail = anyFail || !state.ssh.ok;
+    }
+    if (state.snmp === undefined) {
+      parts.push('SNMP testando...');
+      pending = true;
+    } else {
+      parts.push(`SNMP ${state.snmp.ok ? 'OK' : 'falhou'}`);
+      anyFail = anyFail || !state.snmp.ok;
+    }
+    statusEl.textContent = `Host salvo. ${parts.join(' · ')}.`;
+    statusEl.style.color = pending ? '' : (anyFail ? '#e5484d' : '#3ecf6a');
+    statusEl.title = [state.ssh && state.ssh.message, state.snmp && state.snmp.message].filter(Boolean).join(' | ');
+    return pending;
   }
-  parts.push(`SNMP ${snmpResult.ok ? 'OK' : 'falhou'}`);
-  if (!snmpResult.ok) allOk = false;
+  render();
 
-  statusEl.textContent = `Host salvo. ${parts.join(' · ')}.`;
-  statusEl.style.color = allOk ? '#3ecf6a' : '#e5484d';
-  statusEl.title = [sshResult ? sshResult.message : '', snmpResult.message].filter(Boolean).join(' | ');
+  const sshPromise = hasSsh
+    ? api(`/api/zabbix/hosts/${hostid}/test-ssh`, { method: 'POST' }).catch((err) => ({ ok: false, message: err.message }))
+    : Promise.resolve(null);
+  const snmpPromise = api(`/api/zabbix/hosts/${hostid}/test-snmp`, { method: 'POST' }).catch((err) => ({ ok: false, message: err.message }));
 
-  await loadHosts();
-  if (allOk) {
-    setTimeout(() => {
-      modal.classList.remove('open');
-      backdrop.classList.remove('open');
-    }, 1800);
-  }
+  sshPromise.then((result) => {
+    if (hasSsh) updatePill(hostid, 'SSH', result.ok);
+    state.ssh = result;
+    render();
+    loadHosts();
+  });
+  snmpPromise.then((result) => {
+    updatePill(hostid, 'SNMP', result.ok);
+    state.snmp = result;
+    const pending = render();
+    loadHosts();
+    if (!pending && state.ssh !== undefined) {
+      const anyFail = (state.ssh && state.ssh.ok === false) || !result.ok;
+      if (!anyFail) {
+        setTimeout(() => {
+          modal.classList.remove('open');
+          backdrop.classList.remove('open');
+        }, 1800);
+      }
+    }
+  });
 }
 
 document.getElementById('host-form').addEventListener('submit', async (e) => {

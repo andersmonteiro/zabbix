@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
-from models import Point
+from models import HostConnectivityStatus, Point
 from snmp_tools import SNMPToolError, test_snmp
 from ssh_tools import SSHToolError, test_ssh
 from zabbix_client import ZabbixAPIError
@@ -167,9 +167,17 @@ def _upsert_point(hostid, data):
         session.close()
 
 
-def _serialize_host(h, point=None):
+def _serialize_host(h, point=None, conn_status=None):
     iface = h['interfaces'][0] if h.get('interfaces') else {}
     macros = {m['macro']: m['value'] for m in h.get('macros', [])}
+    # snmp_offline vem do poller (fonte mais precisa, fica fresco sozinho)
+    # quando disponível; sem isso (host sem Point, ou poller nunca rodou
+    # pra ele), cai pro último teste manual salvo em conn_status -- do
+    # jeito antigo, um host sem posição no mapa nunca mostrava nada.
+    live_snmp = _snmp_offline(point)
+    snmp_status = live_snmp if live_snmp is not None else (
+        conn_status.snmp_last_ok if conn_status is not None else None
+    )
     return {
         'hostid': h['hostid'],
         'host': h['host'],
@@ -184,13 +192,13 @@ def _serialize_host(h, point=None):
         'status': 'enabled' if h.get('status') == '0' else 'disabled',
         'lat': point.lat if point is not None else None,
         'lng': point.lng if point is not None else None,
-        'ssh_last_ok': point.ssh_last_ok if point is not None else None,
+        'ssh_last_ok': conn_status.ssh_last_ok if conn_status is not None else None,
         'ssh_last_checked_at': (
-            point.ssh_last_checked_at.isoformat()
-            if point is not None and point.ssh_last_checked_at
+            conn_status.ssh_last_checked_at.isoformat()
+            if conn_status is not None and conn_status.ssh_last_checked_at
             else None
         ),
-        'snmp_offline': _snmp_offline(point),
+        'snmp_offline': snmp_status,
     }
 
 
@@ -213,10 +221,16 @@ def list_hosts():
             p.zabbix_hostid: p
             for p in session.query(Point).filter(Point.zabbix_hostid.isnot(None))
         }
+        conn_status_by_hostid = {
+            c.zabbix_hostid: c for c in session.query(HostConnectivityStatus)
+        }
     finally:
         session.close()
 
-    return jsonify([_serialize_host(h, points_by_hostid.get(h['hostid'])) for h in hosts])
+    return jsonify([
+        _serialize_host(h, points_by_hostid.get(h['hostid']), conn_status_by_hostid.get(h['hostid']))
+        for h in hosts
+    ])
 
 
 def _extract_description(item_name, ifname):
@@ -383,39 +397,61 @@ def update_host(hostid):
     return jsonify({'ok': True})
 
 
+def _get_or_create_conn_status(session, hostid):
+    status = session.query(HostConnectivityStatus).filter(
+        HostConnectivityStatus.zabbix_hostid == hostid
+    ).first()
+    if status is None:
+        status = HostConnectivityStatus(zabbix_hostid=hostid)
+        session.add(status)
+    return status
+
+
 @hosts_bp.route('/hosts/<hostid>/test-ssh', methods=['POST'])
 def test_host_ssh(hostid):
+    """Persiste em HostConnectivityStatus (por zabbix_hostid, não por
+    Point) -- assim o resultado sobrevive ao reload da lista de Hosts
+    mesmo que esse host ainda não tenha sido posicionado no mapa."""
+    try:
+        message = test_ssh(hostid, _zabbix_client)
+        ok = True
+    except SSHToolError as e:
+        message = str(e)
+        ok = False
     session = _session_factory()
     try:
-        point = session.query(Point).filter(Point.zabbix_hostid == hostid).first()
-        try:
-            message = test_ssh(hostid, _zabbix_client)
-            ok = True
-        except SSHToolError as e:
-            message = str(e)
-            ok = False
-        if point is not None:
-            point.ssh_last_ok = ok
-            point.ssh_last_checked_at = datetime.now(timezone.utc)
-            session.commit()
-        return jsonify({'ok': ok, 'message': message})
+        status = _get_or_create_conn_status(session, hostid)
+        status.ssh_last_ok = ok
+        status.ssh_last_checked_at = datetime.now(timezone.utc)
+        session.commit()
     finally:
         session.close()
+    return jsonify({'ok': ok, 'message': message})
 
 
 @hosts_bp.route('/hosts/<hostid>/test-snmp', methods=['POST'])
 def test_host_snmp(hostid):
     """Checagem sob demanda (GET em sysDescr.0), pro botão "Testar SNMP" e
-    pro teste automático logo após salvar um host. Não persiste resultado --
-    o badge de SNMP na lista de Hosts continua vindo do polling contínuo do
-    Zabbix (routes_hosts._snmp_offline), que é a fonte de verdade; isto aqui
-    é só uma confirmação imediata no momento de preencher a credencial."""
+    pro teste automático logo após salvar um host. Persiste em
+    HostConnectivityStatus como fallback -- o badge de SNMP na lista de
+    Hosts prefere o polling contínuo do Zabbix (_snmp_offline), mais
+    preciso e sempre fresco, mas esse só funciona pra hosts já
+    posicionados no mapa (precisa de Point). Pra um host novo, ainda sem
+    posição, isto aqui é a única fonte até ele ser posicionado."""
     try:
         message = test_snmp(hostid, _zabbix_client)
         ok = True
     except SNMPToolError as e:
         message = str(e)
         ok = False
+    session = _session_factory()
+    try:
+        status = _get_or_create_conn_status(session, hostid)
+        status.snmp_last_ok = ok
+        status.snmp_last_checked_at = datetime.now(timezone.utc)
+        session.commit()
+    finally:
+        session.close()
     return jsonify({'ok': ok, 'message': message})
 
 

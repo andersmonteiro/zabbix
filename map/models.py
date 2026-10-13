@@ -37,13 +37,32 @@ class Point(Base):
     equipment_model = Column(String, nullable=True)  # used to look up the photo
     equipment_ip = Column(String, nullable=True)
 
-    # Resultado do último teste de conexão SSH (botão "Testar SSH" na tela de
-    # Hosts, ou uma chamada real do agente de IA) -- None = nunca testado,
-    # diferente de False (testado e falhou). Credenciais em si continuam só
-    # nas macros do host no Zabbix ({$SSH_USER}/{$SSH_PASS}/{$SSH_PORT}),
-    # nunca duplicadas aqui.
+    # Legado -- não lido/escrito mais (ver HostConnectivityStatus abaixo).
+    # Mantido só pra não precisar de uma migração de DROP COLUMN.
     ssh_last_ok = Column(Boolean, nullable=True)
     ssh_last_checked_at = Column(DateTime, nullable=True)
+
+
+class HostConnectivityStatus(Base):
+    """Resultado do último teste de SSH/SNMP por host do Zabbix (botão
+    "Testar SSH"/"Testar SNMP" na tela de Hosts, ou o teste automático
+    logo após salvar um host) -- independente de o host já ter sido
+    posicionado no mapa. Antes esse resultado vivia em Point.ssh_last_ok,
+    e Point só existe quando lat/lng foram definidos; um host recém-
+    cadastrado sem posição no mapa testava com sucesso mas o resultado
+    não tinha onde ser salvo, então a lista de Hosts voltava a mostrar
+    cinza no próximo carregamento. None = nunca testado, diferente de
+    False (testado e falhou). Credenciais em si continuam só nas macros
+    do host no Zabbix ({$SSH_USER}/{$SSH_PASS}/{$SSH_PORT}), nunca
+    duplicadas aqui."""
+    __tablename__ = 'netmap_host_connectivity_status'
+
+    id = Column(Integer, primary_key=True)
+    zabbix_hostid = Column(String, nullable=False, unique=True)
+    ssh_last_ok = Column(Boolean, nullable=True)
+    ssh_last_checked_at = Column(DateTime, nullable=True)
+    snmp_last_ok = Column(Boolean, nullable=True)
+    snmp_last_checked_at = Column(DateTime, nullable=True)
 
 
 class InterfaceCache(Base):
