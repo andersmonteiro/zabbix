@@ -9,6 +9,7 @@ const fs      = require('fs');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const qrcodeImage = require('qrcode');
+const puppeteer = require('puppeteer');
 
 const app = express();
 app.use(express.json());
@@ -70,6 +71,22 @@ const AI_CHAT_ENABLED       = AI_AGENT_TOKEN !== '';
 // ou "XXXXXXXXXX@g.us", iguais aos retornados por GET /groups).
 const AI_ALLOWED_CHATS      = (process.env.AI_ALLOWED_CHATS || '').split(',').map(s => s.trim()).filter(Boolean);
 const AI_REQUEST_TIMEOUT_MS = parseInt(process.env.AI_REQUEST_TIMEOUT_MS || '60000', 10);
+// Cadastro simples "quem é quem" pra o agente poder chamar a pessoa pelo
+// nome -- formato "id:Nome,id:Nome", mesmo id usado em AI_ALLOWED_CHATS/
+// GET /groups (ex: "5511999999999@c.us:Anderson"). Editar exige redeploy;
+// se isso virar algo usado com frequência, vale uma tela própria no
+// painel em vez de só variável de ambiente.
+const AI_SENDER_NAMES = new Map(
+    (process.env.AI_SENDER_NAMES || '')
+        .split(',')
+        .map((pair) => pair.trim())
+        .filter(Boolean)
+        .map((pair) => {
+            const idx = pair.indexOf(':');
+            return [pair.slice(0, idx).trim(), pair.slice(idx + 1).trim()];
+        })
+        .filter(([id, name]) => id && name),
+);
 
 if (process.env.ZABBIX_INSECURE === '1') {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -134,6 +151,105 @@ function setupClientEvents(c) {
 }
 
 // ─── Chat com o agente de IA central ──────────────────────────────────────────
+// O agente formata a resposta em markdown (negrito **assim**, bloco de
+// código ```assim```) pensando no chat web, que renderiza isso de verdade
+// (ver agente.js) -- o WhatsApp tem sua PRÓPRIA sintaxe, diferente: um
+// asterisco só pro negrito (*assim*), e nenhum suporte a crase simples
+// pra código inline. Bloco de código com crase TRIPLA o WhatsApp já
+// reconhece nativamente (mostra monoespaçado), por isso esse não é
+// convertido -- só preservado intacto, pra não estragar a saída crua de
+// equipamento que vem dentro dele.
+function markdownToWhatsApp(text) {
+    const parts = text.split(/(```[\s\S]*?```)/g);
+    return parts.map((part) => {
+        if (part.startsWith('```')) return part;
+        return part
+            .replace(/\*\*(.+?)\*\*/g, '*$1*')
+            .replace(/`([^`]+)`/g, '$1');
+    }).join('');
+}
+
+// ─── Resposta com bloco de código como imagem ─────────────────────────────────
+// Consulta ao vivo num equipamento (config de interface, ARP, log) vem como
+// saída crua dentro de um bloco ``` -- em texto puro do WhatsApp isso sai sem
+// a formatação pensada pro chat web (negrito vira *um* asterisco, sem como
+// caixa/cor de fundo). Em vez disso, renderiza a resposta inteira como uma
+// imagem (mesmo visual do chat web) e manda como foto, com a frase-resumo
+// como legenda. Reaproveita o mesmo motor Puppeteer que já é dependência do
+// whatsapp-web.js, só que numa aba própria (não a aba do WhatsApp Web em si).
+let renderBrowserPromise = null;
+function getRenderBrowser() {
+    if (!renderBrowserPromise) {
+        renderBrowserPromise = puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
+    }
+    return renderBrowserPromise;
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+}
+
+function replyMarkdownToHtml(text) {
+    const parts = text.split(/(```[\s\S]*?```)/g);
+    return parts.map((part) => {
+        if (part.startsWith('```')) {
+            const inner = part.replace(/^```[^\n]*\n?/, '').replace(/```$/, '');
+            return `<pre>${escapeHtml(inner)}</pre>`;
+        }
+        return escapeHtml(part)
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+    }).join('');
+}
+
+async function renderReplyAsImage(replyText) {
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 20px; width: 640px; background: #0a0a0a;
+            font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 14px; line-height: 1.6; color: #d4d4d4;
+        }
+        strong { color: #fff; font-weight: 700; }
+        code {
+            font-family: "SF Mono", Consolas, monospace; font-size: 12.5px;
+            background: #141414; border: 1px solid #333; border-radius: 4px; padding: 1px 5px;
+        }
+        pre {
+            font-family: "SF Mono", Consolas, monospace; font-size: 12.5px; line-height: 1.5;
+            background: #1a1a1a; border: 1px solid #333; border-left: 3px solid #888;
+            border-radius: 8px; padding: 14px 16px; margin: 10px 0; white-space: pre-wrap;
+            word-break: break-word; color: #fff;
+        }
+    </style></head><body>${replyMarkdownToHtml(replyText)}</body></html>`;
+
+    const browser = await getRenderBrowser();
+    const page = await browser.newPage();
+    try {
+        await page.setViewport({ width: 680, height: 100 });
+        await page.setContent(html, { waitUntil: 'load' });
+        const bodyHandle = await page.$('body');
+        const box = await bodyHandle.boundingBox();
+        await page.setViewport({ width: 680, height: Math.ceil(box.height) });
+        return await page.screenshot({ type: 'png' });
+    } finally {
+        await page.close();
+    }
+}
+
+// Primeiro parágrafo (antes do primeiro bloco ``` ou quebra dupla) -- vira a
+// legenda da imagem, o que aparece na pré-visualização da conversa.
+function replySummary(text) {
+    const before = text.split('```')[0].trim();
+    return before.split(/\n\s*\n/)[0].trim() || 'Resultado da consulta:';
+}
+
 async function askAgent(message, conversationId) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
@@ -242,9 +358,34 @@ function setupAiChatHandler(c) {
             }
         }
 
+        // Em grupo, quem mandou é msg.author (o número individual dentro
+        // do grupo); numa DM, o remetente é o próprio chatId. Prefixo
+        // simples no texto em vez de mexer no formato do /chat (repetido
+        // em toda mensagem, não só na primeira, pra funcionar mesmo que o
+        // histórico da conversa não seja carregado por algum motivo).
+        const senderId = isGroup ? msg.author : chatId;
+        const senderName = senderId && AI_SENDER_NAMES.get(senderId);
+        const messageForAgent = senderName ? `[Mensagem de ${senderName}]: ${msg.body}` : msg.body;
+
         try {
-            const reply = await askAgent(msg.body, chatId);
-            await msg.reply(reply);
+            const reply = await askAgent(messageForAgent, chatId);
+
+            if (reply.includes('```')) {
+                // Consulta ao vivo com saída crua de equipamento -- manda
+                // como imagem formatada (negrito, caixa de código) em vez
+                // de texto puro, que perderia essa formatação no WhatsApp.
+                try {
+                    const png = await renderReplyAsImage(reply);
+                    const media = new MessageMedia('image/png', png.toString('base64'), 'resposta.png');
+                    await msg.reply(media, undefined, { caption: replySummary(reply) });
+                } catch (renderErr) {
+                    log('WARN', `Falha ao renderizar imagem, mandando texto puro: ${renderErr.message}`);
+                    await msg.reply(markdownToWhatsApp(reply));
+                }
+            } else {
+                await msg.reply(markdownToWhatsApp(reply));
+            }
+
             log('INFO', `IA respondeu em ${chatId}`);
         } catch (err) {
             log('ERROR', `IA falhou em ${chatId}: ${err.message}`);
