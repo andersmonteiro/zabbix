@@ -233,9 +233,13 @@ def get_bgp_peer_detail(hostid, peer_ip, zabbix_client):
 
 
 def get_bgp_config(hostid, zabbix_client):
-    """Configuração completa de BGP (AS, vizinhos, route-policy aplicada a
-    cada um, etc) -- "display current-configuration bgp"."""
-    return _huawei_only_display(hostid, zabbix_client, 'display current-configuration bgp', 'Configuração de BGP')
+    """Configuração completa de BGP (AS, vizinhos com descrição, route-policy
+    aplicada a cada um, etc) -- "display current configuration bgp".
+    Confirmado ao vivo: "current-configuration" (com hífen, igual o resto
+    dos comandos "display current-configuration interface X" deste
+    arquivo) dá erro de sintaxe pra essa visão especificamente -- aqui é
+    "current" e "configuration" como duas palavras separadas."""
+    return _huawei_only_display(hostid, zabbix_client, 'display current configuration bgp', 'Configuração de BGP')
 
 
 def get_route_policy_config(hostid, zabbix_client):
