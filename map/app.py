@@ -140,16 +140,24 @@ app.register_blueprint(agent_tools_bp)
 
 from ssh_poller import ssh_cache_poll_loop
 
-SSH_CACHE_POLL_INTERVAL_SECONDS = int(os.environ.get('SSH_CACHE_POLL_INTERVAL_SECONDS', '300'))
-_ssh_poller_stop_event = threading.Event()
-_ssh_poller_thread = threading.Thread(
-    target=ssh_cache_poll_loop,
-    args=(SessionLocal, zabbix_client),
-    kwargs={'interval_seconds': SSH_CACHE_POLL_INTERVAL_SECONDS, 'stop_event': _ssh_poller_stop_event},
-    daemon=True,
-)
-_ssh_poller_thread.start()
-atexit.register(_ssh_poller_stop_event.set)
+# Pausável via env sem precisar de rebuild -- um equipamento pode começar a
+# recusar/resetar conexões SSH vindas do IP desta VM (limite de sessões
+# simultâneas ou rate-limit do próprio daemon SSH dele, não firewall) depois
+# de tentativas repetidas deste poller + dos testes manuais/automáticos da
+# tela de Hosts. Desligar aqui para esse equipamento se recuperar, sem
+# perder a função de "Testar SSH" manual (não depende deste loop).
+SSH_CACHE_POLL_ENABLED = os.environ.get('SSH_CACHE_POLL_ENABLED', '1') == '1'
+if SSH_CACHE_POLL_ENABLED:
+    SSH_CACHE_POLL_INTERVAL_SECONDS = int(os.environ.get('SSH_CACHE_POLL_INTERVAL_SECONDS', '300'))
+    _ssh_poller_stop_event = threading.Event()
+    _ssh_poller_thread = threading.Thread(
+        target=ssh_cache_poll_loop,
+        args=(SessionLocal, zabbix_client),
+        kwargs={'interval_seconds': SSH_CACHE_POLL_INTERVAL_SECONDS, 'stop_event': _ssh_poller_stop_event},
+        daemon=True,
+    )
+    _ssh_poller_thread.start()
+    atexit.register(_ssh_poller_stop_event.set)
 
 from ping_poller import PingCache, ping_poll_loop
 
