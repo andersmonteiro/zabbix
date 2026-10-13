@@ -140,9 +140,14 @@ async function askAgent(message, conversationId) {
             throw new Error(`Agente respondeu HTTP ${response.status}`);
         }
 
-        // O agente responde em SSE (server-sent events): várias linhas
-        // "data: <pedaço de texto>" conforme o modelo gera, terminando em
-        // "event: done". Concatena tudo até o fim do stream.
+        // O agente responde em SSE (server-sent events): um registro por
+        // pedaço de texto gerado, terminado em linha em branco. Um pedaço
+        // com quebra de linha (comum em saída de equipamento: config, ARP,
+        // log) vira VÁRIAS linhas "data: " dentro do MESMO registro (ver
+        // sse_data() em chat.py) -- juntar só pegando "data: " solto sem
+        // recolocar a quebra entre elas grudava tudo numa linha só. Junta
+        // as linhas de um registro com "\n", e cada registro (um pedaço de
+        // texto novo) concatena direto no texto acumulado, sem separador.
         const reader  = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -152,11 +157,18 @@ async function askAgent(message, conversationId) {
             const { done: readerDone, value } = await reader.read();
             if (readerDone) break;
             buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop();
-            for (const line of lines) {
-                if (line.startsWith('data: ')) text += line.slice(6);
-                if (line.startsWith('event: done')) done = true;
+
+            let sepIndex;
+            while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
+                const record = buffer.slice(0, sepIndex);
+                buffer = buffer.slice(sepIndex + 2);
+
+                const lines = record.split('\n');
+                if (lines.some((l) => l.startsWith('event: done'))) done = true;
+                const dataLines = lines.filter((l) => l.startsWith('data: '));
+                if (dataLines.length > 0) {
+                    text += dataLines.map((l) => l.slice(6)).join('\n');
+                }
             }
         }
         return text.trim() || '(sem resposta)';
