@@ -106,6 +106,11 @@ function renderMapDependentPanels(mapState, hosts) {
     const latency = p.latency_ms !== null && p.latency_ms !== undefined ? `${Math.round(p.latency_ms)} ms` : '—';
     const sshCls = host && host.ssh_last_ok !== null && host.ssh_last_ok !== undefined ? (host.ssh_last_ok ? 'ok' : 'fail') : 'unknown';
     const snmpCls = p.snmp_offline === null || p.snmp_offline === undefined ? 'unknown' : (p.snmp_offline ? 'fail' : 'ok');
+    const protoPill = (cls) => {
+      const map = { ok: ['up', 'UP'], fail: ['down', 'DOWN'], unknown: ['unknown', '—'] };
+      const [pillCls, label] = map[cls];
+      return `<span class="status-pill ${pillCls}">${label}</span>`;
+    };
     const hasAlert = p.alert_severity !== null && p.alert_severity !== undefined;
     const alertText = hasAlert
       ? `<span class="health-alert-text ${p.alert_severity >= 4 ? 'crit' : 'warn'}">${p.alert_count} ${p.alert_count > 1 ? 'alertas' : 'alerta'}</span>`
@@ -114,8 +119,8 @@ function renderMapDependentPanels(mapState, hosts) {
       <div class="health-row">
         <div class="health-name" title="${dashEsc(p.name)}">${dashEsc(p.name)}</div>
         <div class="health-col health-col-status"><span class="status-pill ${dashEsc(p.status)}">${dashEsc(p.status)}</span></div>
-        <div class="health-col health-col-ssh"><span class="health-dot ${sshCls}" title="SSH"></span></div>
-        <div class="health-col health-col-snmp"><span class="health-dot ${snmpCls}" title="SNMP"></span></div>
+        <div class="health-col health-col-ssh" title="SSH">${protoPill(sshCls)}</div>
+        <div class="health-col health-col-snmp" title="SNMP">${protoPill(snmpCls)}</div>
         <div class="health-col health-col-uptime health-uptime">${dashEsc(dashFmtUptime(p.uptime_seconds))}</div>
         <div class="health-col health-col-latency health-latency">${dashEsc(latency)}</div>
         <div class="health-col health-col-alert">${alertText}</div>

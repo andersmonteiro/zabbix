@@ -82,7 +82,7 @@
        coluna cresce na proporção do seu peso e a soma sempre enche 100%
        do painel, então não existe mais vão sem dono. */
     .health-col { flex: 64 64 0; text-align: center; }
-    .health-col-ssh, .health-col-snmp { flex: 40 40 0; }
+    .health-col-ssh, .health-col-snmp { flex: 56 56 0; }
     .health-col-uptime, .health-col-latency { flex: 60 60 0; }
     .health-col-alert { flex: 80 80 0; }
     .health-name {
@@ -90,10 +90,6 @@
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .health-latency, .health-uptime { color: var(--text-muted); font-family: var(--mono); font-size: 11px; }
-    .health-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-    .health-dot.ok { background: var(--green); }
-    .health-dot.fail { background: var(--red); }
-    .health-dot.unknown { background: var(--text-muted); opacity: 0.4; }
     .health-alert-text { font-family: var(--sans); font-size: 11px; font-weight: 600; white-space: nowrap; }
     .health-alert-text.crit { color: var(--red); }
     .health-alert-text.warn { color: var(--yellow); }
