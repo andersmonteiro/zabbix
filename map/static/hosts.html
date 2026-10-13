@@ -102,8 +102,9 @@
     .modal-form-col:last-child { border-left: 1px solid var(--border-dim); padding-left: 24px; }
     .field-section-label {
       font-size: 11.5px; font-weight: 600; color: var(--text-muted);
-      text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 10px;
+      text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 10px;
     }
+    .field-section-label:first-child { margin-top: 0; }
     .modal-form-scroll .row2 > * { flex: 1; }
     .modal-form-scroll summary {
       cursor: pointer; color: var(--text-muted); font-size: 11.5px; font-family: var(--sans);
@@ -276,17 +277,6 @@
                 <input id="host-port" name="port" placeholder="161" value="161" />
               </div>
             </div>
-
-            <div class="row2">
-              <div>
-                <label class="field-label" for="host-lat">Latitude (opcional)</label>
-                <input id="host-lat" name="lat" placeholder="ex: -4.34" type="number" step="any" min="-90" max="90" />
-              </div>
-              <div>
-                <label class="field-label" for="host-lng">Longitude (opcional)</label>
-                <input id="host-lng" name="lng" placeholder="ex: -55.78" type="number" step="any" min="-180" max="180" />
-              </div>
-            </div>
           </div>
 
           <div class="modal-form-col">
@@ -297,6 +287,18 @@
             <input id="host-ssh-pass" name="ssh_pass" placeholder="••••••••" type="password" />
             <label class="field-label" for="host-ssh-port">Porta SSH</label>
             <input id="host-ssh-port" name="ssh_port" placeholder="22" />
+
+            <p class="field-section-label">Localização (opcional)</p>
+            <div class="row2">
+              <div>
+                <label class="field-label" for="host-lat">Latitude</label>
+                <input id="host-lat" name="lat" placeholder="ex: -4.34" type="number" step="any" min="-90" max="90" />
+              </div>
+              <div>
+                <label class="field-label" for="host-lng">Longitude</label>
+                <input id="host-lng" name="lng" placeholder="ex: -55.78" type="number" step="any" min="-180" max="180" />
+              </div>
+            </div>
           </div>
         </div>
       </div>

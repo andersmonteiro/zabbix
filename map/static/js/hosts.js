@@ -26,11 +26,12 @@ async function api(path, options) {
 
 // Sem credencial cadastrada, sem item configurado, ou nunca testado --
 // tudo vira "falha" (vermelho), não "sem teste" (cinza): não dá pra
-// confirmar acesso/disponibilidade, então não é seguro assumir ok. Só a
-// cor já diz tudo -- o texto fica com o nome do protocolo, sem repetir
-// "OK"/"Falha" que seria redundante com a própria cor.
+// confirmar acesso/disponibilidade, então não é seguro assumir ok.
+// Texto UP/DOWN (não o nome do protocolo) -- mesmo padrão do Dashboard;
+// data-proto continua sendo o nome real, só pra updatePill() achar a
+// pill certa depois de um teste manual.
 function statusPill(label, state) {
-  return `<span class="status-pill ${state ? 'ok' : 'fail'}" data-proto="${label}">${esc(label)}</span>`;
+  return `<span class="status-pill ${state ? 'ok' : 'fail'}" data-proto="${label}">${state ? 'UP' : 'DOWN'}</span>`;
 }
 
 function sshState(h) {
@@ -100,6 +101,7 @@ function updatePill(hostid, proto, ok) {
   const pill = row.querySelector(`.status-pill[data-proto="${proto}"]`);
   if (!pill) return;
   pill.className = `status-pill ${ok ? 'ok' : 'fail'}`;
+  pill.textContent = ok ? 'UP' : 'DOWN';
 }
 
 // Testa SSH (só hosts com credencial já cadastrada) e SNMP (todos, já que
