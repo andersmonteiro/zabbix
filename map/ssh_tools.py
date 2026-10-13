@@ -34,6 +34,15 @@ class SSHToolError(Exception):
     conexão) -- sempre com mensagem segura pra mostrar ao usuário/modelo."""
 
 
+class SSHAuthError(SSHToolError):
+    """Usuário/senha recusados -- diferente de timeout ou sem credencial
+    cadastrada. Equipamentos (Huawei em especial) têm proteção anti-
+    bruteforce que bloqueia o IP de origem após N tentativas de login
+    malsucedidas; ssh_poller.py usa esse tipo especificamente pra aplicar
+    um cooldown bem mais longo, em vez de tentar de novo no próximo ciclo
+    normal com a mesma credencial errada."""
+
+
 def _fetch_host_info(hostid, zabbix_client):
     try:
         hosts = zabbix_client.call('host.get', {
@@ -91,7 +100,7 @@ def _connect(info):
             auth_timeout=CONNECT_TIMEOUT,
         )
     except NetmikoAuthenticationException as e:
-        raise SSHToolError(f'Usuário/senha SSH recusados por {info["ip"]}') from e
+        raise SSHAuthError(f'Usuário/senha SSH recusados por {info["ip"]}') from e
     except NetmikoTimeoutException as e:
         raise SSHToolError(f'Não respondeu na porta SSH ({info["ip"]}:{info["port"]})') from e
     except Exception as e:

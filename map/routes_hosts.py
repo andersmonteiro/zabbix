@@ -410,6 +410,23 @@ def update_host(hostid):
         return jsonify({'error': str(e)}), 502
 
     _upsert_point(hostid, data)
+
+    # Credencial nova digitada -- limpa o cooldown de autenticação (ver
+    # ssh_poller.py/SSH_AUTH_COOLDOWN_HOURS) senão o poller continuaria
+    # ignorando esse host até o cooldown antigo expirar, mesmo já com a
+    # senha corrigida.
+    if data.get('ssh_user') or data.get('ssh_pass'):
+        db_session = _session_factory()
+        try:
+            status = db_session.query(HostConnectivityStatus).filter(
+                HostConnectivityStatus.zabbix_hostid == hostid
+            ).first()
+            if status is not None and status.ssh_auth_blocked_until is not None:
+                status.ssh_auth_blocked_until = None
+                db_session.commit()
+        finally:
+            db_session.close()
+
     return jsonify({'ok': True})
 
 

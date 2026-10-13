@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, JSON, DateTime, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, JSON, DateTime, Boolean, text
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 Base = declarative_base()
@@ -63,6 +63,13 @@ class HostConnectivityStatus(Base):
     ssh_last_checked_at = Column(DateTime, nullable=True)
     snmp_last_ok = Column(Boolean, nullable=True)
     snmp_last_checked_at = Column(DateTime, nullable=True)
+    # Setado só após uma falha de AUTENTICAÇÃO (usuário/senha recusados),
+    # nunca por timeout/sem credencial -- equipamentos (Huawei em especial)
+    # têm proteção anti-bruteforce que bloqueia o IP de origem depois de N
+    # tentativas de login malsucedidas. Enquanto estiver no futuro,
+    # ssh_poller.py pula esse host (ver ssh_tools.SSHAuthError), em vez de
+    # continuar tentando com a mesma credencial errada a cada ciclo.
+    ssh_auth_blocked_until = Column(DateTime, nullable=True)
 
 
 class InterfaceCache(Base):
@@ -160,3 +167,11 @@ def get_session_factory(engine):
 
 def init_db(engine):
     Base.metadata.create_all(engine)
+    # create_all só cria tabelas que não existem -- netmap_host_connectivity_status
+    # já existia antes deste campo; IF NOT EXISTS torna isso idempotente (seguro
+    # rodar em todo startup, inclusive num banco que já tem a coluna).
+    with engine.begin() as conn:
+        conn.execute(text(
+            'ALTER TABLE netmap_host_connectivity_status '
+            'ADD COLUMN IF NOT EXISTS ssh_auth_blocked_until TIMESTAMP'
+        ))
