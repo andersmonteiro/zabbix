@@ -323,14 +323,25 @@ _MIKROTIK_ROUTE_RE = re.compile(
 )
 
 
+def _strip_huawei_iface_speed_suffix(name):
+    """Uma porta que negocia abaixo da capacidade nominal aparece como
+    "25GE0/5/24(10G)" em 'display interface description' (confirmado em
+    produção) -- mas comandos que recebem o nome da interface como
+    argumento (display current-configuration interface, display arp
+    interface, ...) rejeitam esse sufixo ("Wrong parameter found").
+    Removido aqui pra todo nome cacheado já sair no formato que os outros
+    comandos aceitam direto."""
+    return re.sub(r'\([^()]*\)$', '', name)
+
+
 def _parse_huawei_interfaces(brief_output, desc_output):
     ifaces = {}
     for m in _HUAWEI_BRIEF_RE.finditer(brief_output):
-        name = m.group('name')
+        name = _strip_huawei_iface_speed_suffix(m.group('name'))
         ip = m.group('ip')
         ifaces[name] = {'ip_address': None if ip.lower() == 'unassigned' else ip, 'description': None}
     for m in _HUAWEI_DESC_RE.finditer(desc_output):
-        name = m.group('name')
+        name = _strip_huawei_iface_speed_suffix(m.group('name'))
         if name in ifaces:
             ifaces[name]['description'] = m.group('desc').strip() or None
     return ifaces
