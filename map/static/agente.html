@@ -48,6 +48,22 @@
     .agente-msg.assistant { align-self: flex-start; max-width: 82%; color: var(--text-secondary); }
     .agente-msg.assistant.notice { color: var(--text-muted); font-style: normal; }
 
+    /* "Digitando..." enquanto espera o primeiro pedaço de texto chegar --
+       sem isso a espera (consulta ao Zabbix/SSH pode levar alguns
+       segundos) ficava com a tela parada, sem nenhum sinal de que algo
+       estava acontecendo. */
+    .agente-typing { display: inline-flex; align-items: center; gap: 4px; padding: 2px 0; }
+    .agente-typing span {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted);
+      animation: agente-typing-bounce 1.1s infinite ease-in-out;
+    }
+    .agente-typing span:nth-child(2) { animation-delay: 0.15s; }
+    .agente-typing span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes agente-typing-bounce {
+      0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-3px); }
+    }
+
     .agente-input-row { display: flex; align-items: center; gap: 10px; padding: 14px 24px 20px; border-top: 1px solid var(--border); background: var(--bg-panel); flex-shrink: 0; }
     .agente-input-pill {
       flex: 1; display: flex; align-items: center; background: var(--bg-canvas); border: 1px solid var(--border-2);

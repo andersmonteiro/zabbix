@@ -31,6 +31,19 @@ function addMessage(role, text, extraClass) {
   return el;
 }
 
+// Bolha do assistente criada já com os "..." de digitando -- uma consulta
+// real (Zabbix/SSH) pode levar alguns segundos, e sem isso a tela ficava
+// parada sem nenhum sinal de que a pergunta estava sendo processada.
+// `el.textContent += data` no primeiro pedaço de texto (streamToAgent)
+// já limpa esses spans sozinho: ler textContent de um elemento com só
+// spans vazios dentro retorna '', então vira um `textContent = '' + data`,
+// que substitui os filhos pelo texto real sem precisar de código extra.
+function addTypingMessage() {
+  const el = addMessage('assistant', '');
+  el.innerHTML = '<span class="agente-typing"><span></span><span></span><span></span></span>';
+  return el;
+}
+
 document.querySelectorAll('.agente-suggestion-chip').forEach((btn) => {
   btn.addEventListener('click', () => {
     inputEl.value = btn.textContent;
@@ -109,7 +122,7 @@ formEl.addEventListener('submit', async (e) => {
   sendBtn.disabled = true;
   inputEl.disabled = true;
 
-  const assistantEl = addMessage('assistant', '');
+  const assistantEl = addTypingMessage();
   try {
     await streamToAgent(text, assistantEl);
   } catch (err) {
