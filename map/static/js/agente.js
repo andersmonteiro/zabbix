@@ -9,6 +9,26 @@ function agenteEsc(str) {
   }[c]));
 }
 
+// Conversor leve de markdown -- o agente foi instruído (ver SYSTEM_PROMPT
+// em chat.py) a mostrar saída crua de equipamento em blocos ``` e usar
+// **negrito** pros títulos curtos antes de cada bloco; sem isso os
+// asteriscos/crases apareciam literalmente na tela em vez de formatados.
+// Cobre só esse subconjunto (fences + negrito + código inline), não é um
+// parser de markdown completo -- escapa tudo primeiro, então nunca
+// injeta HTML vindo do texto do modelo.
+function renderLiteMarkdown(raw) {
+  const parts = raw.split(/(```[\s\S]*?```)/g);
+  return parts.map((part) => {
+    if (part.startsWith('```')) {
+      const inner = part.replace(/^```[^\n]*\n?/, '').replace(/```$/, '');
+      return `<pre class="agente-code">${agenteEsc(inner)}</pre>`;
+    }
+    return agenteEsc(part)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+  }).join('');
+}
+
 const messagesEl = document.getElementById('agente-messages');
 const formEl = document.getElementById('agente-form');
 const inputEl = document.getElementById('agente-input');
@@ -33,11 +53,10 @@ function addMessage(role, text, extraClass) {
 
 // Bolha do assistente criada já com os "..." de digitando -- uma consulta
 // real (Zabbix/SSH) pode levar alguns segundos, e sem isso a tela ficava
-// parada sem nenhum sinal de que a pergunta estava sendo processada.
-// `el.textContent += data` no primeiro pedaço de texto (streamToAgent)
-// já limpa esses spans sozinho: ler textContent de um elemento com só
-// spans vazios dentro retorna '', então vira um `textContent = '' + data`,
-// que substitui os filhos pelo texto real sem precisar de código extra.
+// parada sem nenhum sinal de que a pergunta estava sendo processada. O
+// primeiro `assistantEl.innerHTML = renderLiteMarkdown(rawText)` em
+// streamToAgent sobrescreve esses spans sozinho, sem precisar de código
+// extra pra limpar.
 function addTypingMessage() {
   const el = addMessage('assistant', '');
   el.innerHTML = '<span class="agente-typing"><span></span><span></span><span></span></span>';
@@ -74,7 +93,7 @@ async function streamToAgent(message, assistantEl) {
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let gotAnyText = false;
+  let rawText = '';
 
   while (true) {
     const { done, value } = await reader.read();
@@ -98,14 +117,14 @@ async function streamToAgent(message, assistantEl) {
           if (parsed.conversation_id) conversationId = parsed.conversation_id;
         } catch (err) { /* ignora, mantém o conversation_id atual */ }
       } else {
-        assistantEl.textContent += data;
-        gotAnyText = true;
+        rawText += data;
+        assistantEl.innerHTML = renderLiteMarkdown(rawText);
         messagesEl.scrollTop = messagesEl.scrollHeight;
       }
     }
   }
 
-  if (!gotAnyText) {
+  if (!rawText) {
     assistantEl.textContent = '(sem resposta)';
   }
 }

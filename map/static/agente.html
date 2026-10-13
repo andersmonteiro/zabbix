@@ -47,6 +47,22 @@
     }
     .agente-msg.assistant { align-self: flex-start; max-width: 82%; color: var(--text-secondary); }
     .agente-msg.assistant.notice { color: var(--text-muted); font-style: normal; }
+    .agente-msg strong { color: var(--text-primary); font-weight: 700; }
+    .agente-msg code {
+      font-family: var(--mono); font-size: 12px; background: var(--bg-panel);
+      padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-2);
+    }
+    /* Saída crua de equipamento (config de interface, ARP, etc) -- o
+       agente foi instruído a devolver isso sem parafrasear, formatado
+       como o próprio equipamento mostra. white-space:pre-wrap sobrepõe o
+       "pre" (que senão força rolagem horizontal em vez de quebrar linha
+       dentro da largura da bolha). */
+    .agente-code {
+      font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap;
+      background: var(--bg-panel); border: 1px solid var(--border-2); border-radius: 8px;
+      padding: 12px 14px; margin: 8px 0; max-height: 360px; overflow-y: auto;
+      color: var(--text-primary);
+    }
 
     /* "Digitando..." enquanto espera o primeiro pedaço de texto chegar --
        sem isso a espera (consulta ao Zabbix/SSH pode levar alguns
