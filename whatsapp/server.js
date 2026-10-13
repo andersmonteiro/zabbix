@@ -20,6 +20,18 @@ function log(level, msg) {
     console.log(`[${ts}] [${level}] ${msg}`);
 }
 
+// Rede de segurança: uma promise rejeitada sem .catch em qualquer lugar
+// (inclusive dentro do whatsapp-web.js/puppeteer, fora do nosso controle)
+// derruba o processo Node inteiro por padrão -- foi exatamente assim que
+// um bug de serialização do whatsapp-web.js (msg.getChat()) matava o bot
+// a cada mensagem recebida, sem nunca chegar a responder (o container só
+// reiniciava sozinho depois, sem logar nada útil sobre a causa real).
+// Só loga e segue vivo -- a reconexão de verdade (sessão caiu de fato)
+// continua sendo tratada pelo listener 'disconnected' do client.
+process.on('unhandledRejection', (err) => {
+    log('ERROR', `Promise rejeitada sem tratamento: ${err?.stack || err}`);
+});
+
 // ─── Limpa locks do Chromium no startup ──────────────────────────────────────
 const lockFiles = [
     './.wwebjs_auth/session/SingletonLock',
@@ -189,29 +201,46 @@ function setupAiChatHandler(c) {
         // ignora mídia/figurinhas/status sem texto de verdade pra mandar à IA.
         if (msg.fromMe || msg.type !== 'chat' || !msg.body?.trim()) return;
 
-        const chat = await msg.getChat();
+        // msg.getChat() CRASHA O PROCESSO INTEIRO nessa versão do
+        // whatsapp-web.js -- mesmo bug de serialização já documentado em
+        // GET /groups (getChatModel() interno quebra ao serializar o
+        // Chat), só que aqui sem nenhum try/catch em volta, derrubando o
+        // bot inteiro a cada mensagem recebida (confirmado em produção:
+        // toda mensagem reiniciava o container sem nunca responder).
+        // msg.from já traz tudo que esse handler precisa (id da conversa e
+        // se é grupo, pelo sufixo "@g.us"), sem precisar buscar o Chat.
+        const chatId = msg.from;
+        const isGroup = chatId.endsWith('@g.us');
 
-        if (AI_ALLOWED_CHATS.length > 0 && !AI_ALLOWED_CHATS.includes(chat.id._serialized)) {
+        if (AI_ALLOWED_CHATS.length > 0 && !AI_ALLOWED_CHATS.includes(chatId)) {
             return;
         }
 
-        if (chat.isGroup) {
+        if (isGroup) {
             // Em grupo só responde se o bot foi mencionado -- senão toda
             // conversa do grupo (incluindo os próprios alertas do Zabbix)
-            // dispararia uma resposta da IA, virando spam.
-            const mentions = await msg.getMentions();
-            const botId = c.info?.wid?._serialized;
-            const isMentioned = botId && mentions.some((m) => m.id._serialized === botId);
-            if (!isMentioned) return;
+            // dispararia uma resposta da IA, virando spam. getMentions()
+            // não é o método que já confirmamos quebrando (era getChat()),
+            // mas é outra serialização da mesma lib nessa mesma versão --
+            // por precaução, uma falha aqui só pula a mensagem em vez de
+            // arriscar derrubar o processo de novo.
+            try {
+                const mentions = await msg.getMentions();
+                const botId = c.info?.wid?._serialized;
+                const isMentioned = botId && mentions.some((m) => m.id._serialized === botId);
+                if (!isMentioned) return;
+            } catch (err) {
+                log('WARN', `getMentions() falhou em ${chatId}, pulando: ${err.message}`);
+                return;
+            }
         }
 
         try {
-            await chat.sendStateTyping();
-            const reply = await askAgent(msg.body, chat.id._serialized);
+            const reply = await askAgent(msg.body, chatId);
             await msg.reply(reply);
-            log('INFO', `IA respondeu em ${chat.id._serialized}`);
+            log('INFO', `IA respondeu em ${chatId}`);
         } catch (err) {
-            log('ERROR', `IA falhou em ${chat.id._serialized}: ${err.message}`);
+            log('ERROR', `IA falhou em ${chatId}: ${err.message}`);
             await msg.reply('Desculpe, não consegui falar com o assistente agora. Tente novamente em instantes.').catch(() => {});
         }
     });
