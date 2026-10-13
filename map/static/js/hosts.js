@@ -290,10 +290,13 @@ function openEditModal(host) {
   openModal();
 }
 
-backdrop.addEventListener('click', () => {
+function closeHostModal() {
   modal.classList.remove('open');
   backdrop.classList.remove('open');
-});
+}
+
+backdrop.addEventListener('click', closeHostModal);
+document.getElementById('host-modal-close').addEventListener('click', closeHostModal);
 
 // Depois de salvar, testa SSH (só se uma credencial foi informada) e SNMP
 // (sempre tem community/porta, mesmo que seja o default "public"/161) --
@@ -337,10 +340,7 @@ function runPostSaveChecks(hostid, hasSsh) {
 
   function maybeAutoClose() {
     if (sshDone && snmpDone && sshOk && snmpOk) {
-      setTimeout(() => {
-        modal.classList.remove('open');
-        backdrop.classList.remove('open');
-      }, 1800);
+      setTimeout(closeHostModal, 1800);
     }
   }
 
