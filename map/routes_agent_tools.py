@@ -8,7 +8,13 @@ import os
 from flask import Blueprint, jsonify, request
 
 from models import InterfaceCache, Point, RouteCache
-from ssh_tools import SSHToolError, get_bgp_prefixes, get_device_logs
+from ssh_tools import (
+    SSHToolError,
+    get_bgp_prefixes,
+    get_device_logs,
+    get_interface_arp,
+    get_interface_config,
+)
 
 agent_tools_bp = Blueprint('agent_tools', __name__, url_prefix='/api/agent-tools')
 
@@ -125,6 +131,36 @@ def device_logs():
         return jsonify({'error': 'hostid é obrigatório'}), 400
     try:
         output = get_device_logs(hostid, since, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/interface-config', methods=['POST'])
+def interface_config():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora. Traz
+    TODOS os IPs/sub-IPs configurados na interface, diferente do cache
+    de /interfaces (que só tem o IP principal)."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid, interface = data.get('hostid'), data.get('interface')
+    if not hostid or not interface:
+        return jsonify({'error': 'hostid e interface são obrigatórios'}), 400
+    try:
+        output = get_interface_config(hostid, interface, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/interface-arp', methods=['POST'])
+def interface_arp():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid, interface = data.get('hostid'), data.get('interface')
+    if not hostid or not interface:
+        return jsonify({'error': 'hostid e interface são obrigatórios'}), 400
+    try:
+        output = get_interface_arp(hostid, interface, _zabbix_client)
         return jsonify({'output': output})
     except SSHToolError as e:
         return jsonify({'error': str(e)}), 502

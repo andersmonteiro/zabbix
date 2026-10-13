@@ -239,6 +239,48 @@ def get_device_logs(hostid, since, zabbix_client):
         conn.disconnect()
 
 
+def get_interface_config(hostid, interface, zabbix_client):
+    """Configuração completa de UMA interface (todos os IPs/sub-IPs
+    configurados nela, modo da porta, vlans, etc) -- diferente do cache
+    de listar_interfaces_equipamento, que só traz o IP principal (Huawei
+    'display ip interface brief' não lista os endereços secundários
+    "sub"). Use depois de achar o nome da interface certa (ex: pela
+    descrição, via listar_interfaces_equipamento)."""
+    info = _fetch_host_info(hostid, zabbix_client)
+    conn = _connect(info)
+    try:
+        if info['vendor'] == 'huawei':
+            output = conn.send_command(f'display current-configuration interface {interface}')
+        elif info['vendor'] == 'datacom':
+            output = conn.send_command(f'show running-config interface {interface}')
+        else:
+            output = conn.send_command(f'/interface print detail where name={interface}')
+        return output
+    finally:
+        conn.disconnect()
+
+
+def get_interface_arp(hostid, interface, zabbix_client):
+    """Tabela ARP filtrada por uma interface -- mostra quais dos IPs
+    configurados nessa porta (ver get_interface_config) estão de fato
+    em uso por algum equipamento, e o MAC de quem está usando."""
+    info = _fetch_host_info(hostid, zabbix_client)
+    conn = _connect(info)
+    try:
+        if info['vendor'] == 'huawei':
+            output = conn.send_command(f'display arp interface {interface}')
+        elif info['vendor'] == 'datacom':
+            raise SSHToolError(
+                'ARP por interface ainda não catalogado pra Datacom -- '
+                'nenhum comando confirmado pra isso ainda'
+            )
+        else:
+            output = conn.send_command(f'/ip arp print where interface={interface}')
+        return output
+    finally:
+        conn.disconnect()
+
+
 # ── Cache periódico (interfaces + rotas estáticas) ──────────────────────
 
 _HUAWEI_BRIEF_RE = re.compile(
