@@ -140,17 +140,27 @@ def _build_macros(data, existing_macros=None):
 def _upsert_point(hostid, data):
     """Creates or updates the map Point tied to this Zabbix host by
     zabbix_hostid, so a host can get its map coordinates from this same
-    screen instead of a separate trip through Circuitos. A no-op when lat/lng
-    aren't both present -- clearing coordinates here never deletes a Point,
-    only setting real values touches it."""
+    screen instead of a separate trip through Circuitos.
+
+    O Point é sempre criado/mantido mesmo SEM lat/lng -- antes a função toda
+    retornava cedo nesse caso, e um host sem posição no mapa nunca ganhava
+    Point nenhum, o que por sua vez significa que nunca entrava na query do
+    ping_poller.py (que só pinga `Point.equipment_ip`) nem tinha `ping_up`
+    em _serialize_host (que depende de `point` não ser None) -- um host
+    "pingável de verdade" ficava preso mostrando DOWN pra sempre só por não
+    ter sido posicionado no mapa ainda. lat/lng continuam opcionais: só são
+    gravados quando os dois vêm preenchidos (clearing coordinates aqui nunca
+    apaga uma posição já salva, só setar valores reais mexe nela); um Point
+    sem coordenadas simplesmente não aparece como marcador no mapa (ver
+    build_map_state em routes_map.py), mas já conta pro ping/SSH/SNMP."""
     lat, lng = data.get('lat'), data.get('lng')
-    if lat in (None, '') or lng in (None, ''):
-        return
-    try:
-        lat = float(lat)
-        lng = float(lng)
-    except (TypeError, ValueError):
-        return
+    has_coords = lat not in (None, '') and lng not in (None, '')
+    if has_coords:
+        try:
+            lat = float(lat)
+            lng = float(lng)
+        except (TypeError, ValueError):
+            has_coords = False
 
     # ip já é obrigatório no formulário de Hosts -- propagar pra
     # equipment_ip aqui garante que todo Point criado por essa tela tenha
@@ -164,11 +174,14 @@ def _upsert_point(hostid, data):
         if point is None:
             session.add(Point(
                 name=data.get('name') or hostid, point_type='equipment',
-                zabbix_hostid=hostid, lat=lat, lng=lng, equipment_ip=ip,
+                zabbix_hostid=hostid,
+                lat=lat if has_coords else None, lng=lng if has_coords else None,
+                equipment_ip=ip,
             ))
         else:
-            point.lat = lat
-            point.lng = lng
+            if has_coords:
+                point.lat = lat
+                point.lng = lng
             if data.get('name'):
                 point.name = data['name']
             if ip:
@@ -482,6 +495,29 @@ def test_host_snmp(hostid):
     finally:
         session.close()
     return jsonify({'ok': ok, 'message': message})
+
+
+@hosts_bp.route('/hosts/<hostid>/ssh-credential', methods=['GET'])
+def get_host_ssh_credential(hostid):
+    """Pro botão de "olho" no modal de edição -- a senha nunca volta junto
+    com o resto do host (host.get não devolve, e o form sempre manda em
+    branco por padrão, ver openEditModal em hosts.js), mas o operador
+    pode pedir ela de volta sob demanda aqui. Protegido pelo guard global
+    de sessão em auth.py, igual qualquer outra rota /api/*."""
+    try:
+        current = _zabbix_client.call('host.get', {
+            'hostids': [hostid], 'output': ['hostid'], 'selectMacros': ['macro', 'value'],
+        })
+    except ZabbixAPIError as e:
+        return jsonify({'error': str(e)}), 502
+    if not current:
+        return jsonify({'error': 'Host não encontrado'}), 404
+
+    macros = {m['macro']: m['value'] for m in current[0].get('macros', [])}
+    return jsonify({
+        'ssh_user': macros.get('{$SSH_USER}', ''),
+        'ssh_pass': macros.get('{$SSH_PASS}', ''),
+    })
 
 
 @hosts_bp.route('/hosts/<hostid>', methods=['DELETE'])

@@ -20,8 +20,13 @@ class Point(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    lat = Column(Float, nullable=False)
-    lng = Column(Float, nullable=False)
+    # Nullable: um equipment Point pode existir sem posição no mapa ainda
+    # (ver _upsert_point em routes_hosts.py) -- continua contando pro
+    # ping/SSH/SNMP, só não vira marcador (build_map_state pula points sem
+    # coordenada). waypoint sempre tem os dois (só existe por causa do
+    # mapa), mas a coluna é compartilhada entre os dois point_type.
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
     point_type = Column(String, nullable=False)  # 'waypoint' or 'equipment'
 
     # Only set when point_type == 'equipment'
@@ -175,3 +180,9 @@ def init_db(engine):
             'ALTER TABLE netmap_host_connectivity_status '
             'ADD COLUMN IF NOT EXISTS ssh_auth_blocked_until TIMESTAMP'
         ))
+        # Point passou a permitir lat/lng nulos (ver comentário na classe) --
+        # sem isso um host sem posição no mapa nunca ganhava Point nenhum, e
+        # por isso nunca era pingado. DROP NOT NULL é idempotente (não
+        # reclama se a coluna já aceita NULL).
+        conn.execute(text('ALTER TABLE netmap_points ALTER COLUMN lat DROP NOT NULL'))
+        conn.execute(text('ALTER TABLE netmap_points ALTER COLUMN lng DROP NOT NULL'))

@@ -98,6 +98,14 @@ def build_map_state(session, cache, stale_threshold_seconds=120, alert_cache=Non
 
     points_out = []
     for point in session.query(Point).all():
+        # Um equipment Point pode existir sem lat/lng ainda (ver
+        # _upsert_point em routes_hosts.py -- conta pro ping/SSH/SNMP assim
+        # que o host é salvo, mesmo antes de ganhar uma posição no mapa).
+        # Sem coordenada não tem onde desenhar o marcador, e o frontend não
+        # trata null aqui -- melhor nem mandar do que mandar um marcador
+        # quebrado em (null, null).
+        if point.lat is None or point.lng is None:
+            continue
         entry = {
             'id': point.id, 'name': point.name, 'lat': point.lat, 'lng': point.lng,
             'point_type': point.point_type,

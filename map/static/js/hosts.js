@@ -264,10 +264,51 @@ function resetHostFormStatus() {
   });
 }
 
+// Olho da senha SSH -- o campo vem sempre em branco (host.get não devolve
+// senha, ver comentário abaixo), então o botão busca o valor real sob
+// demanda em vez de só alternar a visibilidade de um campo vazio. Só faz
+// sentido pra um host já existente (um host novo não tem nada salvo ainda).
+const sshPassInput = document.getElementById('host-ssh-pass');
+const sshPassEyeBtn = document.getElementById('host-ssh-pass-eye');
+const SSH_EYE_ICON = sshPassEyeBtn.innerHTML;
+const SSH_EYE_OFF_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+let sshPassRevealed = false;
+
+function resetSshEye() {
+  sshPassRevealed = false;
+  sshPassInput.type = 'password';
+  sshPassEyeBtn.innerHTML = SSH_EYE_ICON;
+  sshPassEyeBtn.title = 'Mostrar senha salva';
+  sshPassEyeBtn.disabled = true;
+}
+
+sshPassEyeBtn.addEventListener('click', async () => {
+  if (sshPassRevealed) {
+    resetSshEye();
+    sshPassEyeBtn.disabled = false;
+    return;
+  }
+  if (!editingHostId) return;
+  sshPassEyeBtn.disabled = true;
+  try {
+    const cred = await api(`/api/zabbix/hosts/${editingHostId}/ssh-credential`);
+    sshPassInput.value = cred.ssh_pass || '';
+    sshPassInput.type = 'text';
+    sshPassEyeBtn.innerHTML = SSH_EYE_OFF_ICON;
+    sshPassEyeBtn.title = 'Ocultar senha';
+    sshPassRevealed = true;
+  } catch (err) {
+    alert(`Erro ao buscar a senha SSH: ${err.message}`);
+  } finally {
+    sshPassEyeBtn.disabled = false;
+  }
+});
+
 document.getElementById('new-host-btn').addEventListener('click', () => {
   editingHostId = null;
   document.getElementById('host-form').reset();
   resetHostFormStatus();
+  resetSshEye();
   modalTitle.textContent = 'Novo host';
   submitBtn.textContent = 'Criar host';
   openModal();
@@ -289,8 +330,11 @@ function openEditModal(host) {
   form.lng.value = host.lng !== null && host.lng !== undefined ? host.lng : '';
   // group_id e ssh_pass não voltam da API (host.get não devolve senha, e o
   // grupo é sempre o mesmo salvo se o operador não mexer) -- deixa em
-  // branco; o backend só troca o que vier preenchido.
+  // branco; o backend só troca o que vier preenchido. O olho acima do
+  // campo busca a senha real sob demanda (GET .../ssh-credential).
   resetHostFormStatus();
+  resetSshEye();
+  sshPassEyeBtn.disabled = false;
   modalTitle.textContent = `Editar ${host.host}`;
   submitBtn.textContent = 'Salvar alterações';
   openModal();

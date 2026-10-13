@@ -154,7 +154,11 @@ def test_create_host_with_coordinates_creates_a_linked_point(client_and_sessions
     session.close()
 
 
-def test_create_host_without_coordinates_creates_no_point(client_and_sessions, requests_mock):
+def test_create_host_without_coordinates_still_creates_a_point(client_and_sessions, requests_mock):
+    """Sem lat/lng o Point é criado mesmo assim (sem posição no mapa) --
+    é o que faz o host entrar na query do ping_poller.py e ganhar
+    `ping_up` em vez de ficar preso em DOWN só por não ter sido
+    posicionado no mapa ainda (ver comentário em _upsert_point)."""
     client, session_factory = client_and_sessions
     requests_mock.post(API, [
         _login_response(),
@@ -165,7 +169,10 @@ def test_create_host_without_coordinates_creates_no_point(client_and_sessions, r
     assert resp.status_code == 201
 
     session = session_factory()
-    assert session.query(Point).filter(Point.zabbix_hostid == '504').first() is None
+    point = session.query(Point).filter(Point.zabbix_hostid == '504').one()
+    assert point.lat is None
+    assert point.lng is None
+    assert point.equipment_ip == '10.0.0.12'
     session.close()
 
 

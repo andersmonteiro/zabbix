@@ -116,6 +116,19 @@
       grid-column: 1 / -1; font-size: 11.5px; font-weight: 600; color: var(--text-muted);
       text-transform: uppercase; letter-spacing: 0.06em; margin: 10px 0 -4px;
     }
+    /* Botão "olho" na senha SSH -- revela a credencial já salva (o campo
+       vem sempre em branco do form, ver openEditModal em hosts.js). */
+    .field-input-eye { position: relative; }
+    .field-input-eye input { padding-right: 32px; }
+    .field-eye-btn {
+      position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+      width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+      background: transparent; border: none; color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm);
+    }
+    .field-eye-btn:hover { color: var(--text-primary); background: var(--bg-canvas); }
+    .field-eye-btn:disabled { opacity: 0.35; cursor: default; }
+    .field-eye-btn:disabled:hover { color: var(--text-muted); background: transparent; }
+    .field-eye-btn svg { width: 15px; height: 15px; }
     .modal-form-scroll summary {
       cursor: pointer; color: var(--text-muted); font-size: 11.5px; font-family: var(--sans);
       letter-spacing: 0.06em; margin-top: 4px;
@@ -294,7 +307,12 @@
           </div>
           <div class="field">
             <label class="field-label" for="host-ssh-pass">Senha SSH</label>
-            <input id="host-ssh-pass" name="ssh_pass" placeholder="••••••••" type="password" />
+            <div class="field-input-eye">
+              <input id="host-ssh-pass" name="ssh_pass" placeholder="••••••••" type="password" />
+              <button type="button" class="field-eye-btn" id="host-ssh-pass-eye" title="Mostrar senha salva" aria-label="Mostrar senha salva" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
           </div>
           <div class="field">
             <label class="field-label" for="host-ssh-port">Porta SSH</label>

@@ -172,6 +172,19 @@ def test_build_map_state_waypoints_have_no_status_field(session):
     assert 'status' not in wp
 
 
+def test_build_map_state_skips_equipment_point_without_coordinates(session):
+    """Um host cadastrado em Hosts sem lat/lng ganha Point mesmo assim (pro
+    ping/SSH/SNMP, ver _upsert_point em routes_hosts.py), mas não tem onde
+    desenhar um marcador -- build_map_state precisa pular, não mandar um
+    ponto com lat/lng null pro frontend."""
+    no_coords = Point(name='Sem Posição', lat=None, lng=None, point_type='equipment', zabbix_hostid='999')
+    session.add(no_coords)
+    session.commit()
+
+    state = build_map_state(session, StatusCache(), stale_threshold_seconds=120)
+    assert all(p['id'] != no_coords.id for p in state['points'])
+
+
 # --- Finding 7: the UI needs the age of the data to show "dados desde X" -----
 
 def test_build_map_state_reports_last_refresh_age_when_fresh(session):
