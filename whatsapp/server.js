@@ -71,33 +71,6 @@ const AI_CHAT_ENABLED       = AI_AGENT_TOKEN !== '';
 // ou "XXXXXXXXXX@g.us", iguais aos retornados por GET /groups).
 const AI_ALLOWED_CHATS      = (process.env.AI_ALLOWED_CHATS || '').split(',').map(s => s.trim()).filter(Boolean);
 const AI_REQUEST_TIMEOUT_MS = parseInt(process.env.AI_REQUEST_TIMEOUT_MS || '60000', 10);
-// Cadastro simples "quem é quem" pra o agente poder chamar a pessoa pelo
-// nome -- formato "numero:Nome,numero:Nome". O número pode ser colado como
-// a pessoa realmente fala o próprio número (com +55, espaço, traço,
-// parênteses, com ou sem o DDD do país) -- normalizeDigits() e o
-// comparador por sufixo abaixo cuidam de casar isso com o id de verdade do
-// WhatsApp ("5551999999999@c.us"), sem precisar saber esse formato.
-// Editar exige redeploy; se isso virar algo usado com frequência, vale uma
-// tela própria no painel em vez de só variável de ambiente.
-function normalizeDigits(value) {
-    return String(value).replace(/\D/g, '');
-}
-
-const AI_SENDER_NAMES = (process.env.AI_SENDER_NAMES || '')
-    .split(',')
-    .map((pair) => pair.trim())
-    .filter(Boolean)
-    .map((pair) => {
-        const idx = pair.indexOf(':');
-        return [normalizeDigits(pair.slice(0, idx)), pair.slice(idx + 1).trim()];
-    })
-    .filter(([digits, name]) => digits && name);
-
-function lookupSenderName(senderId) {
-    const senderDigits = normalizeDigits(senderId);
-    const match = AI_SENDER_NAMES.find(([digits]) => senderDigits.endsWith(digits));
-    return match ? match[1] : null;
-}
 
 if (process.env.ZABBIX_INSECURE === '1') {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -261,7 +234,7 @@ function replySummary(text) {
     return before.split(/\n\s*\n/)[0].trim() || 'Resultado da consulta:';
 }
 
-async function askAgent(message, conversationId) {
+async function askAgent(message, conversationId, senderPhone) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
     try {
@@ -271,7 +244,12 @@ async function askAgent(message, conversationId) {
                 'Content-Type':  'application/json',
                 'X-Agent-Token': AI_AGENT_TOKEN,
             },
-            body:   JSON.stringify({ message, conversation_id: conversationId }),
+            // sender_phone: o agente central resolve o nome de exibição
+            // consultando o cadastro de usuário do cliente (map/) e loga o
+            // número no audit log mesmo sem usuário vinculado -- não é mais
+            // resolvido aqui (ver histórico: isso morava num AI_SENDER_NAMES
+            // só deste bot, substituído pelo cadastro central de usuários).
+            body:   JSON.stringify({ message, conversation_id: conversationId, sender_phone: senderPhone }),
             signal: controller.signal,
         });
 
@@ -370,16 +348,14 @@ function setupAiChatHandler(c) {
         }
 
         // Em grupo, quem mandou é msg.author (o número individual dentro
-        // do grupo); numa DM, o remetente é o próprio chatId. Prefixo
-        // simples no texto em vez de mexer no formato do /chat (repetido
-        // em toda mensagem, não só na primeira, pra funcionar mesmo que o
-        // histórico da conversa não seja carregado por algum motivo).
-        const senderId = isGroup ? msg.author : chatId;
-        const senderName = senderId && lookupSenderName(senderId);
-        const messageForAgent = senderName ? `[Mensagem de ${senderName}]: ${msg.body}` : msg.body;
+        // do grupo); numa DM, o remetente é o próprio chatId. O nome não é
+        // resolvido aqui -- o agente central consulta o cadastro de
+        // usuário do cliente (map/) pelo número e decide o que fazer com
+        // ele (inclusive logar o número mesmo sem usuário vinculado).
+        const senderPhone = isGroup ? msg.author : chatId;
 
         try {
-            const reply = await askAgent(messageForAgent, chatId);
+            const reply = await askAgent(msg.body, chatId, senderPhone);
 
             if (reply.includes('```')) {
                 // Consulta ao vivo com saída crua de equipamento -- manda
