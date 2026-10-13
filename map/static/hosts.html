@@ -97,12 +97,17 @@
     .modal-form-scroll .row2 { display: flex; gap: 8px; }
     /* Duas colunas em vez de empilhar tudo verticalmente -- um modal mais
        largo e mais baixo cabe inteiro na tela sem precisar rolar. */
-    .modal-form-columns { display: flex; gap: 24px; align-items: flex-start; }
+    .modal-form-columns { display: flex; gap: 20px; align-items: stretch; }
     .modal-form-col { flex: 1; min-width: 0; }
-    .modal-form-col:last-child { border-left: 1px solid var(--border-dim); padding-left: 24px; }
+    /* Elemento próprio em vez de border+padding só na 2a coluna -- isso
+       fazia as duas colunas terem larguras diferentes (333px vs 358px
+       medido), porque o padding engordava o conteúdo da 2a sem tirar
+       nada da 1a. align-self:stretch acompanha a altura real do form,
+       que varia conforme o host tem/não tem SSH. */
+    .modal-form-divider { width: 1px; align-self: stretch; background: var(--border-dim); flex-shrink: 0; }
     .field-section-label {
       font-size: 11.5px; font-weight: 600; color: var(--text-muted);
-      text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 10px;
+      text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 4px;
     }
     .field-section-label:first-child { margin-top: 0; }
     .modal-form-scroll .row2 > * { flex: 1; }
@@ -238,6 +243,7 @@
       <div class="modal-form-scroll">
         <div class="modal-form-columns">
           <div class="modal-form-col">
+            <p class="field-section-label">Dados do host</p>
             <label class="field-label" for="host-name">Nome do host</label>
             <input id="host-name" name="name" placeholder="ex: KM30-SWITCH-01" required />
 
@@ -278,6 +284,8 @@
               </div>
             </div>
           </div>
+
+          <div class="modal-form-divider"></div>
 
           <div class="modal-form-col">
             <p class="field-section-label">Credenciais SSH (opcional)</p>
