@@ -21,10 +21,15 @@ from zabbix_client import ZabbixAPIError
 
 logger = logging.getLogger(__name__)
 
-# {$VENDOR} no Zabbix -> device_type do netmiko.
+# {$VENDOR} no Zabbix -> device_type do netmiko. Datacom (DmOS) não tem
+# driver nativo no netmiko -- 'cisco_ios' é o genérico mais próximo pro
+# estilo de CLI real (prompt "host#", comandos "show ..."): detecta esse
+# prompt corretamente e tenta desabilitar paginação ("terminal length 0"),
+# o que não quebra nada mesmo se o DmOS ignorar o comando.
 _NETMIKO_DEVICE_TYPE = {
     'huawei': 'huawei',
     'mikrotik': 'mikrotik_routeros',
+    'datacom': 'cisco_ios',
 }
 
 CONNECT_TIMEOUT = 8
@@ -91,7 +96,7 @@ def _fetch_host_info(hostid, zabbix_client):
     if info['vendor'] not in _NETMIKO_DEVICE_TYPE:
         raise SSHToolError(
             f'Fabricante "{info["vendor"] or "não definido"}" não suportado via SSH '
-            '(só Huawei e Mikrotik por enquanto)'
+            '(só Huawei, Mikrotik e Datacom por enquanto)'
         )
     if not info['username'] or not info['password']:
         raise SSHToolError(f'Host {info["name"]} não tem credencial SSH cadastrada')
@@ -157,6 +162,11 @@ def get_optical_signal(hostid, port, zabbix_client):
     try:
         if info['vendor'] == 'huawei':
             output = conn.send_command(f'display interface {port} optical-info')
+        elif info['vendor'] == 'datacom':
+            # `port` já vem no formato usado pelo próprio equipamento, ex:
+            # "ten-gigabit-ethernet 1/1/1" (ver Base de Conhecimento,
+            # categoria "Sinal optico de porta especifica").
+            output = conn.send_command(f'show interface transceivers {port}')
         else:
             output = conn.send_command(f'/interface ethernet monitor {port} once')
         return output
@@ -166,6 +176,11 @@ def get_optical_signal(hostid, port, zabbix_client):
 
 def get_bgp_prefixes(hostid, neighbor_ip, zabbix_client):
     info = _fetch_host_info(hostid, zabbix_client)
+    if info['vendor'] == 'datacom':
+        raise SSHToolError(
+            'BGP não se aplica aos equipamentos Datacom cadastrados (switches L2/L3) -- '
+            'nenhum comando de BGP catalogado pra esse fabricante ainda'
+        )
     conn = _connect(info)
     try:
         if info['vendor'] == 'huawei':
@@ -183,6 +198,16 @@ def get_bgp_prefixes(hostid, neighbor_ip, zabbix_client):
 
 def get_vlan_ip(hostid, vlan_id, zabbix_client):
     info = _fetch_host_info(hostid, zabbix_client)
+    if info['vendor'] == 'datacom':
+        # A Base de Conhecimento só tem "show running-config dot1q vlan
+        # <id>" (em quais portas a vlan está encaminhada) -- dado diferente
+        # de "IP da interface dessa vlan", que é o que esta função promete.
+        # Sem um comando real catalogado pra isso, melhor recusar do que
+        # arriscar casar o vlan_id errado com a interface L3 errada.
+        raise SSHToolError(
+            'IP de VLAN ainda não catalogado pra Datacom -- '
+            'só existe o comando que mostra em quais portas a vlan está encaminhada'
+        )
     conn = _connect(info)
     try:
         if info['vendor'] == 'huawei':
@@ -197,12 +222,16 @@ def get_vlan_ip(hostid, vlan_id, zabbix_client):
 def get_device_logs(hostid, since, zabbix_client):
     """`since` é uma data/hora em texto já no formato que o próprio
     equipamento espera (ex: '2026-10-08') -- validado como uma string
-    comum, nunca interpolado dentro de um comando montado livremente."""
+    comum, nunca interpolado dentro de um comando montado livremente.
+    Ignorado no Huawei e no Datacom: nenhum dos dois comandos catalogados
+    pra log (display logbuffer / show log tail 100) tem filtro de data."""
     info = _fetch_host_info(hostid, zabbix_client)
     conn = _connect(info)
     try:
         if info['vendor'] == 'huawei':
             output = conn.send_command('display logbuffer')
+        elif info['vendor'] == 'datacom':
+            output = conn.send_command('show log tail 100')
         else:
             output = conn.send_command(f'/log print where time>={since}')
         return output
@@ -292,6 +321,72 @@ def _parse_mikrotik_interfaces(address_output, interface_detail_output):
     return ifaces
 
 
+_DATACOM_IFACE_ROW_RE = re.compile(r'^(?P<id>\d+/\d+/\d+)(?:\s+\S+){7}(?:\s{2,}(?P<desc>\S.*?))?\s*$')
+_DATACOM_OPTICAL_ROW_RE = re.compile(
+    r'^\s*(?P<name>[a-z][a-z\-]*\s+\d+/\d+/\d+(?::\d+)?)\s*\|'
+    r'[^|]*\|[^|]*\|[^|]*\|'
+    r'\s*(?P<tx>-?\d+\.?\d*)\s*dBm\s*\|'
+    r'\s*(?P<rx>-?\d+\.?\d*)\s*dBm',
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _parse_datacom_link_descriptions(output):
+    """{nome: descrição} a partir de 'show int link'. Cada seção (Ten
+    Gigabit Ethernet Interfaces:, Forty Gigabit Ethernet Interfaces:, ...)
+    repete os mesmos IDs (1/1/1, 1/1/2...) -- o nome final leva o tipo da
+    seção junto (ex: "ten-gigabit-ethernet 1/1/1"), na mesma convenção
+    usada por 'show interface transceivers' (ver _parse_datacom_optical),
+    o que permite casar as duas saídas pelo nome direto."""
+    descriptions = {}
+    prefix = None
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.endswith('Interfaces:'):
+            prefix = stripped[: -len('Interfaces:')].strip().lower().replace(' ', '-')
+            continue
+        if prefix is None:
+            continue
+        m = _DATACOM_IFACE_ROW_RE.match(line)
+        if m:
+            descriptions[f"{prefix} {m.group('id')}"] = m.group('desc')
+    return descriptions
+
+
+def _parse_datacom_optical(output):
+    """{nome: (rx_dbm, tx_dbm)} a partir da tabela de digital-diagnostics
+    de 'show interface transceivers' (sem argumento -- é o comando que
+    realmente lista todas as portas de uma vez, confirmado contra uma
+    saída real; ver observação na Base de Conhecimento). Só entram linhas
+    com valor numérico de verdade: a linha-resumo de um transceiver 40G
+    multi-lane (sem ":N" no nome) e portas sem módulo óptico aparecem como
+    "N/A" nas colunas de potência e são ignoradas."""
+    result = {}
+    for m in _DATACOM_OPTICAL_ROW_RE.finditer(output):
+        try:
+            result[m.group('name').strip()] = (float(m.group('rx')), float(m.group('tx')))
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _parse_datacom_interfaces(link_output, optical_output):
+    descriptions = _parse_datacom_link_descriptions(link_output)
+    optical = _parse_datacom_optical(optical_output)
+    ifaces = {}
+    for name in set(descriptions) | set(optical):
+        rx, tx = optical.get(name, (None, None))
+        ifaces[name] = {
+            # Porta física de switch não tem IP próprio (isso é conceito de
+            # interface L3/VLAN, não de porta) -- sempre None aqui.
+            'ip_address': None,
+            'description': descriptions.get(name),
+            'optical_rx_dbm': rx,
+            'optical_tx_dbm': tx,
+        }
+    return ifaces
+
+
 def _parse_mikrotik_routes(output):
     routes = []
     for block in output.split('\n\n'):
@@ -323,6 +418,17 @@ def fetch_host_cache_data(hostid, zabbix_client):
                 data['optical_rx_dbm'], data['optical_tx_dbm'] = _parse_optical(optical_out, 'huawei')
             routes_out = conn.send_command('display ip routing-table')
             routes = _parse_huawei_routes(routes_out)
+        elif info['vendor'] == 'datacom':
+            # Ao contrário de Huawei/Mikrotik, 'show interface transceivers'
+            # (sem argumento) já devolve o sinal óptico de TODAS as portas
+            # de uma vez -- nenhum loop por interface é necessário aqui.
+            link_out = conn.send_command('show int link')
+            optical_out = conn.send_command('show interface transceivers')
+            ifaces = _parse_datacom_interfaces(link_out, optical_out)
+            # Nenhum comando de tabela de rotas catalogado pra Datacom
+            # ainda (só config de interface L3, que não é a mesma coisa) --
+            # fica vazio em vez de adivinhar um comando não confirmado.
+            routes = []
         else:
             addr_out = conn.send_command('/ip address print')
             detail_out = conn.send_command('/interface print detail')
