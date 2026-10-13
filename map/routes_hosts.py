@@ -174,10 +174,17 @@ def _serialize_host(h, point=None, conn_status=None):
     # quando disponível; sem isso (host sem Point, ou poller nunca rodou
     # pra ele), cai pro último teste manual salvo em conn_status -- do
     # jeito antigo, um host sem posição no mapa nunca mostrava nada.
+    # Atenção à polaridade: snmp_last_ok é True quando o teste teve
+    # SUCESSO, mas snmp_offline é True quando está FORA DO ar -- são
+    # opostos, por isso o "not" (sem ele, um teste que falhou virava
+    # "não está offline" = pill verde, exatamente invertido).
     live_snmp = _snmp_offline(point)
-    snmp_status = live_snmp if live_snmp is not None else (
-        conn_status.snmp_last_ok if conn_status is not None else None
-    )
+    if live_snmp is not None:
+        snmp_status = live_snmp
+    elif conn_status is not None and conn_status.snmp_last_ok is not None:
+        snmp_status = not conn_status.snmp_last_ok
+    else:
+        snmp_status = None
     return {
         'hostid': h['hostid'],
         'host': h['host'],
