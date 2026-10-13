@@ -284,7 +284,12 @@ def get_interface_arp(hostid, interface, zabbix_client):
 # ── Cache periódico (interfaces + rotas estáticas) ──────────────────────
 
 _HUAWEI_BRIEF_RE = re.compile(
-    r'^(?P<name>\S+)\s+(?P<ip>\S+)\s+(?:up|down|\*down|\^down)\s+(?:up|down)\s*$',
+    # Sem o '$' preso logo após o Protocol: confirmado em produção que um
+    # NE40 maior inclui uma coluna VPN depois disso ("up up --"), que a
+    # versão antiga (ancorada em fim de linha ali) não casava -- 0
+    # interfaces no cache inteiro desse host por causa disso. Aceita
+    # qualquer coisa depois (ou nada), contanto que tenha um separador.
+    r'^(?P<name>\S+)\s+(?P<ip>\S+)\s+(?:up|down|\*down|\^down)\s+(?:up|down)(?:\s|$)',
     re.MULTILINE,
 )
 _HUAWEI_DESC_RE = re.compile(
