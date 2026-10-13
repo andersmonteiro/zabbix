@@ -14,7 +14,13 @@ def init_users_routes(session_factory):
 
 
 def _serialize(user):
-    return {'id': user.id, 'username': user.username, 'created_at': user.created_at.isoformat()}
+    return {
+        'id': user.id,
+        'username': user.username,
+        'display_name': user.display_name,
+        'phone_number': user.phone_number,
+        'created_at': user.created_at.isoformat(),
+    }
 
 
 @users_bp.route('', methods=['GET'])
@@ -32,6 +38,8 @@ def create_user():
     data = request.get_json(force=True, silent=True) or {}
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
+    display_name = (data.get('display_name') or '').strip()
+    phone_number = (data.get('phone_number') or '').strip()
     if not username or len(password) < 6:
         return jsonify({'error': 'Usuário obrigatório e senha com no mínimo 6 caracteres'}), 400
 
@@ -39,10 +47,36 @@ def create_user():
     try:
         if db.query(User).filter(User.username == username).first():
             return jsonify({'error': 'Já existe um usuário com esse nome'}), 409
-        user = User(username=username, password_hash=generate_password_hash(password))
+        user = User(
+            username=username, password_hash=generate_password_hash(password),
+            display_name=display_name or None, phone_number=phone_number or None,
+        )
         db.add(user)
         db.commit()
         return jsonify(_serialize(user)), 201
+    finally:
+        db.close()
+
+
+@users_bp.route('/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    """Nome de exibição e telefone -- usados pelo agente de IA pra saber
+    quem está chamando via WhatsApp (ver routes_agent_tools.py:
+    user_by_phone). Campo vazio limpa o valor (diferente do token em
+    update_client_mcp no agente central: aqui não tem um valor sensível
+    que precise de "vazio = manter o atual")."""
+    data = request.get_json(force=True, silent=True) or {}
+    db = _session_factory()
+    try:
+        user = db.get(User, user_id)
+        if user is None:
+            return jsonify({'error': 'Usuário não encontrado'}), 404
+        if 'display_name' in data:
+            user.display_name = (data.get('display_name') or '').strip() or None
+        if 'phone_number' in data:
+            user.phone_number = (data.get('phone_number') or '').strip() or None
+        db.commit()
+        return jsonify(_serialize(user))
     finally:
         db.close()
 

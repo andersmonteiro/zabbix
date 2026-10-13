@@ -4,10 +4,11 @@ próprio (AGENT_TOOLS_TOKEN), separado do login de sessão usado pelo resto
 do app -- o agente central não tem cookie de sessão, só esse bearer token.
 """
 import os
+import re
 
 from flask import Blueprint, jsonify, request
 
-from models import InterfaceCache, Point, RouteCache
+from models import InterfaceCache, Point, RouteCache, User
 from ssh_tools import (
     SSHToolError,
     get_bgp_prefixes,
@@ -164,3 +165,28 @@ def interface_arp():
         return jsonify({'output': output})
     except SSHToolError as e:
         return jsonify({'error': str(e)}), 502
+
+
+def _normalize_digits(value):
+    return re.sub(r'\D', '', value or '')
+
+
+@agent_tools_bp.route('/user-by-phone/<phone>', methods=['GET'])
+def user_by_phone(phone):
+    """Pro agente saber o nome de quem está chamando via WhatsApp --
+    compara só os dígitos, por sufixo (o telefone cadastrado no usuário
+    pode ou não ter o código do país, tanto faz quem está perguntando).
+    Sem usuário encontrado: 200 com display_name=None (não é erro, é
+    esperado pra qualquer número que ainda não tem conta vinculada)."""
+    phone_digits = _normalize_digits(phone)
+    if not phone_digits:
+        return jsonify({'display_name': None})
+    session = _session_factory()
+    try:
+        for user in session.query(User).filter(User.phone_number.isnot(None)):
+            user_digits = _normalize_digits(user.phone_number)
+            if user_digits and phone_digits.endswith(user_digits):
+                return jsonify({'display_name': user.display_name or user.username})
+        return jsonify({'display_name': None})
+    finally:
+        session.close()

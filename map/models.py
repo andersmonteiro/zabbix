@@ -13,6 +13,13 @@ class User(Base):
     username = Column(String, nullable=False, unique=True)
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    # Pro agente de IA poder chamar a pessoa pelo nome (ver
+    # routes_agent_tools.py) -- display_name é o nome de verdade da pessoa
+    # (username costuma ser um login tipo "admin", não um nome). phone_number
+    # fica como foi digitado (com +55, espaço, traço, tanto faz); a busca por
+    # telefone compara só os dígitos, por sufixo (ver user_by_phone).
+    display_name = Column(String, nullable=True)
+    phone_number = Column(String, nullable=True)
 
 
 class Point(Base):
@@ -186,3 +193,5 @@ def init_db(engine):
         # reclama se a coluna já aceita NULL).
         conn.execute(text('ALTER TABLE netmap_points ALTER COLUMN lat DROP NOT NULL'))
         conn.execute(text('ALTER TABLE netmap_points ALTER COLUMN lng DROP NOT NULL'))
+        conn.execute(text('ALTER TABLE netmap_users ADD COLUMN IF NOT EXISTS display_name VARCHAR'))
+        conn.execute(text('ALTER TABLE netmap_users ADD COLUMN IF NOT EXISTS phone_number VARCHAR'))
