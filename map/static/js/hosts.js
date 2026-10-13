@@ -246,10 +246,22 @@ function openModal() {
   backdrop.classList.add('open');
 }
 
+function resetHostFormStatus() {
+  const mainEl = document.getElementById('host-form-status-main');
+  mainEl.textContent = '';
+  mainEl.style.color = '';
+  ['host-form-status-ssh', 'host-form-status-snmp'].forEach((id) => {
+    const el = document.getElementById(id);
+    el.textContent = '';
+    el.className = 'form-status-line';
+    el.hidden = true;
+  });
+}
+
 document.getElementById('new-host-btn').addEventListener('click', () => {
   editingHostId = null;
   document.getElementById('host-form').reset();
-  document.getElementById('host-form-status').textContent = '';
+  resetHostFormStatus();
   modalTitle.textContent = 'Novo host';
   submitBtn.textContent = 'Criar host';
   openModal();
@@ -272,7 +284,7 @@ function openEditModal(host) {
   // group_id e ssh_pass não voltam da API (host.get não devolve senha, e o
   // grupo é sempre o mesmo salvo se o operador não mexer) -- deixa em
   // branco; o backend só troca o que vier preenchido.
-  document.getElementById('host-form-status').textContent = '';
+  resetHostFormStatus();
   modalTitle.textContent = `Editar ${host.host}`;
   submitBtn.textContent = 'Salvar alterações';
   openModal();
@@ -285,68 +297,68 @@ backdrop.addEventListener('click', () => {
 
 // Depois de salvar, testa SSH (só se uma credencial foi informada) e SNMP
 // (sempre tem community/porta, mesmo que seja o default "public"/161) --
-// cada um atualiza a tela assim que RESPONDER, em vez de esperar os dois
-// juntos: um equipamento que responde rápido no SSH não devia ficar preso
-// esperando o SNMP (ou vice-versa) só porque os dois foram pedidos juntos.
-function runPostSaveChecks(hostid, hasSsh, statusEl) {
-  statusEl.style.color = '';
-  const state = {
-    ssh: hasSsh ? undefined : null, // undefined = ainda testando, null = não configurado
-    snmp: undefined,
-  };
+// cada linha atualiza assim que SEU teste responder, em vez de esperar os
+// dois juntos: um equipamento que responde rápido no SSH não devia ficar
+// preso esperando o SNMP (ou vice-versa) só porque foram pedidos juntos.
+function runPostSaveChecks(hostid, hasSsh) {
+  const mainEl = document.getElementById('host-form-status-main');
+  const sshEl = document.getElementById('host-form-status-ssh');
+  const snmpEl = document.getElementById('host-form-status-snmp');
+  mainEl.textContent = 'Host salvo.';
+  mainEl.style.color = '';
 
-  function render() {
-    const parts = [];
-    let pending = false;
-    let anyFail = false;
-    if (state.ssh === null) {
-      parts.push('SSH não configurado');
-    } else if (state.ssh === undefined) {
-      parts.push('SSH testando...');
-      pending = true;
-    } else {
-      parts.push(`SSH ${state.ssh.ok ? 'OK' : 'falhou'}`);
-      anyFail = anyFail || !state.ssh.ok;
+  function renderLine(el, label, result) {
+    el.hidden = false;
+    if (result === null) {
+      el.hidden = true; // SSH sem credencial -- não mostra linha nenhuma
+      return;
     }
-    if (state.snmp === undefined) {
-      parts.push('SNMP testando...');
-      pending = true;
+    if (result === undefined) {
+      el.textContent = `Testando conectividade ${label}`;
+      el.className = 'form-status-line testing';
     } else {
-      parts.push(`SNMP ${state.snmp.ok ? 'OK' : 'falhou'}`);
-      anyFail = anyFail || !state.snmp.ok;
+      el.textContent = `${label}: ${result.ok ? 'OK' : 'falhou'}${result.message && !result.ok ? ` -- ${result.message}` : ''}`;
+      el.className = `form-status-line ${result.ok ? 'ok' : 'fail'}`;
     }
-    statusEl.textContent = `Host salvo. ${parts.join(' · ')}.`;
-    statusEl.style.color = pending ? '' : (anyFail ? '#e5484d' : '#3ecf6a');
-    statusEl.title = [state.ssh && state.ssh.message, state.snmp && state.snmp.message].filter(Boolean).join(' | ');
-    return pending;
   }
-  render();
+
+  renderLine(sshEl, 'SSH', hasSsh ? undefined : null);
+  renderLine(snmpEl, 'SNMP', undefined);
 
   const sshPromise = hasSsh
     ? api(`/api/zabbix/hosts/${hostid}/test-ssh`, { method: 'POST' }).catch((err) => ({ ok: false, message: err.message }))
     : Promise.resolve(null);
   const snmpPromise = api(`/api/zabbix/hosts/${hostid}/test-snmp`, { method: 'POST' }).catch((err) => ({ ok: false, message: err.message }));
 
+  let sshDone = !hasSsh;
+  let snmpDone = false;
+  let sshOk = true;
+  let snmpOk = true;
+
+  function maybeAutoClose() {
+    if (sshDone && snmpDone && sshOk && snmpOk) {
+      setTimeout(() => {
+        modal.classList.remove('open');
+        backdrop.classList.remove('open');
+      }, 1800);
+    }
+  }
+
   sshPromise.then((result) => {
     if (hasSsh) updatePill(hostid, 'SSH', result.ok);
-    state.ssh = result;
-    render();
+    renderLine(sshEl, 'SSH', result);
+    sshDone = true;
+    sshOk = !result || result.ok;
     loadHosts();
+    maybeAutoClose();
   });
   snmpPromise.then((result) => {
     updatePill(hostid, 'SNMP', result.ok);
-    state.snmp = result;
-    const pending = render();
+    renderLine(snmpEl, 'SNMP', result);
+    snmpDone = true;
+    snmpOk = result.ok;
     loadHosts();
-    if (!pending && state.ssh !== undefined) {
-      const anyFail = (state.ssh && state.ssh.ok === false) || !result.ok;
-      if (!anyFail) {
-        setTimeout(() => {
-          modal.classList.remove('open');
-          backdrop.classList.remove('open');
-        }, 1800);
-      }
-    }
+    maybeAutoClose();
   });
 }
 
@@ -367,9 +379,14 @@ document.getElementById('host-form').addEventListener('submit', async (e) => {
     lat: form.get('lat') || null,
     lng: form.get('lng') || null,
   };
-  const statusEl = document.getElementById('host-form-status');
+  const statusMainEl = document.getElementById('host-form-status-main');
   const hasSsh = !!(form.get('ssh_user') || '').trim() || !!(allHosts.find((h) => String(h.hostid) === editingHostId)?.ssh_user);
   let hostid = editingHostId;
+  // Feedback síncrono assim que o botão é clicado -- o PUT/POST em si já
+  // leva um tempinho perceptível (o backend consulta o Zabbix antes de
+  // gravar), então sem isso a tela ficava "parada" até ele responder.
+  statusMainEl.textContent = 'Salvando...';
+  statusMainEl.style.color = '';
   try {
     if (editingHostId) {
       await api(`/api/zabbix/hosts/${editingHostId}`, { method: 'PUT', body: JSON.stringify(body) });
@@ -378,11 +395,11 @@ document.getElementById('host-form').addEventListener('submit', async (e) => {
       hostid = result.hostid;
     }
   } catch (err) {
-    statusEl.textContent = `Falha ao salvar host: ${err.message}`;
-    statusEl.style.color = '#e5484d';
+    statusMainEl.textContent = `Falha ao salvar host: ${err.message}`;
+    statusMainEl.style.color = '#e5484d';
     return;
   }
-  runPostSaveChecks(hostid, hasSsh, statusEl);
+  runPostSaveChecks(hostid, hasSsh);
 });
 
 (async function init() {

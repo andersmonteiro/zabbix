@@ -254,6 +254,31 @@ form.inline label {
 }
 form.inline button { padding: 9px; }
 .form-status { font-size: 12.5px; margin: 6px 0 0; min-height: 15px; color: var(--text-muted); font-family: var(--sans); }
+.form-status p { margin: 0; }
+.form-status-line { margin-top: 2px !important; }
+.form-status-line.ok { color: var(--green); }
+.form-status-line.fail { color: var(--red); }
+.form-status-line.testing { color: var(--text-muted); }
+/* Reticências animadas enquanto um teste de conectividade está rodando --
+   dá a sensação de "conectando..." em vez de um texto estático parado,
+   que fazia a espera real da rede (conexão SSH/SNMP) parecer travamento. */
+.form-status-line.testing::after {
+  content: '';
+  display: inline-block;
+  width: 1.2em;
+  text-align: left;
+  animation: status-dots 1.2s steps(4, end) infinite;
+}
+@keyframes status-dots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+  100% { content: ''; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .form-status-line.testing::after { animation: none; content: '...'; }
+}
 
 /* Rótulo persistente acima de cada campo -- diferente do placeholder, não
    some quando o campo já está preenchido, então dá pra saber o que
