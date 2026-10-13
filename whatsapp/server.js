@@ -8,6 +8,7 @@ const express = require('express');
 const fs      = require('fs');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const qrcodeImage = require('qrcode');
 
 const app = express();
 app.use(express.json());
@@ -85,18 +86,28 @@ function createClient() {
 }
 
 let client = createClient();
+// Guarda o texto cru do QR mais recente -- qrcode-terminal só desenha no
+// console (inútil remotamente); GET /qr (abaixo) renderiza ESTE valor como
+// imagem de verdade pra escanear a partir de qualquer lugar. None depois
+// que a sessão autentica, pra /qr não ficar mostrando um código vencido.
+let latestQr = null;
 
 function setupClientEvents(c) {
     c.on('qr', (qr) => {
-        log('INFO', 'Escaneie o QR Code abaixo com o WhatsApp:');
+        latestQr = qr;
+        log('INFO', 'Escaneie o QR Code abaixo com o WhatsApp (ou acesse GET /qr):');
         qrcode.generate(qr, { small: true });
     });
 
-    c.on('authenticated', () => log('INFO', 'WhatsApp autenticado!'));
+    c.on('authenticated', () => {
+        latestQr = null;
+        log('INFO', 'WhatsApp autenticado!');
+    });
 
     c.on('ready', () => {
         clientReady = true;
         consecutiveErrors = 0;
+        latestQr = null;
         log('INFO', `WhatsApp pronto! Porta ${PORT}`);
         log('INFO', `Grupos: ${GROUP_IDS.length ? GROUP_IDS.join(', ') : 'nenhum configurado'}`);
         log('INFO', `Zabbix: ${ZABBIX_URL || 'desabilitado'}`);
@@ -432,6 +443,21 @@ app.get('/groups', authMiddleware, async (req, res) => {
     }
 });
 
+app.get('/qr', authMiddleware, async (req, res) => {
+    if (clientReady) {
+        return res.status(409).json({ error: 'WhatsApp já está conectado -- não há QR Code pra mostrar' });
+    }
+    if (!latestQr) {
+        return res.status(503).json({ error: 'QR Code ainda não gerado, aguarde alguns segundos e tente de novo' });
+    }
+    try {
+        const png = await qrcodeImage.toBuffer(latestQr, { width: 400, margin: 2 });
+        res.set('Content-Type', 'image/png').send(png);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/health', (req, res) => {
     res.json({
         status:  clientReady ? 'ready' : 'initializing',
@@ -450,5 +476,6 @@ app.listen(PORT, () => {
     log('INFO', 'POST /webhook    → recebe alertas');
     log('INFO', 'GET  /test-chart → testa download (?itemid=X)');
     log('INFO', 'GET  /groups     → lista grupos');
+    log('INFO', 'GET  /qr         → QR Code de pareamento (imagem)');
     log('INFO', 'GET  /health     → status');
 });
