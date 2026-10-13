@@ -24,22 +24,21 @@ async function api(path, options) {
   return resp.json();
 }
 
-// Tri-state (true/false/null) -> pill de status. Só a cor já diz tudo (ok
-// /falha/sem teste) -- o texto fica só com o nome do protocolo, sem repetir
+// Sem credencial cadastrada, sem item configurado, ou nunca testado --
+// tudo vira "falha" (vermelho), não "sem teste" (cinza): não dá pra
+// confirmar acesso/disponibilidade, então não é seguro assumir ok. Só a
+// cor já diz tudo -- o texto fica com o nome do protocolo, sem repetir
 // "OK"/"Falha" que seria redundante com a própria cor.
 function statusPill(label, state) {
-  const cls = state === null || state === undefined ? 'unknown' : (state ? 'ok' : 'fail');
-  return `<span class="status-pill ${cls}" data-proto="${label}">${esc(label)}</span>`;
+  return `<span class="status-pill ${state ? 'ok' : 'fail'}" data-proto="${label}">${esc(label)}</span>`;
 }
 
 function sshState(h) {
-  return h.ssh_last_ok === null || h.ssh_last_ok === undefined ? null : h.ssh_last_ok;
+  return h.ssh_last_ok === true;
 }
 
 function snmpState(h) {
-  // snmp_offline: null = sem dado/não monitorado, true = offline, false = ok.
-  if (h.snmp_offline === null || h.snmp_offline === undefined) return null;
-  return !h.snmp_offline;
+  return h.snmp_offline === false;
 }
 
 function renderHosts(hosts) {

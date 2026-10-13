@@ -104,10 +104,13 @@ function renderMapDependentPanels(mapState, hosts) {
   healthList.innerHTML = sorted.map((p) => {
     const host = hostsByHostid.get(String(p.zabbix_hostid));
     const latency = p.latency_ms !== null && p.latency_ms !== undefined ? `${Math.round(p.latency_ms)} ms` : '—';
-    const sshCls = host && host.ssh_last_ok !== null && host.ssh_last_ok !== undefined ? (host.ssh_last_ok ? 'ok' : 'fail') : 'unknown';
-    const snmpCls = p.snmp_offline === null || p.snmp_offline === undefined ? 'unknown' : (p.snmp_offline ? 'fail' : 'ok');
+    // Sem credencial cadastrada, sem item Zabbix configurado, ou nunca
+    // testado -- tudo isso vira DOWN, não "sem dado": não dá pra confirmar
+    // acesso/disponibilidade, então não é seguro assumir UP.
+    const sshCls = host && host.ssh_last_ok === true ? 'ok' : 'fail';
+    const snmpCls = p.snmp_offline === false ? 'ok' : 'fail';
     const protoPill = (cls) => {
-      const map = { ok: ['up', 'UP'], fail: ['down', 'DOWN'], unknown: ['unknown', '—'] };
+      const map = { ok: ['up', 'UP'], fail: ['down', 'DOWN'] };
       const [pillCls, label] = map[cls];
       return `<span class="status-pill ${pillCls}">${label}</span>`;
     };

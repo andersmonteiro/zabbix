@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
+from conn_status import get_or_create_conn_status
 from models import HostConnectivityStatus, Point
 from snmp_tools import SNMPToolError, test_snmp
 from ssh_tools import SSHToolError, test_ssh
@@ -412,16 +413,6 @@ def update_host(hostid):
     return jsonify({'ok': True})
 
 
-def _get_or_create_conn_status(session, hostid):
-    status = session.query(HostConnectivityStatus).filter(
-        HostConnectivityStatus.zabbix_hostid == hostid
-    ).first()
-    if status is None:
-        status = HostConnectivityStatus(zabbix_hostid=hostid)
-        session.add(status)
-    return status
-
-
 @hosts_bp.route('/hosts/<hostid>/test-ssh', methods=['POST'])
 def test_host_ssh(hostid):
     """Persiste em HostConnectivityStatus (por zabbix_hostid, não por
@@ -435,7 +426,7 @@ def test_host_ssh(hostid):
         ok = False
     session = _session_factory()
     try:
-        status = _get_or_create_conn_status(session, hostid)
+        status = get_or_create_conn_status(session, hostid)
         status.ssh_last_ok = ok
         status.ssh_last_checked_at = datetime.now(timezone.utc)
         session.commit()
@@ -461,7 +452,7 @@ def test_host_snmp(hostid):
         ok = False
     session = _session_factory()
     try:
-        status = _get_or_create_conn_status(session, hostid)
+        status = get_or_create_conn_status(session, hostid)
         status.snmp_last_ok = ok
         status.snmp_last_checked_at = datetime.now(timezone.utc)
         session.commit()
