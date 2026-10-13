@@ -12,6 +12,7 @@ contra a saída real de um equipamento antes de confiar cegamente neles.
 """
 import logging
 import re
+import socket
 
 from netmiko import ConnectHandler
 from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException
@@ -27,6 +28,7 @@ _NETMIKO_DEVICE_TYPE = {
 }
 
 CONNECT_TIMEOUT = 8
+PORT_CHECK_TIMEOUT = 5
 
 
 class SSHToolError(Exception):
@@ -43,7 +45,11 @@ class SSHAuthError(SSHToolError):
     normal com a mesma credencial errada."""
 
 
-def _fetch_host_info(hostid, zabbix_client):
+def _fetch_basic_host_info(hostid, zabbix_client):
+    """Dados mínimos de conectividade (IP, porta, vendor, credencial) --
+    não valida se o vendor tem driver netmiko nem se a credencial está
+    presente. Usado por test_ssh pra permitir um teste de PORTA (sem
+    autenticar) mesmo em vendors sem suporte a comandos ainda (Datacom)."""
     try:
         hosts = zabbix_client.call('host.get', {
             'hostids': [hostid],
@@ -62,29 +68,43 @@ def _fetch_host_info(hostid, zabbix_client):
 
     vendor = (macros.get('{$VENDOR}') or '').strip().lower()
     ip = ifaces[0]['ip'] if ifaces else None
-    ssh_user = macros.get('{$SSH_USER}')
-    ssh_pass = macros.get('{$SSH_PASS}')
     ssh_port = macros.get('{$SSH_PORT}') or '22'
 
     if not ip:
         raise SSHToolError(f'Host {host["host"]} não tem IP cadastrado')
-    if vendor not in _NETMIKO_DEVICE_TYPE:
-        raise SSHToolError(
-            f'Fabricante "{vendor or "não definido"}" não suportado via SSH '
-            '(só Huawei e Mikrotik por enquanto)'
-        )
-    if not ssh_user or not ssh_pass:
-        raise SSHToolError(f'Host {host["host"]} não tem credencial SSH cadastrada')
 
     return {
         'name': host['host'],
         'vendor': vendor,
-        'device_type': _NETMIKO_DEVICE_TYPE[vendor],
         'ip': ip,
         'port': int(ssh_port),
-        'username': ssh_user,
-        'password': ssh_pass,
+        'username': macros.get('{$SSH_USER}'),
+        'password': macros.get('{$SSH_PASS}'),
     }
+
+
+def _fetch_host_info(hostid, zabbix_client):
+    """Igual a _fetch_basic_host_info, mas exige vendor com driver
+    netmiko e credencial presente -- usado por tudo que precisa rodar
+    comando de verdade (não só testar se a porta responde)."""
+    info = _fetch_basic_host_info(hostid, zabbix_client)
+    if info['vendor'] not in _NETMIKO_DEVICE_TYPE:
+        raise SSHToolError(
+            f'Fabricante "{info["vendor"] or "não definido"}" não suportado via SSH '
+            '(só Huawei e Mikrotik por enquanto)'
+        )
+    if not info['username'] or not info['password']:
+        raise SSHToolError(f'Host {info["name"]} não tem credencial SSH cadastrada')
+    info['device_type'] = _NETMIKO_DEVICE_TYPE[info['vendor']]
+    return info
+
+
+def _check_tcp_port(ip, port, timeout=PORT_CHECK_TIMEOUT):
+    try:
+        with socket.create_connection((ip, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def _connect(info):
@@ -108,12 +128,27 @@ def _connect(info):
 
 
 def test_ssh(hostid, zabbix_client):
-    """Abre e fecha uma conexão, sem rodar comando nenhum -- só confirma
-    que login funciona. Usado pelo botão "Testar SSH" na tela de Hosts."""
-    info = _fetch_host_info(hostid, zabbix_client)
-    conn = _connect(info)
-    conn.disconnect()
-    return f'Conectado em {info["name"]} ({info["ip"]}) como {info["username"]}'
+    """Pra vendor com driver (Huawei/Mikrotik): abre e autentica de
+    verdade, sem rodar comando nenhum. Pra vendor sem driver ainda (ex:
+    Datacom, antes de termos os comandos reais pra implementar o
+    parser): só confirma que a porta SSH está respondendo -- não é uma
+    confirmação de credencial, só de que o host está no ar e a porta
+    está aberta, melhor que nada enquanto o suporte completo não existe."""
+    info = _fetch_basic_host_info(hostid, zabbix_client)
+    if info['vendor'] in _NETMIKO_DEVICE_TYPE:
+        if not info['username'] or not info['password']:
+            raise SSHToolError(f'Host {info["name"]} não tem credencial SSH cadastrada')
+        info['device_type'] = _NETMIKO_DEVICE_TYPE[info['vendor']]
+        conn = _connect(info)
+        conn.disconnect()
+        return f'Conectado em {info["name"]} ({info["ip"]}) como {info["username"]}'
+
+    if _check_tcp_port(info['ip'], info['port']):
+        return (
+            f'Porta SSH ({info["port"]}) respondendo em {info["name"]} ({info["ip"]}) -- '
+            f'fabricante "{info["vendor"] or "não definido"}" ainda sem suporte a comandos'
+        )
+    raise SSHToolError(f'Não respondeu na porta SSH ({info["ip"]}:{info["port"]})')
 
 
 def get_optical_signal(hostid, port, zabbix_client):

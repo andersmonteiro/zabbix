@@ -76,7 +76,7 @@
        conteúdo, fazendo a barra de rolagem aparecer e esconder o próprio
        resultado que o clique acabou de gerar. */
     .detail-modal.modal-form.open { display: flex; flex-direction: column; }
-    .modal-form { width: min(760px, calc(100vw - 32px)); max-height: 84vh; }
+    .modal-form { width: min(860px, calc(100vw - 32px)); max-height: 84vh; }
     .modal-form h4 {
       margin: 0; padding: 20px 20px 16px; flex-shrink: 0;
       background: var(--bg-panel); border-bottom: 1px solid var(--border-dim);
@@ -91,26 +91,31 @@
     .modal-form-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     .modal-form-scroll {
       flex: 1; min-height: 0; overflow-y: auto;
-      padding: 16px 20px 0; display: flex; flex-direction: column; gap: 2px;
+      padding: 16px 20px 0;
     }
-    .modal-form-scroll input, .modal-form-scroll select { margin-bottom: 8px; }
-    .modal-form-scroll .row2 { display: flex; gap: 8px; }
-    /* Duas colunas em vez de empilhar tudo verticalmente -- um modal mais
-       largo e mais baixo cabe inteiro na tela sem precisar rolar. */
-    .modal-form-columns { display: flex; gap: 20px; align-items: stretch; }
-    .modal-form-col { flex: 1; min-width: 0; }
-    /* Elemento próprio em vez de border+padding só na 2a coluna -- isso
-       fazia as duas colunas terem larguras diferentes (333px vs 358px
-       medido), porque o padding engordava o conteúdo da 2a sem tirar
-       nada da 1a. align-self:stretch acompanha a altura real do form,
-       que varia conforme o host tem/não tem SSH. */
-    .modal-form-divider { width: 1px; align-self: stretch; background: var(--border-dim); flex-shrink: 0; }
+    /* "Ficha cadastral": um grid único de 3 colunas (não duas colunas
+       independentes tentando bater altura/largura uma com a outra, que
+       dava bug toda vez que o conteúdo das duas não era simétrico) --
+       Nome do host ocupa a largura inteira, em destaque, e os demais
+       campos se encaixam nas células seguintes. width:100% + min-width:0
+       no input são essenciais: um <input> sem isso usa seu tamanho
+       intrínseco (~183px, de "size=20" implícito do HTML) em vez do
+       espaço real da célula do grid, e vaza pra fora dela. */
+    .field-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      column-gap: 20px; row-gap: 14px; align-items: start;
+    }
+    .field { min-width: 0; }
+    .field-full { grid-column: 1 / -1; }
+    .field-name input { font-size: 16px; padding: 13px 14px; }
+    .field label, .field select, .field input { display: block; width: 100%; }
+    .field input, .field select {
+      min-width: 0; box-sizing: border-box; margin: 0;
+    }
     .field-section-label {
-      font-size: 11.5px; font-weight: 600; color: var(--text-muted);
-      text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 4px;
+      grid-column: 1 / -1; font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em; margin: 10px 0 -4px;
     }
-    .field-section-label:first-child { margin-top: 0; }
-    .modal-form-scroll .row2 > * { flex: 1; }
     .modal-form-scroll summary {
       cursor: pointer; color: var(--text-muted); font-size: 11.5px; font-family: var(--sans);
       letter-spacing: 0.06em; margin-top: 4px;
@@ -241,72 +246,69 @@
     </h4>
     <form class="modal-form-body" id="host-form">
       <div class="modal-form-scroll">
-        <div class="modal-form-columns">
-          <div class="modal-form-col">
-            <p class="field-section-label">Dados do host</p>
+        <div class="field-grid">
+          <div class="field field-full field-name">
             <label class="field-label" for="host-name">Nome do host</label>
             <input id="host-name" name="name" placeholder="ex: KM30-SWITCH-01" required />
+          </div>
 
+          <div class="field">
             <label class="field-label" for="host-ip">IP</label>
             <input id="host-ip" name="ip" placeholder="ex: 192.168.1.1" required />
-
+          </div>
+          <div class="field">
             <label class="field-label" for="group-select">Grupo</label>
             <select name="group_id" id="group-select">
               <option value="">Selecione o grupo...</option>
             </select>
-
-            <div class="row2">
-              <div>
-                <label class="field-label" for="host-vendor">Fabricante</label>
-                <select name="vendor" id="host-vendor">
-                  <option value="">Selecione...</option>
-                  <option value="huawei">Huawei</option>
-                  <option value="mikrotik">Mikrotik</option>
-                  <option value="datacom">Datacom</option>
-                  <option value="a10">A10</option>
-                  <option value="outro">Outro</option>
-                </select>
-              </div>
-              <div>
-                <label class="field-label" for="host-model">Modelo</label>
-                <input id="host-model" name="model" placeholder="ex: S5720" />
-              </div>
-            </div>
-
-            <div class="row2">
-              <div>
-                <label class="field-label" for="host-community">Comunidade SNMP</label>
-                <input id="host-community" name="community" placeholder="public" value="public" />
-              </div>
-              <div>
-                <label class="field-label" for="host-port">Porta SNMP</label>
-                <input id="host-port" name="port" placeholder="161" value="161" />
-              </div>
-            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="host-vendor">Fabricante</label>
+            <select name="vendor" id="host-vendor">
+              <option value="">Selecione...</option>
+              <option value="huawei">Huawei</option>
+              <option value="mikrotik">Mikrotik</option>
+              <option value="datacom">Datacom</option>
+              <option value="a10">A10</option>
+              <option value="outro">Outro</option>
+            </select>
           </div>
 
-          <div class="modal-form-divider"></div>
+          <div class="field">
+            <label class="field-label" for="host-model">Modelo</label>
+            <input id="host-model" name="model" placeholder="ex: S5720" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="host-community">Comunidade SNMP</label>
+            <input id="host-community" name="community" placeholder="public" value="public" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="host-port">Porta SNMP</label>
+            <input id="host-port" name="port" placeholder="161" value="161" />
+          </div>
 
-          <div class="modal-form-col">
-            <p class="field-section-label">Credenciais SSH (opcional)</p>
+          <p class="field-section-label">Credenciais SSH (opcional)</p>
+          <div class="field">
             <label class="field-label" for="host-ssh-user">Usuário SSH</label>
             <input id="host-ssh-user" name="ssh_user" placeholder="ex: monitoramento" />
+          </div>
+          <div class="field">
             <label class="field-label" for="host-ssh-pass">Senha SSH</label>
             <input id="host-ssh-pass" name="ssh_pass" placeholder="••••••••" type="password" />
+          </div>
+          <div class="field">
             <label class="field-label" for="host-ssh-port">Porta SSH</label>
             <input id="host-ssh-port" name="ssh_port" placeholder="22" />
+          </div>
 
-            <p class="field-section-label">Localização (opcional)</p>
-            <div class="row2">
-              <div>
-                <label class="field-label" for="host-lat">Latitude</label>
-                <input id="host-lat" name="lat" placeholder="ex: -4.34" type="number" step="any" min="-90" max="90" />
-              </div>
-              <div>
-                <label class="field-label" for="host-lng">Longitude</label>
-                <input id="host-lng" name="lng" placeholder="ex: -55.78" type="number" step="any" min="-180" max="180" />
-              </div>
-            </div>
+          <p class="field-section-label">Localização (opcional)</p>
+          <div class="field">
+            <label class="field-label" for="host-lat">Latitude</label>
+            <input id="host-lat" name="lat" placeholder="ex: -4.34" type="number" step="any" min="-90" max="90" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="host-lng">Longitude</label>
+            <input id="host-lng" name="lng" placeholder="ex: -55.78" type="number" step="any" min="-180" max="180" />
           </div>
         </div>
       </div>
