@@ -1,8 +1,6 @@
-// Tela do Agente de IA -- por enquanto só a interface (placeholder), sem
-// nenhuma IA de verdade por trás. Segue o design em
-// docs/superpowers/specs/2026-09-25-assistente-ia-agente-design.md, que
-// ainda não virou plano de implementação -- ver essa spec antes de plugar
-// um backend real aqui.
+// Tela do Agente de IA -- chat de verdade com o agente central
+// (agent.natverk.com.br), via proxy em /api/agent/chat (routes_agent_chat.py).
+// O token do cliente nunca aparece aqui: fica só no servidor do map/.
 
 function agenteEsc(str) {
   if (str === null || str === undefined) return '';
@@ -14,15 +12,23 @@ function agenteEsc(str) {
 const messagesEl = document.getElementById('agente-messages');
 const formEl = document.getElementById('agente-form');
 const inputEl = document.getElementById('agente-input');
+const sendBtn = formEl.querySelector('.agente-send-btn');
+
+// Uma conversa por carregamento da página -- recarregar a aba começa um
+// papo novo de propósito (o histórico multi-turno fica guardado no agente
+// central por conversation_id, não precisa persistir nada aqui).
+let conversationId = null;
+let sending = false;
 
 function addMessage(role, text, extraClass) {
   const welcome = messagesEl.querySelector('.agente-welcome');
   if (welcome) welcome.remove();
   const el = document.createElement('div');
   el.className = `agente-msg ${role}${extraClass ? ` ${extraClass}` : ''}`;
-  el.innerHTML = agenteEsc(text);
+  el.textContent = text;
   messagesEl.appendChild(el);
   messagesEl.scrollTop = messagesEl.scrollHeight;
+  return el;
 }
 
 document.querySelectorAll('.agente-suggestion-chip').forEach((btn) => {
@@ -32,19 +38,87 @@ document.querySelectorAll('.agente-suggestion-chip').forEach((btn) => {
   });
 });
 
-formEl.addEventListener('submit', (e) => {
+// SSE vem em "registros" separados por linha em branco -- a maioria é só
+// "data: <pedaço de texto>", mas o último registro do turno é
+// "event: done\ndata: {"conversation_id": "..."}" (ver chat.py). Sem
+// distinguir os dois, o JSON final do "done" acabaria grudado no fim da
+// resposta visível, como se fosse texto do assistente.
+async function streamToAgent(message, assistantEl) {
+  const resp = await fetch('/api/agent/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, conversation_id: conversationId }),
+  });
+  if (!resp.ok) {
+    let detail = `HTTP ${resp.status}`;
+    try {
+      const body = await resp.json();
+      if (body && body.error) detail = body.error;
+    } catch (err) { /* corpo não era JSON */ }
+    throw new Error(detail);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let gotAnyText = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let sepIndex;
+    while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
+      const record = buffer.slice(0, sepIndex);
+      buffer = buffer.slice(sepIndex + 2);
+
+      const lines = record.split('\n');
+      const isDone = lines.some((l) => l.startsWith('event: done'));
+      const dataLine = lines.find((l) => l.startsWith('data: '));
+      if (!dataLine) continue;
+      const data = dataLine.slice('data: '.length);
+
+      if (isDone) {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.conversation_id) conversationId = parsed.conversation_id;
+        } catch (err) { /* ignora, mantém o conversation_id atual */ }
+      } else {
+        assistantEl.textContent += data;
+        gotAnyText = true;
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+    }
+  }
+
+  if (!gotAnyText) {
+    assistantEl.textContent = '(sem resposta)';
+  }
+}
+
+formEl.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (sending) return;
   const text = inputEl.value.trim();
   if (!text) return;
+
   addMessage('user', text);
   inputEl.value = '';
-  // Sem backend ainda -- só confirma que a tela funciona. Trocar por uma
-  // chamada real (streaming) quando o serviço central existir.
-  setTimeout(() => {
-    addMessage(
-      'assistant',
-      'Esse agente ainda está em desenvolvimento — em breve vai poder consultar seus equipamentos diretamente por aqui.',
-      'notice',
-    );
-  }, 350);
+  sending = true;
+  sendBtn.disabled = true;
+  inputEl.disabled = true;
+
+  const assistantEl = addMessage('assistant', '');
+  try {
+    await streamToAgent(text, assistantEl);
+  } catch (err) {
+    assistantEl.textContent = `Não consegui falar com o agente: ${err.message}`;
+    assistantEl.classList.add('notice');
+  } finally {
+    sending = false;
+    sendBtn.disabled = false;
+    inputEl.disabled = false;
+    inputEl.focus();
+  }
 });

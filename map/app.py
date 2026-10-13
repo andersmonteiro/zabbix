@@ -191,6 +191,10 @@ from routes_hosts import hosts_bp, init_hosts_routes
 init_hosts_routes(zabbix_client, SessionLocal, status_cache, STALE_THRESHOLD_SECONDS, ping_cache=ping_cache)
 app.register_blueprint(hosts_bp)
 
+from routes_agent_chat import agent_chat_bp
+
+app.register_blueprint(agent_chat_bp)
+
 
 @app.route('/health')
 def health():
@@ -211,4 +215,10 @@ def config():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5002, debug=False)
+    # threaded=True: sem isso, a conexão SSE de /api/agent/chat (fica aberta
+    # por até AI_CHAT_TIMEOUT_SECONDS enquanto o agente central responde)
+    # travaria o app inteiro pra qualquer outro usuário/aba durante esse
+    # tempo -- mesma razão pela qual as chamadas SSH ao vivo (test-ssh,
+    # device-logs) já convivem bem hoje, mas nunca foi testado com algo
+    # tão longo quanto um streaming de chat.
+    app.run(host='0.0.0.0', port=5002, debug=False, threaded=True)
