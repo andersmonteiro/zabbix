@@ -262,6 +262,59 @@ def get_ipv6_prefix_list(hostid, zabbix_client):
     return _huawei_only_display(hostid, zabbix_client, 'display ip ipv6-prefix', 'Lista de prefixos IPv6')
 
 
+def get_pppoe_summary(hostid, zabbix_client):
+    """Resumo com o TOTAL de assinantes PPPoE conectados (IPv4, IPv6,
+    Dual-Stack, por domínio, etc) -- "display access-user". Use esta pra
+    responder "quantos clientes PPPoE estão conectados", não a listagem
+    completa (get_pppoe_sessions), que não traz um total consolidado tão
+    direto."""
+    return _huawei_only_display(hostid, zabbix_client, 'display access-user', 'Resumo de assinantes PPPoE')
+
+
+def get_pppoe_sessions(hostid, zabbix_client):
+    """Lista TODAS as sessões PPPoE conectadas, uma por assinante: login,
+    vlan, interface do PPPoE Server, IP e MAC -- "display access-user
+    user-type pppoe". Pode ser uma lista longa (centenas de linhas)."""
+    return _huawei_only_display(
+        hostid, zabbix_client, 'display access-user user-type pppoe', 'Listagem de sessões PPPoE',
+    )
+
+
+def get_pppoe_session_by_vlan(hostid, pevlan, zabbix_client):
+    """Sessão(ões) PPPoE de uma VLAN de assinante específica --
+    "display access-user pevlan <vlan>"."""
+    return _huawei_only_display(
+        hostid, zabbix_client, f'display access-user pevlan {pevlan}', 'Consulta de PPPoE por VLAN',
+    )
+
+
+def get_pppoe_session_by_username(hostid, username_fragment, zabbix_client):
+    """Sessão PPPoE de um assinante pelo login (ou parte dele) --
+    "display access-user username | include <trecho>"."""
+    return _huawei_only_display(
+        hostid, zabbix_client, f'display access-user username | include {username_fragment}',
+        'Consulta de PPPoE por login',
+    )
+
+
+def get_pppoe_pool_usage(hostid, zabbix_client):
+    """Capacidade das pools de IP usadas pelos domínios PPPoE: total,
+    usado e porcentagem de ocupação por domínio -- "display ip-pool
+    pool-usage". Use pra saber se uma pool está perto de esgotar."""
+    return _huawei_only_display(hostid, zabbix_client, 'display ip-pool pool-usage', 'Uso das pools de PPPoE')
+
+
+def get_pppoe_aaa_fail_record(hostid, pevlan, zabbix_client):
+    """Registro de falha de autenticação AAA de assinantes PPPoE de uma
+    VLAN -- "display aaa online-fail-record pevlan <vlan>". Serve pra
+    achar clientes bloqueados/rejeitados pelo RADIUS, senha/login errados,
+    etc."""
+    return _huawei_only_display(
+        hostid, zabbix_client, f'display aaa online-fail-record pevlan {pevlan}',
+        'Registro de falha de autenticação PPPoE',
+    )
+
+
 def get_vlan_ip(hostid, vlan_id, zabbix_client):
     info = _fetch_host_info(hostid, zabbix_client)
     if info['vendor'] == 'datacom':

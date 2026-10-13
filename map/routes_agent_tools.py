@@ -20,6 +20,12 @@ from ssh_tools import (
     get_interface_config,
     get_ip_prefix_list,
     get_ipv6_prefix_list,
+    get_pppoe_aaa_fail_record,
+    get_pppoe_pool_usage,
+    get_pppoe_session_by_username,
+    get_pppoe_session_by_vlan,
+    get_pppoe_sessions,
+    get_pppoe_summary,
     get_route_policy_config,
 )
 
@@ -211,6 +217,92 @@ def ipv6_prefix_list():
         return jsonify({'error': 'hostid é obrigatório'}), 400
     try:
         output = get_ipv6_prefix_list(hostid, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/pppoe-summary', methods=['POST'])
+def pppoe_summary():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora. Total
+    consolidado de assinantes PPPoE conectados."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid = data.get('hostid')
+    if not hostid:
+        return jsonify({'error': 'hostid é obrigatório'}), 400
+    try:
+        output = get_pppoe_summary(hostid, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/pppoe-sessions', methods=['POST'])
+def pppoe_sessions():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora. Lista
+    completa de sessões PPPoE (pode ser longa)."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid = data.get('hostid')
+    if not hostid:
+        return jsonify({'error': 'hostid é obrigatório'}), 400
+    try:
+        output = get_pppoe_sessions(hostid, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/pppoe-session-by-vlan', methods=['POST'])
+def pppoe_session_by_vlan():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid, pevlan = data.get('hostid'), data.get('pevlan')
+    if not hostid or not pevlan:
+        return jsonify({'error': 'hostid e pevlan são obrigatórios'}), 400
+    try:
+        output = get_pppoe_session_by_vlan(hostid, pevlan, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/pppoe-session-by-username', methods=['POST'])
+def pppoe_session_by_username():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid, username_fragment = data.get('hostid'), data.get('username_fragment')
+    if not hostid or not username_fragment:
+        return jsonify({'error': 'hostid e username_fragment são obrigatórios'}), 400
+    try:
+        output = get_pppoe_session_by_username(hostid, username_fragment, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/pppoe-pool-usage', methods=['POST'])
+def pppoe_pool_usage():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid = data.get('hostid')
+    if not hostid:
+        return jsonify({'error': 'hostid é obrigatório'}), 400
+    try:
+        output = get_pppoe_pool_usage(hostid, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/pppoe-aaa-fail-record', methods=['POST'])
+def pppoe_aaa_fail_record():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid, pevlan = data.get('hostid'), data.get('pevlan')
+    if not hostid or not pevlan:
+        return jsonify({'error': 'hostid e pevlan são obrigatórios'}), 400
+    try:
+        output = get_pppoe_aaa_fail_record(hostid, pevlan, _zabbix_client)
         return jsonify({'output': output})
     except SSHToolError as e:
         return jsonify({'error': str(e)}), 502
