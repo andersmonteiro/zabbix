@@ -72,21 +72,32 @@ const AI_CHAT_ENABLED       = AI_AGENT_TOKEN !== '';
 const AI_ALLOWED_CHATS      = (process.env.AI_ALLOWED_CHATS || '').split(',').map(s => s.trim()).filter(Boolean);
 const AI_REQUEST_TIMEOUT_MS = parseInt(process.env.AI_REQUEST_TIMEOUT_MS || '60000', 10);
 // Cadastro simples "quem é quem" pra o agente poder chamar a pessoa pelo
-// nome -- formato "id:Nome,id:Nome", mesmo id usado em AI_ALLOWED_CHATS/
-// GET /groups (ex: "5511999999999@c.us:Anderson"). Editar exige redeploy;
-// se isso virar algo usado com frequência, vale uma tela própria no
-// painel em vez de só variável de ambiente.
-const AI_SENDER_NAMES = new Map(
-    (process.env.AI_SENDER_NAMES || '')
-        .split(',')
-        .map((pair) => pair.trim())
-        .filter(Boolean)
-        .map((pair) => {
-            const idx = pair.indexOf(':');
-            return [pair.slice(0, idx).trim(), pair.slice(idx + 1).trim()];
-        })
-        .filter(([id, name]) => id && name),
-);
+// nome -- formato "numero:Nome,numero:Nome". O número pode ser colado como
+// a pessoa realmente fala o próprio número (com +55, espaço, traço,
+// parênteses, com ou sem o DDD do país) -- normalizeDigits() e o
+// comparador por sufixo abaixo cuidam de casar isso com o id de verdade do
+// WhatsApp ("5551999999999@c.us"), sem precisar saber esse formato.
+// Editar exige redeploy; se isso virar algo usado com frequência, vale uma
+// tela própria no painel em vez de só variável de ambiente.
+function normalizeDigits(value) {
+    return String(value).replace(/\D/g, '');
+}
+
+const AI_SENDER_NAMES = (process.env.AI_SENDER_NAMES || '')
+    .split(',')
+    .map((pair) => pair.trim())
+    .filter(Boolean)
+    .map((pair) => {
+        const idx = pair.indexOf(':');
+        return [normalizeDigits(pair.slice(0, idx)), pair.slice(idx + 1).trim()];
+    })
+    .filter(([digits, name]) => digits && name);
+
+function lookupSenderName(senderId) {
+    const senderDigits = normalizeDigits(senderId);
+    const match = AI_SENDER_NAMES.find(([digits]) => senderDigits.endsWith(digits));
+    return match ? match[1] : null;
+}
 
 if (process.env.ZABBIX_INSECURE === '1') {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -364,7 +375,7 @@ function setupAiChatHandler(c) {
         // em toda mensagem, não só na primeira, pra funcionar mesmo que o
         // histórico da conversa não seja carregado por algum motivo).
         const senderId = isGroup ? msg.author : chatId;
-        const senderName = senderId && AI_SENDER_NAMES.get(senderId);
+        const senderName = senderId && lookupSenderName(senderId);
         const messageForAgent = senderName ? `[Mensagem de ${senderName}]: ${msg.body}` : msg.body;
 
         try {
