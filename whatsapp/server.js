@@ -294,6 +294,28 @@ async function askAgent(message, conversationId, senderPhone) {
     }
 }
 
+// WhatsApp vem migrando contas pra um identificador "LID" (Linked ID,
+// "...@lid") que esconde o número de telefone real por padrão, em vez do
+// clássico "...@c.us" -- confirmado em produção: um remetente apareceu
+// como "188093864919070@lid", e isso nunca bate com nenhum telefone
+// cadastrado (ver User.phone_number no map/), então o nome nunca era
+// resolvido. getContactLidAndPhone resolve de volta pro número de
+// verdade; só retorna primitivos (lid/pn como string), bem mais simples
+// que a serialização de Chat que já crashou o processo antes, mas
+// mesmo assim fica num try/catch -- se falhar, cai pro próprio @lid (o
+// agente central só não vai achar usuário nenhum com esse id, sem travar
+// o bot por causa disso).
+async function resolveSenderPhone(client, id) {
+    if (!id || !id.endsWith('@lid')) return id;
+    try {
+        const [resolved] = await client.getContactLidAndPhone([id]);
+        return resolved?.pn || id;
+    } catch (err) {
+        log('WARN', `Falha ao resolver LID ${id}, usando como veio: ${err.message}`);
+        return id;
+    }
+}
+
 function setupAiChatHandler(c) {
     if (!AI_CHAT_ENABLED) {
         log('WARN', 'IA desabilitada: defina AI_AGENT_TOKEN no .env para responder mensagens do WhatsApp pelo chat.');
@@ -345,7 +367,7 @@ function setupAiChatHandler(c) {
         // resolvido aqui -- o agente central consulta o cadastro de
         // usuário do cliente (map/) pelo número e decide o que fazer com
         // ele (inclusive logar o número mesmo sem usuário vinculado).
-        const senderPhone = isGroup ? msg.author : chatId;
+        const senderPhone = await resolveSenderPhone(c, isGroup ? msg.author : chatId);
 
         try {
             const reply = await askAgent(msg.body, chatId, senderPhone);
