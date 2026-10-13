@@ -176,7 +176,14 @@ async function askAgent(message, conversationId) {
                 buffer = buffer.slice(sepIndex + 2);
 
                 const lines = record.split('\n');
-                if (lines.some((l) => l.startsWith('event: done'))) done = true;
+                const isDone = lines.some((l) => l.startsWith('event: done'));
+                if (isDone) {
+                    // O JSON do conversation_id vem nesse mesmo registro
+                    // (ver chat.py) -- sem esse "if", ele aparecia colado
+                    // no fim de toda resposta no WhatsApp.
+                    done = true;
+                    continue;
+                }
                 const dataLines = lines.filter((l) => l.startsWith('data: '));
                 if (dataLines.length > 0) {
                     text += dataLines.map((l) => l.slice(6)).join('\n');
