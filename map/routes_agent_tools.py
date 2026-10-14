@@ -16,9 +16,12 @@ from ssh_tools import (
     get_bgp_peers,
     get_bgp_prefixes,
     get_device_logs,
+    get_full_config,
     get_interface_arp,
     get_interface_config,
+    get_interface_status,
     get_ip_prefix_list,
+    get_mac_address_by_vlan,
     get_ipv6_prefix_list,
     get_pppoe_aaa_fail_record,
     get_pppoe_pool_usage,
@@ -27,6 +30,7 @@ from ssh_tools import (
     get_pppoe_sessions,
     get_pppoe_summary,
     get_route_policy_config,
+    get_vlan_summary,
 )
 
 agent_tools_bp = Blueprint('agent_tools', __name__, url_prefix='/api/agent-tools')
@@ -303,6 +307,63 @@ def pppoe_aaa_fail_record():
         return jsonify({'error': 'hostid e pevlan são obrigatórios'}), 400
     try:
         output = get_pppoe_aaa_fail_record(hostid, pevlan, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/interface-status', methods=['POST'])
+def interface_status():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid, interface = data.get('hostid'), data.get('interface')
+    if not hostid or not interface:
+        return jsonify({'error': 'hostid e interface são obrigatórios'}), 400
+    try:
+        output = get_interface_status(hostid, interface, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/mac-address-by-vlan', methods=['POST'])
+def mac_address_by_vlan():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid, vlan_id = data.get('hostid'), data.get('vlan_id')
+    if not hostid or not vlan_id:
+        return jsonify({'error': 'hostid e vlan_id são obrigatórios'}), 400
+    try:
+        output = get_mac_address_by_vlan(hostid, vlan_id, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/vlan-summary', methods=['POST'])
+def vlan_summary():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid = data.get('hostid')
+    if not hostid:
+        return jsonify({'error': 'hostid é obrigatório'}), 400
+    try:
+        output = get_vlan_summary(hostid, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/full-config', methods=['POST'])
+def full_config():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora. Saída
+    pode ser bem longa."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid = data.get('hostid')
+    if not hostid:
+        return jsonify({'error': 'hostid é obrigatório'}), 400
+    try:
+        output = get_full_config(hostid, _zabbix_client)
         return jsonify({'output': output})
     except SSHToolError as e:
         return jsonify({'error': str(e)}), 502

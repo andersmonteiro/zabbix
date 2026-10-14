@@ -161,7 +161,7 @@ def get_optical_signal(hostid, port, zabbix_client):
     conn = _connect(info)
     try:
         if info['vendor'] == 'huawei':
-            output = conn.send_command(f'display interface {port} optical-info')
+            output = conn.send_command(f'display transceiver diagnosis interface {port}')
         elif info['vendor'] == 'datacom':
             # `port` já vem no formato usado pelo próprio equipamento, ex:
             # "ten-gigabit-ethernet 1/1/1" (ver Base de Conhecimento,
@@ -343,12 +343,13 @@ def get_device_logs(hostid, since, zabbix_client):
     equipamento espera (ex: '2026-10-08') -- validado como uma string
     comum, nunca interpolado dentro de um comando montado livremente.
     Ignorado no Huawei e no Datacom: nenhum dos dois comandos catalogados
-    pra log (display logbuffer / show log tail 100) tem filtro de data."""
+    pra log (display logbuffer size 100 / show log tail 100) tem filtro de
+    data."""
     info = _fetch_host_info(hostid, zabbix_client)
     conn = _connect(info)
     try:
         if info['vendor'] == 'huawei':
-            output = conn.send_command('display logbuffer')
+            output = conn.send_command('display logbuffer size 100')
         elif info['vendor'] == 'datacom':
             output = conn.send_command('show log tail 100')
         else:
@@ -398,6 +399,42 @@ def get_interface_arp(hostid, interface, zabbix_client):
         return output
     finally:
         conn.disconnect()
+
+
+def get_interface_status(hostid, interface, zabbix_client):
+    """Status operacional detalhado de UMA interface -- se está UP/DOWN
+    física e por protocolo, uptime, modo (trunk/access), velocidade,
+    tráfego dos últimos 300s e erros -- "display interface <nome>". Só
+    Huawei por enquanto. Diferente de get_interface_config (configuração
+    estática) e get_optical_signal (sinal óptico)."""
+    return _huawei_only_display(
+        hostid, zabbix_client, f'display interface {interface}', 'Status detalhado de interface',
+    )
+
+
+def get_mac_address_by_vlan(hostid, vlan_id, zabbix_client):
+    """Tabela de endereços MAC aprendidos numa VLAN específica -- MAC,
+    tipo (dynamic/static) e de qual interface foi aprendido --
+    "display mac-address vlan <vlan>". Só Huawei por enquanto."""
+    return _huawei_only_display(
+        hostid, zabbix_client, f'display mac-address vlan {vlan_id}', 'Tabela MAC por VLAN',
+    )
+
+
+def get_vlan_summary(hostid, zabbix_client):
+    """Todas as VLANs criadas no equipamento (estáticas, dinâmicas e
+    reservadas) -- "display vlan summary". Só Huawei por enquanto."""
+    return _huawei_only_display(hostid, zabbix_client, 'display vlan summary', 'Lista de VLANs')
+
+
+def get_full_config(hostid, zabbix_client):
+    """Configuração completa do equipamento: VLANs, interfaces e suas
+    descrições, endereços IP, roteamento, filtros, BGP, etc --
+    "display current-configuration". Saída pode ser bem longa. Só Huawei
+    por enquanto. Pra pegar só a configuração de BGP ou de uma interface
+    específica, prefira get_bgp_config / get_interface_config -- mais
+    direto e mais barato."""
+    return _huawei_only_display(hostid, zabbix_client, 'display current-configuration', 'Configuração completa do host')
 
 
 # ── Cache periódico (interfaces + rotas estáticas) ──────────────────────
