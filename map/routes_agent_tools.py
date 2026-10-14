@@ -139,6 +139,42 @@ def host_functions(hostid):
         return jsonify({'error': str(e)}), 502
 
 
+@agent_tools_bp.route('/search-interfaces', methods=['POST'])
+def search_interfaces():
+    """Não abre SSH -- busca por trecho da DESCRIÇÃO de interface em TODOS
+    os hosts já cacheados de uma vez, sem precisar saber de antemão em
+    qual host/local está. Serve pro caso real de cliente/NOC descrevendo
+    um circuito pelo apelido dele (ex: "fibra da travessia", "link do
+    PE-tal") sem dizer o host -- o apelido normalmente bate com a
+    descrição cadastrada na porta em um ou mais equipamentos (ex: os dois
+    lados de uma travessia de fibra, cada um num switch diferente)."""
+    data = request.get_json(force=True, silent=True) or {}
+    query = (data.get('query') or '').strip()
+    if not query:
+        return jsonify({'error': 'query é obrigatório'}), 400
+    session = _session_factory()
+    try:
+        rows = (
+            session.query(InterfaceCache, Point)
+            .join(Point, InterfaceCache.point_id == Point.id)
+            .filter(InterfaceCache.description.ilike(f'%{query}%'))
+            .all()
+        )
+        return jsonify({
+            'matches': [
+                {
+                    'hostid': point.zabbix_hostid,
+                    'host_name': point.name,
+                    'interface': iface.interface_name,
+                    'description': iface.description,
+                }
+                for iface, point in rows
+            ],
+        })
+    finally:
+        session.close()
+
+
 @agent_tools_bp.route('/bgp-prefixes', methods=['POST'])
 def bgp_prefixes():
     """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora."""
