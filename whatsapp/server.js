@@ -72,6 +72,15 @@ const AI_CHAT_ENABLED       = AI_AGENT_TOKEN !== '';
 const AI_ALLOWED_CHATS      = (process.env.AI_ALLOWED_CHATS || '').split(',').map(s => s.trim()).filter(Boolean);
 const AI_REQUEST_TIMEOUT_MS = parseInt(process.env.AI_REQUEST_TIMEOUT_MS || '60000', 10);
 
+// Transcrição de áudio (mensagens de voz do WhatsApp) via Groq -- API
+// compatível com o formato da OpenAI (multipart/form-data, endpoint
+// /audio/transcriptions), escolhida pelo custo bem mais baixo que rodar
+// um modelo de voz próprio (nem precisa de GPU). Vazio = áudio recebido
+// é ignorado (mensagem de texto continua funcionando normalmente).
+const GROQ_API_KEY       = process.env.GROQ_API_KEY       || '';
+const GROQ_WHISPER_MODEL = process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3-turbo';
+const TRANSCRIBE_ENABLED = GROQ_API_KEY !== '';
+
 if (process.env.ZABBIX_INSECURE === '1') {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     log('WARN', 'Verificação SSL desativada (ZABBIX_INSECURE=1)');
@@ -294,6 +303,28 @@ async function askAgent(message, conversationId, senderPhone) {
     }
 }
 
+// Transcreve uma mensagem de voz (media.data já vem em base64 do próprio
+// msg.downloadMedia()) usando a API de transcrição da Groq. Lança erro se
+// a chamada falhar -- quem chama decide o que responder ao usuário nesse
+// caso (ver setupAiChatHandler).
+async function transcribeAudio(media) {
+    const buffer = Buffer.from(media.data, 'base64');
+    const form = new FormData();
+    form.append('file', new Blob([buffer], { type: media.mimetype || 'audio/ogg' }), 'audio.ogg');
+    form.append('model', GROQ_WHISPER_MODEL);
+
+    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body:    form,
+    });
+    if (!response.ok) {
+        throw new Error(`Groq respondeu HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    return (data.text || '').trim();
+}
+
 // WhatsApp vem migrando contas pra um identificador "LID" (Linked ID,
 // "...@lid") que esconde o número de telefone real por padrão, em vez do
 // clássico "...@c.us" -- confirmado em produção: um remetente apareceu
@@ -321,12 +352,19 @@ function setupAiChatHandler(c) {
         log('WARN', 'IA desabilitada: defina AI_AGENT_TOKEN no .env para responder mensagens do WhatsApp pelo chat.');
         return;
     }
+    if (!TRANSCRIBE_ENABLED) {
+        log('WARN', 'Transcrição de áudio desabilitada: defina GROQ_API_KEY no .env pra responder mensagens de voz.');
+    }
 
     c.on('message', async (msg) => {
-        // fromMe evita que o bot responda a si mesmo (inclusive os alertas
-        // que ele mesmo manda pros grupos via /webhook). type !== 'chat'
-        // ignora mídia/figurinhas/status sem texto de verdade pra mandar à IA.
-        if (msg.fromMe || msg.type !== 'chat' || !msg.body?.trim()) return;
+        // Mensagem de voz (gravada na hora) chega como type 'ptt'; áudio
+        // mandado como arquivo chega como 'audio' -- os dois têm mídia
+        // baixável (msg.hasMedia) e tratamos igual, transcrevendo antes de
+        // mandar pro agente. Qualquer outro tipo sem texto (figurinha,
+        // imagem sem legenda, status) continua ignorado.
+        const isVoice = msg.type === 'ptt' || msg.type === 'audio';
+        if (msg.fromMe || (!isVoice && (msg.type !== 'chat' || !msg.body?.trim()))) return;
+        if (isVoice && !TRANSCRIBE_ENABLED) return;
 
         // msg.getChat() CRASHA O PROCESSO INTEIRO nessa versão do
         // whatsapp-web.js -- mesmo bug de serialização já documentado em
@@ -369,8 +407,24 @@ function setupAiChatHandler(c) {
         // ele (inclusive logar o número mesmo sem usuário vinculado).
         const senderPhone = await resolveSenderPhone(c, isGroup ? msg.author : chatId);
 
+        let text = msg.body?.trim();
+        if (isVoice) {
+            try {
+                const media = await msg.downloadMedia();
+                text = await transcribeAudio(media);
+            } catch (err) {
+                log('WARN', `Falha ao transcrever áudio em ${chatId}: ${err.message}`);
+                await msg.reply('Não consegui entender o áudio. Pode mandar em texto?').catch(() => {});
+                return;
+            }
+            if (!text) {
+                await msg.reply('Não consegui entender o áudio. Pode mandar em texto?').catch(() => {});
+                return;
+            }
+        }
+
         try {
-            const reply = await askAgent(msg.body, chatId, senderPhone);
+            const reply = await askAgent(text, chatId, senderPhone);
 
             const codeBlocks = extractCodeBlocks(reply);
             if (codeBlocks.length > 0) {

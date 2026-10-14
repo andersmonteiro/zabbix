@@ -29,6 +29,8 @@ services:
       - AI_AGENT_TOKEN=${AI_AGENT_TOKEN}
       - AI_ALLOWED_CHATS=${AI_ALLOWED_CHATS}
       - AI_REQUEST_TIMEOUT_MS=${AI_REQUEST_TIMEOUT_MS:-60000}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_WHISPER_MODEL=${GROQ_WHISPER_MODEL:-whisper-large-v3-turbo}
     volumes:
       - whatsapp-session:/app/.wwebjs_auth
     extra_hosts:
