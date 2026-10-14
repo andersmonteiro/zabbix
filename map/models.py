@@ -103,6 +103,25 @@ class InterfaceCache(Base):
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
+class CircuitAlias(Base):
+    """Apelido de circuito/porta cadastrado manualmente pelo operador (ex:
+    "travessia" -> BGP-CASTELO-HUAWEI-NE40 / 25GE0/5/24), pra o agente de
+    IA resolver de forma exata e instantânea em vez de depender só da
+    busca por trecho de descrição (ver buscar_interface_por_descricao /
+    routes_agent_tools.search_interfaces) -- o mesmo apelido às vezes
+    precisa apontar pra MAIS de uma interface (ex: as duas pontas de uma
+    travessia de fibra, cada uma num switch), por isso não é único por
+    alias sozinho."""
+    __tablename__ = 'netmap_circuit_aliases'
+
+    id = Column(Integer, primary_key=True)
+    alias = Column(String, nullable=False)
+    zabbix_hostid = Column(String, nullable=False)
+    interface_name = Column(String, nullable=False)
+    note = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
 class RouteCache(Base):
     """Rotas estáticas de cada host -- mesma lógica do InterfaceCache, config
     que raramente muda."""

@@ -25,12 +25,15 @@ SessionLocal = get_session_factory(engine)
 init_db(engine)
 
 from auth import auth_bp, init_auth, register_auth_guard
+from routes_circuit_aliases import circuit_aliases_bp, init_circuit_aliases_routes
 from routes_users import users_bp, init_users_routes
 
 init_auth(SessionLocal)
 init_users_routes(SessionLocal)
+init_circuit_aliases_routes(SessionLocal)
 app.register_blueprint(auth_bp)
 app.register_blueprint(users_bp)
+app.register_blueprint(circuit_aliases_bp)
 register_auth_guard(app)
 
 

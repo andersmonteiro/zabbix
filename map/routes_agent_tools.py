@@ -9,7 +9,7 @@ import re
 
 from flask import Blueprint, jsonify, request
 
-from models import InterfaceCache, Point, RouteCache, User
+from models import CircuitAlias, InterfaceCache, Point, RouteCache, User
 from ssh_tools import (
     SSHToolError,
     get_bgp_config,
@@ -147,13 +147,38 @@ def search_interfaces():
     um circuito pelo apelido dele (ex: "fibra da travessia", "link do
     PE-tal") sem dizer o host -- o apelido normalmente bate com a
     descrição cadastrada na porta em um ou mais equipamentos (ex: os dois
-    lados de uma travessia de fibra, cada um num switch diferente)."""
+    lados de uma travessia de fibra, cada um num switch diferente).
+
+    Primeiro checa os apelidos cadastrados manualmente (CircuitAlias,
+    ver /admin/circuit-aliases) -- resolução exata, o operador que
+    ensinou. Só cai pra busca por trecho de descrição (cache de
+    interfaces) quando nenhum apelido bate: a lista de apelidos cresce
+    aos poucos, conforme casos reais vão sendo cadastrados."""
     data = request.get_json(force=True, silent=True) or {}
     query = (data.get('query') or '').strip()
     if not query:
         return jsonify({'error': 'query é obrigatório'}), 400
     session = _session_factory()
     try:
+        alias_rows = (
+            session.query(CircuitAlias, Point)
+            .join(Point, CircuitAlias.zabbix_hostid == Point.zabbix_hostid)
+            .filter(CircuitAlias.alias.ilike(f'%{query}%'))
+            .all()
+        )
+        if alias_rows:
+            return jsonify({
+                'matches': [
+                    {
+                        'hostid': point.zabbix_hostid,
+                        'host_name': point.name,
+                        'interface': alias.interface_name,
+                        'description': f'Apelido cadastrado: "{alias.alias}"' + (f' -- {alias.note}' if alias.note else ''),
+                    }
+                    for alias, point in alias_rows
+                ],
+            })
+
         rows = (
             session.query(InterfaceCache, Point)
             .join(Point, InterfaceCache.point_id == Point.id)

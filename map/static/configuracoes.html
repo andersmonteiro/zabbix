@@ -112,6 +112,28 @@
               <p id="user-status" class="form-status"></p>
             </div>
           </div>
+
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">Apelidos de circuito (pro agente de IA)</span></div>
+            <div class="panel-body">
+              <p>Ensina o agente a reconhecer o apelido que o cliente/NOC usa pra um circuito (ex: "travessia") sem precisar dizer o host -- um mesmo apelido pode apontar pra mais de uma interface (ex: as duas pontas de uma travessia de fibra).</p>
+              <div id="circuit-aliases-list"></div>
+              <form class="inline" id="circuit-alias-form">
+                <label class="field-label" for="alias-text">Apelido</label>
+                <input id="alias-text" name="alias" placeholder="ex: travessia" required />
+                <label class="field-label" for="alias-host">Host</label>
+                <select id="alias-host" name="hostid" required>
+                  <option value="">Selecione...</option>
+                </select>
+                <label class="field-label" for="alias-interface">Interface</label>
+                <input id="alias-interface" name="interface" placeholder="ex: 25GE0/5/24" required />
+                <label class="field-label" for="alias-note">Nota (opcional)</label>
+                <input id="alias-note" name="note" placeholder="ex: lado Itaituba" />
+                <button class="btn-primary" type="submit">Adicionar apelido</button>
+              </form>
+              <p id="circuit-alias-status" class="form-status"></p>
+            </div>
+          </div>
         </div>
       </main>
     </div>
@@ -211,6 +233,61 @@
       }
     });
 
+    async function loadHostOptions() {
+      const points = await (await fetch('/api/points')).json();
+      const select = document.getElementById('alias-host');
+      const equipmentPoints = points.filter((p) => p.point_type === 'equipment' && p.zabbix_hostid);
+      select.innerHTML = '<option value="">Selecione...</option>' + equipmentPoints
+        .map((p) => `<option value="${esc(p.zabbix_hostid)}">${esc(p.name)}</option>`).join('');
+    }
+
+    async function loadCircuitAliases() {
+      const resp = await fetch('/api/circuit-aliases');
+      const aliases = await resp.json();
+      const list = document.getElementById('circuit-aliases-list');
+      list.innerHTML = aliases.map((a) => `
+        <div class="list-item" data-id="${esc(a.id)}">
+          <span><strong>${esc(a.alias)}</strong> → ${esc(a.host_name || a.hostid)} / ${esc(a.interface)}${a.note ? ' — ' + esc(a.note) : ''}</span>
+          <button type="button" class="circuit-alias-delete row-delete" data-id="${esc(a.id)}">Remover</button>
+        </div>
+      `).join('') || '<p>Nenhum apelido cadastrado ainda.</p>';
+      list.querySelectorAll('.circuit-alias-delete').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const resp = await fetch(`/api/circuit-aliases/${btn.dataset.id}`, { method: 'DELETE' });
+          if (resp.ok) {
+            await loadCircuitAliases();
+          } else {
+            document.getElementById('circuit-alias-status').textContent = 'Falha ao remover apelido.';
+          }
+        });
+      });
+    }
+
+    document.getElementById('circuit-alias-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const statusEl = document.getElementById('circuit-alias-status');
+      statusEl.textContent = '';
+      const resp = await fetch('/api/circuit-aliases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alias: form.alias.value, hostid: form.hostid.value,
+          interface: form.interface.value, note: form.note.value,
+        }),
+      });
+      if (resp.ok) {
+        form.reset();
+        statusEl.textContent = 'Apelido adicionado.';
+        await loadCircuitAliases();
+      } else {
+        const body = await resp.json().catch(() => ({}));
+        statusEl.textContent = body.error || 'Falha ao adicionar apelido.';
+      }
+    });
+
+    loadHostOptions();
+    loadCircuitAliases();
     loadUsers();
   </script>
 </body>
