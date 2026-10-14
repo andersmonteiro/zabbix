@@ -206,19 +206,19 @@ def get_optical_signal(hostid, port, zabbix_client):
         if info['vendor'] == 'huawei':
             output = conn.send_command(f'display transceiver diagnosis interface {port}')
             if _looks_like_huawei_cli_error(output):
-                # Confirmado ao vivo (2026-10-14): esse comando funciona em
-                # switches Huawei (S/CloudEngine, ex: 6730H) mas é
-                # "Unrecognized command" num roteador NE8000/NE40 -- VRP não
-                # é um dialeto só, e a sintaxe certa pra essa família ainda
-                # não está cadastrada na Base de Conhecimento. Recusa
-                # explícita em vez de devolver o erro de sintaxe cru do
-                # equipamento pro modelo tentar interpretar sozinho.
-                raise SSHToolError(
-                    f'Sinal óptico não suportado nesse equipamento Huawei pra a interface "{port}" '
-                    '(comando catalogado só confirmado em switches S/CloudEngine -- routers '
-                    'NE8000/NE40 usam uma sintaxe diferente, ainda não cadastrada na Base de '
-                    'Conhecimento)'
-                )
+                # Confirmado ao vivo (2026-10-14): o comando acima só existe
+                # em switches Huawei (S/CloudEngine, ex: 6730H) -- é
+                # "Unrecognized command" num roteador NE8000/NE40. Nesses,
+                # o sinal óptico vem filtrando o próprio "display interface"
+                # (mesmo comando de get_interface_status) pelas linhas
+                # "Rx/Tx ... Power" -- confirmado ao vivo contra o NE40 de
+                # Castelo (ver Base de Conhecimento, categoria "Sinal
+                # óptico (NE8000/NE40)").
+                output = conn.send_command(f'display interface {port} | include Power')
+                if _looks_like_huawei_cli_error(output):
+                    raise SSHToolError(
+                        f'Sinal óptico não suportado nesse equipamento Huawei pra a interface "{port}"'
+                    )
         elif info['vendor'] == 'datacom':
             # `port` já vem no formato usado pelo próprio equipamento, ex:
             # "ten-gigabit-ethernet 1/1/1" (ver Base de Conhecimento,
@@ -537,6 +537,18 @@ _HUAWEI_DESC_RE = re.compile(
 # de cada (lane0), que já é o valor "atual" do transceiver.
 _HUAWEI_TX_POWER_RE = re.compile(r'TxPower\(dBm\)\s+(?P<tx>-?\d+\.?\d*)', re.IGNORECASE)
 _HUAWEI_RX_POWER_RE = re.compile(r'RxPower\(dBm\)\s+(?P<rx>-?\d+\.?\d*)', re.IGNORECASE)
+# "display optical-module brief" (routers NE8000/NE40, confirmado ao vivo
+# 2026-10-14): uma linha por porta com Status/Duplex/Type/Wavelength/
+# RxPower/TxPower/Mode/VendorPN, seguida (pra módulo multi-lane) de linhas
+# de continuação só com o detalhe por lane, sem repetir o nome da porta.
+# [ \t]+ (nunca \s+) entre os campos -- \s também casa "\n", e com ele o
+# regex podia "vazar" pra linha seguinte quando uma linha tem poucos
+# campos (o separador "----" e as linhas de lane só têm 1 e 3 tokens,
+# respectivamente), embaralhando qual valor pertence a qual porta.
+_HUAWEI_OPTICAL_BRIEF_ROW_RE = re.compile(
+    r'^(?P<port>\S+)[ \t]+\S+[ \t]+\S+[ \t]+\S+[ \t]+\S+[ \t]+(?P<rx>\S+)[ \t]+(?P<tx>\S+)',
+    re.MULTILINE,
+)
 _HUAWEI_STATIC_ROUTE_RE = re.compile(
     r'^(?P<dest>\d+\.\d+\.\d+\.\d+/\d+)\s+Static\s+\d+\s+\d+\s+\S+\s+(?P<nexthop>\S+)\s+(?P<iface>\S+)\s*$',
     re.MULTILINE,
@@ -600,6 +612,40 @@ def _parse_optical(output, vendor):
         return float(m.group('rx')), float(m.group('tx'))
     except (TypeError, ValueError):
         return None, None
+
+
+_IFACE_SLOT_RE = re.compile(r'(\d+(?:/\d+)+)')
+
+
+def _huawei_iface_slot_key(name):
+    """Normaliza um nome de interface Huawei pro caminho numérico
+    (slot/subslot/porta), ignorando o prefixo de tipo e qualquer sufixo de
+    sub-interface -- confirmado ao vivo (2026-10-14) que 'display
+    optical-module brief' nomeia a porta física como "ETHx/y/z", diferente
+    do nome lógico ("100GEx/y/z"/"25GEx/y/z") usado em 'display interface
+    description'/'display ip interface brief', mas os dois são o mesmo
+    caminho físico -- sem essa normalização, o cruzamento por nome dava 0
+    de 113 interfaces casadas."""
+    base = name.split('.')[0]
+    m = _IFACE_SLOT_RE.search(base)
+    return m.group(1) if m else base
+
+
+def _parse_huawei_optical_brief(output):
+    """{nome_da_porta: (rx_dbm, tx_dbm)} a partir de 'display optical-module
+    brief' -- "--" (porta sem módulo óptico, ex: cobre) e qualquer valor
+    não numérico (a própria linha de cabeçalho da tabela também casa o
+    formato de 7 colunas, mas "RxPower"/"TxPower" não convertem pra float)
+    viram None, não um erro."""
+    result = {}
+    for m in _HUAWEI_OPTICAL_BRIEF_ROW_RE.finditer(output):
+        def to_float(raw):
+            try:
+                return float(raw.replace('dBm', ''))
+            except ValueError:
+                return None
+        result[m.group('port')] = (to_float(m.group('rx')), to_float(m.group('tx')))
+    return result
 
 
 def _parse_huawei_routes(output):
@@ -715,19 +761,30 @@ def fetch_host_cache_data(hostid, zabbix_client):
             brief = conn.send_command('display ip interface brief')
             desc = conn.send_command('display interface description')
             ifaces = _parse_huawei_interfaces(brief, desc)
-            for name, data in ifaces.items():
-                # 'display interface X optical-info' nunca foi o comando
-                # certo (confirmado quebrado tanto em switch quanto em
-                # router) -- o sinal óptico do cache ficou sempre vazio pra
-                # Huawei até essa correção. O comando certo só está
-                # confirmado em switches S/CloudEngine; em routers
-                # NE8000/NE40 ele dá erro de sintaxe (ver get_optical_signal),
-                # então o resultado é checado antes de tentar parsear --
-                # nesse caso o sinal simplesmente fica None, igual já era
-                # antes, só que agora por um motivo conhecido e não por bug.
-                optical_out = conn.send_command(f'display transceiver diagnosis interface {name}')
-                if not _looks_like_huawei_cli_error(optical_out):
-                    data['optical_rx_dbm'], data['optical_tx_dbm'] = _parse_optical(optical_out, 'huawei')
+            # 'display interface X optical-info' nunca foi o comando certo
+            # (confirmado quebrado tanto em switch quanto em router) -- o
+            # sinal óptico do cache ficou sempre vazio pra Huawei até essa
+            # correção. Huawei tem DOIS comandos diferentes dependendo da
+            # família: routers NE8000/NE40 têm 'display optical-module
+            # brief', que traz TODAS as portas de uma vez (confirmado ao
+            # vivo 2026-10-14) -- tentado primeiro porque evita um
+            # round-trip de SSH por interface. Switches S/CloudEngine (ex:
+            # 6730H) não têm esse comando ("Unrecognized command") e caem
+            # no loop porta-a-porta com 'display transceiver diagnosis
+            # interface X', que só existe nessa família.
+            brief_optical_out = conn.send_command('display optical-module brief')
+            if not _looks_like_huawei_cli_error(brief_optical_out):
+                optical_by_port = _parse_huawei_optical_brief(brief_optical_out)
+                optical_by_slot = {_huawei_iface_slot_key(k): v for k, v in optical_by_port.items()}
+                for name, data in ifaces.items():
+                    slot = _huawei_iface_slot_key(name)
+                    if slot in optical_by_slot:
+                        data['optical_rx_dbm'], data['optical_tx_dbm'] = optical_by_slot[slot]
+            else:
+                for name, data in ifaces.items():
+                    optical_out = conn.send_command(f'display transceiver diagnosis interface {name}')
+                    if not _looks_like_huawei_cli_error(optical_out):
+                        data['optical_rx_dbm'], data['optical_tx_dbm'] = _parse_optical(optical_out, 'huawei')
             try:
                 # Tabela de rotas de um roteador BGP grande pode ser enorme
                 # -- confirmado em produção um NE40 estourar o read_timeout
