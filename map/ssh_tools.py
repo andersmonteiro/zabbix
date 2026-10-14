@@ -127,6 +127,7 @@ def _fetch_basic_host_info(hostid, zabbix_client):
         'port': int(ssh_port),
         'username': macros.get('{$SSH_USER}'),
         'password': macros.get('{$SSH_PASS}'),
+        'functions_raw': macros.get('{$FUNCTIONS}') or '',
     }
 
 
@@ -196,6 +197,20 @@ def test_ssh(hostid, zabbix_client):
             f'fabricante "{info["vendor"] or "não definido"}" ainda sem suporte a comandos'
         )
     raise SSHToolError(f'Não respondeu na porta SSH ({info["ip"]}:{info["port"]})')
+
+
+def get_host_functions(hostid, zabbix_client):
+    """Lista de funções declaradas pro host (macro {$FUNCTIONS} no Zabbix,
+    valores separados por vírgula -- ex: "BGP,PPPoE") -- um mesmo
+    equipamento (NE8000, Mikrotik, ...) pode exercer mais de uma função ao
+    mesmo tempo, por isso é uma lista, não um valor único. Não abre SSH --
+    só lê o cadastro do Zabbix, serve pra desambiguar qual host usar
+    quando a busca por nome trouxer mais de um candidato (ex: "Castelo"
+    bate com um roteador BGP/PPPoE e um switch de acesso). Lista vazia =
+    função não cadastrada pra esse host, não é erro -- nem todo host
+    precisa disso pra já funcionar."""
+    info = _fetch_basic_host_info(hostid, zabbix_client)
+    return [f.strip().upper() for f in info['functions_raw'].split(',') if f.strip()]
 
 
 def get_optical_signal(hostid, port, zabbix_client):
@@ -379,6 +394,25 @@ def get_pppoe_aaa_fail_record(hostid, pevlan, zabbix_client):
     return _huawei_only_display(
         hostid, zabbix_client, f'display aaa online-fail-record pevlan {pevlan}',
         'Registro de falha de autenticação PPPoE',
+    )
+
+
+def get_route_to_destination(hostid, destination, zabbix_client):
+    """Rota de melhor match (longest-match) pra um IP específico --
+    "display ip routing-table <IP>". Serve tanto pra achar a rota default
+    (destination="0.0.0.0", que sempre é o melhor match de tudo) quanto
+    pra qualquer outro IP/rede. Diferente de listar_rotas_estaticas (só
+    rotas ESTÁTICAS, cacheadas): esta é ao vivo e mostra a rota de
+    QUALQUER protocolo (BGP, OSPF, estática, etc) -- confirmado ao vivo
+    que a rota default de um roteador de borda normalmente é aprendida
+    via EBGP, não estática, e por isso nunca aparecia em
+    listar_rotas_estaticas. Só aceita IP puro (sem /máscara -- confirmado
+    que a forma CIDR dá erro de sintaxe nesse comando). Pra identificar
+    QUEM é o vizinho do NextHop retornado (ex: qual provedor de trânsito),
+    cruze com consultar_configuracao_bgp."""
+    destination = _validate_ip(destination, 'Destino')
+    return _huawei_only_display(
+        hostid, zabbix_client, f'display ip routing-table {destination}', 'Consulta de rota por destino',
     )
 
 

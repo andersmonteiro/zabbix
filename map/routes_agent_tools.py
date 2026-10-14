@@ -18,6 +18,7 @@ from ssh_tools import (
     get_bgp_prefixes,
     get_device_logs,
     get_full_config,
+    get_host_functions,
     get_interface_arp,
     get_interface_config,
     get_interface_status,
@@ -31,6 +32,7 @@ from ssh_tools import (
     get_pppoe_sessions,
     get_pppoe_summary,
     get_route_policy_config,
+    get_route_to_destination,
     get_vlan_summary,
 )
 
@@ -124,6 +126,17 @@ def routes(hostid):
         return jsonify(result)
     finally:
         session.close()
+
+
+@agent_tools_bp.route('/host-functions/<hostid>', methods=['GET'])
+def host_functions(hostid):
+    """Não abre SSH -- só lê o cadastro de macros do Zabbix. Serve pra
+    desambiguar qual host usar quando a busca por nome trouxer mais de um
+    candidato."""
+    try:
+        return jsonify({'functions': get_host_functions(hostid, _zabbix_client)})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
 
 
 @agent_tools_bp.route('/bgp-prefixes', methods=['POST'])
@@ -365,6 +378,22 @@ def full_config():
         return jsonify({'error': 'hostid é obrigatório'}), 400
     try:
         output = get_full_config(hostid, _zabbix_client)
+        return jsonify({'output': output})
+    except SSHToolError as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@agent_tools_bp.route('/route-lookup', methods=['POST'])
+def route_lookup():
+    """Estado ao vivo -- nunca cacheado, sempre abre SSH na hora. Rota de
+    melhor match pra um IP específico, de qualquer protocolo (não só
+    estática)."""
+    data = request.get_json(force=True, silent=True) or {}
+    hostid, destination = data.get('hostid'), data.get('destination')
+    if not hostid or not destination:
+        return jsonify({'error': 'hostid e destination são obrigatórios'}), 400
+    try:
+        output = get_route_to_destination(hostid, destination, _zabbix_client)
         return jsonify({'output': output})
     except SSHToolError as e:
         return jsonify({'error': str(e)}), 502

@@ -127,6 +127,8 @@ def _build_macros(data, existing_macros=None):
         macros.append({'macro': '{$VENDOR}', 'value': data['vendor']})
     if data.get('model'):
         macros.append({'macro': '{$MODEL}', 'value': data['model']})
+    if data.get('functions'):
+        macros.append({'macro': '{$FUNCTIONS}', 'value': data['functions']})
     if data.get('ssh_user'):
         macros.append({'macro': '{$SSH_USER}', 'value': data['ssh_user']})
     ssh_pass = data.get('ssh_pass') or existing_macros.get('{$SSH_PASS}')
@@ -218,6 +220,7 @@ def _serialize_host(h, point=None, conn_status=None):
         'groups': [g['name'] for g in h.get('hostgroups', [])],
         'vendor': macros.get('{$VENDOR}', ''),
         'model': macros.get('{$MODEL}', ''),
+        'functions': macros.get('{$FUNCTIONS}', ''),
         'ssh_user': macros.get('{$SSH_USER}', ''),
         'ssh_port': macros.get('{$SSH_PORT}', ''),
         'status': 'enabled' if h.get('status') == '0' else 'disabled',

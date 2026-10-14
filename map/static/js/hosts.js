@@ -322,6 +322,7 @@ function openEditModal(host) {
   form.ip.value = host.ip || '';
   form.vendor.value = host.vendor || '';
   form.model.value = host.model || '';
+  form.functions.value = host.functions || '';
   form.community.value = host.community || 'public';
   form.port.value = host.port || '161';
   form.ssh_user.value = host.ssh_user || '';
@@ -421,6 +422,7 @@ document.getElementById('host-form').addEventListener('submit', async (e) => {
     group_id: form.get('group_id') || null,
     vendor: form.get('vendor') || null,
     model: form.get('model') || null,
+    functions: form.get('functions') || null,
     community: form.get('community') || null,
     port: form.get('port') || null,
     ssh_user: form.get('ssh_user') || null,
