@@ -10,6 +10,7 @@ partida baseado no formato documentado de cada comando -- IGUAL ao
 catálogo de ferramentas Zabbix do projeto, cada um precisa ser validado
 contra a saída real de um equipamento antes de confiar cegamente neles.
 """
+import ipaddress
 import logging
 import re
 import socket
@@ -34,6 +35,47 @@ _NETMIKO_DEVICE_TYPE = {
 
 CONNECT_TIMEOUT = 8
 PORT_CHECK_TIMEOUT = 5
+
+
+_INTERFACE_RE = re.compile(r'^[A-Za-z0-9/.:_ -]{1,80}$')
+_DIGITS_RE = re.compile(r'^[0-9]{1,10}$')
+_LOGIN_FRAGMENT_RE = re.compile(r'^[A-Za-z0-9@._-]{1,80}$')
+_LOG_SINCE_RE = re.compile(r'^[0-9/:\- ]{1,40}$')
+
+
+def _validate(value, pattern, label):
+    """Todo parâmetro que vira texto de comando (nome de interface, vlan,
+    IP, trecho de login, etc) passa por aqui antes do f-string -- o
+    próprio CLI do equipamento trata um "\\n" dentro do valor como Enter
+    no meio do comando, então sem isso uma pergunta cujo parâmetro vem
+    quase direto da pergunta do usuário (ex: trecho de login PPPoE)
+    poderia injetar um segundo comando na mesma sessão SSH. Rejeita em
+    vez de tentar sanitizar: qualquer coisa fora do formato esperado
+    nunca é um valor válido de verdade pra essas categorias."""
+    text = str(value or '')
+    if not pattern.match(text):
+        raise SSHToolError(f'{label} inválido: "{text}"')
+    return text
+
+
+def _validate_ip(value, label):
+    text = str(value or '')
+    try:
+        ipaddress.ip_address(text)
+    except ValueError:
+        raise SSHToolError(f'{label} não é um IP válido: "{text}"')
+    return text
+
+
+def _looks_like_huawei_cli_error(output):
+    """VRP devolve erro de sintaxe como texto de comando normal (nunca
+    levanta exceção no netmiko) -- ex: "Error: Wrong parameter found at
+    '^' position." ou "Error: Unrecognized command found at '^'
+    position.". Essas mensagens são sempre curtas; uma saída de comando
+    válida (config, tabela, etc) nunca é tão curta quanto isso, então o
+    tamanho + a assinatura "Error:" já diferencia um do outro sem falso
+    positivo observado nas saídas reais vistas neste projeto."""
+    return len(output) < 200 and 'Error:' in output
 
 
 class SSHToolError(Exception):
@@ -157,11 +199,26 @@ def test_ssh(hostid, zabbix_client):
 
 
 def get_optical_signal(hostid, port, zabbix_client):
+    port = _validate(port, _INTERFACE_RE, 'Interface')
     info = _fetch_host_info(hostid, zabbix_client)
     conn = _connect(info)
     try:
         if info['vendor'] == 'huawei':
             output = conn.send_command(f'display transceiver diagnosis interface {port}')
+            if _looks_like_huawei_cli_error(output):
+                # Confirmado ao vivo (2026-10-14): esse comando funciona em
+                # switches Huawei (S/CloudEngine, ex: 6730H) mas é
+                # "Unrecognized command" num roteador NE8000/NE40 -- VRP não
+                # é um dialeto só, e a sintaxe certa pra essa família ainda
+                # não está cadastrada na Base de Conhecimento. Recusa
+                # explícita em vez de devolver o erro de sintaxe cru do
+                # equipamento pro modelo tentar interpretar sozinho.
+                raise SSHToolError(
+                    f'Sinal óptico não suportado nesse equipamento Huawei pra a interface "{port}" '
+                    '(comando catalogado só confirmado em switches S/CloudEngine -- routers '
+                    'NE8000/NE40 usam uma sintaxe diferente, ainda não cadastrada na Base de '
+                    'Conhecimento)'
+                )
         elif info['vendor'] == 'datacom':
             # `port` já vem no formato usado pelo próprio equipamento, ex:
             # "ten-gigabit-ethernet 1/1/1" (ver Base de Conhecimento,
@@ -175,6 +232,7 @@ def get_optical_signal(hostid, port, zabbix_client):
 
 
 def get_bgp_prefixes(hostid, neighbor_ip, zabbix_client):
+    neighbor_ip = _validate_ip(neighbor_ip, 'IP do vizinho BGP')
     info = _fetch_host_info(hostid, zabbix_client)
     if info['vendor'] == 'datacom':
         raise SSHToolError(
@@ -196,7 +254,7 @@ def get_bgp_prefixes(hostid, neighbor_ip, zabbix_client):
         conn.disconnect()
 
 
-def _huawei_only_display(hostid, zabbix_client, command, feature_label):
+def _huawei_only_display(hostid, zabbix_client, command, feature_label, read_timeout=None):
     """Compartilhado pelos comandos de BGP/route-policy/prefix-list que só
     têm comando catalogado pra Huawei até agora -- mesma recusa explícita
     (em vez de adivinhar o comando de outro fabricante) que o resto do
@@ -209,7 +267,8 @@ def _huawei_only_display(hostid, zabbix_client, command, feature_label):
         )
     conn = _connect(info)
     try:
-        return conn.send_command(command)
+        kwargs = {'read_timeout': read_timeout} if read_timeout else {}
+        return conn.send_command(command, **kwargs)
     finally:
         conn.disconnect()
 
@@ -226,6 +285,7 @@ def get_bgp_peers(hostid, zabbix_client):
 def get_bgp_peer_detail(hostid, peer_ip, zabbix_client):
     """Estado de UM vizinho BGP específico -- "display bgp peer | include
     <IP>", mais direto que pedir a lista inteira e filtrar na mão."""
+    peer_ip = _validate_ip(peer_ip, 'IP do peer BGP')
     return _huawei_only_display(
         hostid, zabbix_client, f'display bgp peer | include {peer_ip}',
         'Consulta de sessão BGP específica',
@@ -274,15 +334,20 @@ def get_pppoe_summary(hostid, zabbix_client):
 def get_pppoe_sessions(hostid, zabbix_client):
     """Lista TODAS as sessões PPPoE conectadas, uma por assinante: login,
     vlan, interface do PPPoE Server, IP e MAC -- "display access-user
-    user-type pppoe". Pode ser uma lista longa (centenas de linhas)."""
+    user-type pppoe". Pode ser uma lista longa (centenas de linhas) --
+    read_timeout mais alto que o padrão, mesmo motivo da tabela de rotas
+    BGP em fetch_host_cache_data (saída grande pode estourar o timeout
+    padrão do netmiko antes de terminar de paginar)."""
     return _huawei_only_display(
         hostid, zabbix_client, 'display access-user user-type pppoe', 'Listagem de sessões PPPoE',
+        read_timeout=60,
     )
 
 
 def get_pppoe_session_by_vlan(hostid, pevlan, zabbix_client):
     """Sessão(ões) PPPoE de uma VLAN de assinante específica --
     "display access-user pevlan <vlan>"."""
+    pevlan = _validate(pevlan, _DIGITS_RE, 'VLAN')
     return _huawei_only_display(
         hostid, zabbix_client, f'display access-user pevlan {pevlan}', 'Consulta de PPPoE por VLAN',
     )
@@ -291,6 +356,7 @@ def get_pppoe_session_by_vlan(hostid, pevlan, zabbix_client):
 def get_pppoe_session_by_username(hostid, username_fragment, zabbix_client):
     """Sessão PPPoE de um assinante pelo login (ou parte dele) --
     "display access-user username | include <trecho>"."""
+    username_fragment = _validate(username_fragment, _LOGIN_FRAGMENT_RE, 'Login')
     return _huawei_only_display(
         hostid, zabbix_client, f'display access-user username | include {username_fragment}',
         'Consulta de PPPoE por login',
@@ -309,6 +375,7 @@ def get_pppoe_aaa_fail_record(hostid, pevlan, zabbix_client):
     VLAN -- "display aaa online-fail-record pevlan <vlan>". Serve pra
     achar clientes bloqueados/rejeitados pelo RADIUS, senha/login errados,
     etc."""
+    pevlan = _validate(pevlan, _DIGITS_RE, 'VLAN')
     return _huawei_only_display(
         hostid, zabbix_client, f'display aaa online-fail-record pevlan {pevlan}',
         'Registro de falha de autenticação PPPoE',
@@ -316,6 +383,7 @@ def get_pppoe_aaa_fail_record(hostid, pevlan, zabbix_client):
 
 
 def get_vlan_ip(hostid, vlan_id, zabbix_client):
+    vlan_id = _validate(vlan_id, _DIGITS_RE, 'VLAN')
     info = _fetch_host_info(hostid, zabbix_client)
     if info['vendor'] == 'datacom':
         # A Base de Conhecimento só tem "show running-config dot1q vlan
@@ -353,6 +421,7 @@ def get_device_logs(hostid, since, zabbix_client):
         elif info['vendor'] == 'datacom':
             output = conn.send_command('show log tail 100')
         else:
+            since = _validate(since, _LOG_SINCE_RE, 'Data/hora')
             output = conn.send_command(f'/log print where time>={since}')
         return output
     finally:
@@ -366,6 +435,7 @@ def get_interface_config(hostid, interface, zabbix_client):
     'display ip interface brief' não lista os endereços secundários
     "sub"). Use depois de achar o nome da interface certa (ex: pela
     descrição, via listar_interfaces_equipamento)."""
+    interface = _validate(interface, _INTERFACE_RE, 'Interface')
     info = _fetch_host_info(hostid, zabbix_client)
     conn = _connect(info)
     try:
@@ -384,6 +454,7 @@ def get_interface_arp(hostid, interface, zabbix_client):
     """Tabela ARP filtrada por uma interface -- mostra quais dos IPs
     configurados nessa porta (ver get_interface_config) estão de fato
     em uso por algum equipamento, e o MAC de quem está usando."""
+    interface = _validate(interface, _INTERFACE_RE, 'Interface')
     info = _fetch_host_info(hostid, zabbix_client)
     conn = _connect(info)
     try:
@@ -407,6 +478,7 @@ def get_interface_status(hostid, interface, zabbix_client):
     tráfego dos últimos 300s e erros -- "display interface <nome>". Só
     Huawei por enquanto. Diferente de get_interface_config (configuração
     estática) e get_optical_signal (sinal óptico)."""
+    interface = _validate(interface, _INTERFACE_RE, 'Interface')
     return _huawei_only_display(
         hostid, zabbix_client, f'display interface {interface}', 'Status detalhado de interface',
     )
@@ -416,6 +488,7 @@ def get_mac_address_by_vlan(hostid, vlan_id, zabbix_client):
     """Tabela de endereços MAC aprendidos numa VLAN específica -- MAC,
     tipo (dynamic/static) e de qual interface foi aprendido --
     "display mac-address vlan <vlan>". Só Huawei por enquanto."""
+    vlan_id = _validate(vlan_id, _DIGITS_RE, 'VLAN')
     return _huawei_only_display(
         hostid, zabbix_client, f'display mac-address vlan {vlan_id}', 'Tabela MAC por VLAN',
     )
@@ -434,7 +507,10 @@ def get_full_config(hostid, zabbix_client):
     por enquanto. Pra pegar só a configuração de BGP ou de uma interface
     específica, prefira get_bgp_config / get_interface_config -- mais
     direto e mais barato."""
-    return _huawei_only_display(hostid, zabbix_client, 'display current-configuration', 'Configuração completa do host')
+    return _huawei_only_display(
+        hostid, zabbix_client, 'display current-configuration', 'Configuração completa do host',
+        read_timeout=60,
+    )
 
 
 # ── Cache periódico (interfaces + rotas estáticas) ──────────────────────
@@ -452,11 +528,15 @@ _HUAWEI_DESC_RE = re.compile(
     r'^(?P<name>\S+)\s+(?:up|down|\*down|\^down|--)\s+(?:up|down|--)\s+(?P<desc>\S.*)$',
     re.MULTILINE,
 )
-_HUAWEI_OPTICAL_RE = re.compile(
-    r'(?:Rx|RX)[^:\n]*power[^:\n]*:\s*(?P<rx>-?\d+\.?\d*).*?'
-    r'(?:Tx|TX)[^:\n]*power[^:\n]*:\s*(?P<tx>-?\d+\.?\d*)',
-    re.IGNORECASE | re.DOTALL,
-)
+# Saída real de "display transceiver diagnosis interface X" (confirmado
+# ao vivo em 2026-10-14): "TxPower(dBm)    0.14  (lane0)" / "RxPower(dBm)
+# 1.26  (lane0)" -- sem ":" depois de "power" (o padrão antigo, escrito
+# pra um comando diferente que nunca funcionou de verdade, exigia um ":"
+# que não existe aqui) e Tx vem ANTES de Rx na saída. Módulo multi-lane
+# (100G QSFP28) repete o valor por lane -- pega só a primeira ocorrência
+# de cada (lane0), que já é o valor "atual" do transceiver.
+_HUAWEI_TX_POWER_RE = re.compile(r'TxPower\(dBm\)\s+(?P<tx>-?\d+\.?\d*)', re.IGNORECASE)
+_HUAWEI_RX_POWER_RE = re.compile(r'RxPower\(dBm\)\s+(?P<rx>-?\d+\.?\d*)', re.IGNORECASE)
 _HUAWEI_STATIC_ROUTE_RE = re.compile(
     r'^(?P<dest>\d+\.\d+\.\d+\.\d+/\d+)\s+Static\s+\d+\s+\d+\s+\S+\s+(?P<nexthop>\S+)\s+(?P<iface>\S+)\s*$',
     re.MULTILINE,
@@ -504,8 +584,16 @@ def _parse_huawei_interfaces(brief_output, desc_output):
 
 
 def _parse_optical(output, vendor):
-    pattern = _HUAWEI_OPTICAL_RE if vendor == 'huawei' else _MIKROTIK_OPTICAL_RE
-    m = pattern.search(output)
+    if vendor == 'huawei':
+        tx_m = _HUAWEI_TX_POWER_RE.search(output)
+        rx_m = _HUAWEI_RX_POWER_RE.search(output)
+        try:
+            tx = float(tx_m.group('tx')) if tx_m else None
+            rx = float(rx_m.group('rx')) if rx_m else None
+        except (TypeError, ValueError):
+            tx = rx = None
+        return rx, tx
+    m = _MIKROTIK_OPTICAL_RE.search(output)
     if not m:
         return None, None
     try:
@@ -628,8 +716,18 @@ def fetch_host_cache_data(hostid, zabbix_client):
             desc = conn.send_command('display interface description')
             ifaces = _parse_huawei_interfaces(brief, desc)
             for name, data in ifaces.items():
-                optical_out = conn.send_command(f'display interface {name} optical-info')
-                data['optical_rx_dbm'], data['optical_tx_dbm'] = _parse_optical(optical_out, 'huawei')
+                # 'display interface X optical-info' nunca foi o comando
+                # certo (confirmado quebrado tanto em switch quanto em
+                # router) -- o sinal óptico do cache ficou sempre vazio pra
+                # Huawei até essa correção. O comando certo só está
+                # confirmado em switches S/CloudEngine; em routers
+                # NE8000/NE40 ele dá erro de sintaxe (ver get_optical_signal),
+                # então o resultado é checado antes de tentar parsear --
+                # nesse caso o sinal simplesmente fica None, igual já era
+                # antes, só que agora por um motivo conhecido e não por bug.
+                optical_out = conn.send_command(f'display transceiver diagnosis interface {name}')
+                if not _looks_like_huawei_cli_error(optical_out):
+                    data['optical_rx_dbm'], data['optical_tx_dbm'] = _parse_optical(optical_out, 'huawei')
             try:
                 # Tabela de rotas de um roteador BGP grande pode ser enorme
                 # -- confirmado em produção um NE40 estourar o read_timeout

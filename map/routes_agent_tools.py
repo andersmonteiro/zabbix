@@ -3,6 +3,7 @@ consultar o que o Zabbix não cobre. Protegidos por um token compartilhado
 próprio (AGENT_TOOLS_TOKEN), separado do login de sessão usado pelo resto
 do app -- o agente central não tem cookie de sessão, só esse bearer token.
 """
+import hmac
 import os
 import re
 
@@ -51,7 +52,7 @@ def _require_agent_token():
     if not expected:
         return jsonify({'error': 'AGENT_TOOLS_TOKEN não configurado nesta VM'}), 503
     got = (request.headers.get('Authorization') or '').removeprefix('Bearer ').strip()
-    if got != expected:
+    if not hmac.compare_digest(got, expected):
         return jsonify({'error': 'Token inválido'}), 401
 
 
