@@ -352,6 +352,7 @@ function openEditModal(host) {
   form.vendor.value = host.vendor || '';
   form.model.value = host.model || '';
   form.functions.value = host.functions || '';
+  form.ssh_legacy_kex.checked = host.ssh_legacy_kex === true;
   form.community.value = host.community || 'public';
   form.port.value = host.port || '161';
   form.ssh_user.value = host.ssh_user || '';
@@ -452,6 +453,7 @@ document.getElementById('host-form').addEventListener('submit', async (e) => {
     vendor: form.get('vendor') || null,
     model: form.get('model') || null,
     functions: form.get('functions') || null,
+    ssh_legacy_kex: form.get('ssh_legacy_kex') === 'on',
     community: form.get('community') || null,
     port: form.get('port') || null,
     ssh_user: form.get('ssh_user') || null,

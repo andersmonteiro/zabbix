@@ -10,6 +10,8 @@ partida baseado no formato documentado de cada comando -- IGUAL ao
 catálogo de ferramentas Zabbix do projeto, cada um precisa ser validado
 contra a saída real de um equipamento antes de confiar cegamente neles.
 """
+import contextlib
+import hashlib
 import ipaddress
 import logging
 import re
@@ -17,8 +19,43 @@ import socket
 
 from netmiko import ConnectHandler
 from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException
+from paramiko.kex_group14 import KexGroup14SHA256
+from paramiko.transport import Transport
 
 from zabbix_client import ZabbixAPIError
+
+# Alguns equipamentos antigos (confirmado ao vivo: BGP-KM30-HUAWEI-6720) só
+# oferecem "diffie-hellman-group14-sha1" na troca de chave -- removido de
+# vez do paramiko em versões recentes (não é só desabilitado por padrão:
+# a classe que implementava esse algoritmo não existe mais), então a
+# conexão falha com "Incompatible ssh peer (no acceptable kex algorithm)"
+# mesmo com usuário/senha corretos. A classe irmã mais nova
+# (group14-sha256) é idêntica, só troca o hash -- reaproveitada aqui só
+# trocando sha256 por sha1, registrada no paramiko sob o nome antigo.
+# NUNCA fica no _preferred_kex padrão (isso enfraqueceria a negociação de
+# QUALQUER conexão, até com equipamento novo) -- só é oferecida quando o
+# host tem a macro {$SSH_LEGACY_KEX}=1 cadastrada explicitamente, pra cada
+# caso confirmado precisar, nunca como padrão geral.
+class _KexGroup14SHA1(KexGroup14SHA256):
+    name = 'diffie-hellman-group14-sha1'
+    hash_algo = hashlib.sha1
+
+
+Transport._kex_info[_KexGroup14SHA1.name] = _KexGroup14SHA1
+
+
+@contextlib.contextmanager
+def _allow_legacy_kex():
+    """Só dentro desse bloco o algoritmo antigo entra na lista oferecida
+    (por último, como fallback -- um equipamento moderno nunca cai nele,
+    só é usado quando o servidor realmente não oferece nada melhor).
+    Restaura a lista original ao sair, mesmo se a conexão falhar."""
+    original = Transport._preferred_kex
+    Transport._preferred_kex = original + (_KexGroup14SHA1.name,)
+    try:
+        yield
+    finally:
+        Transport._preferred_kex = original
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +165,7 @@ def _fetch_basic_host_info(hostid, zabbix_client):
         'username': macros.get('{$SSH_USER}'),
         'password': macros.get('{$SSH_PASS}'),
         'functions_raw': macros.get('{$FUNCTIONS}') or '',
+        'legacy_kex': (macros.get('{$SSH_LEGACY_KEX}') or '').strip() == '1',
     }
 
 
@@ -156,17 +194,19 @@ def _check_tcp_port(ip, port, timeout=PORT_CHECK_TIMEOUT):
 
 
 def _connect(info):
+    kex_ctx = _allow_legacy_kex() if info.get('legacy_kex') else contextlib.nullcontext()
     try:
-        return ConnectHandler(
-            device_type=info['device_type'],
-            host=info['ip'],
-            port=info['port'],
-            username=info['username'],
-            password=info['password'],
-            timeout=CONNECT_TIMEOUT,
-            banner_timeout=CONNECT_TIMEOUT,
-            auth_timeout=CONNECT_TIMEOUT,
-        )
+        with kex_ctx:
+            return ConnectHandler(
+                device_type=info['device_type'],
+                host=info['ip'],
+                port=info['port'],
+                username=info['username'],
+                password=info['password'],
+                timeout=CONNECT_TIMEOUT,
+                banner_timeout=CONNECT_TIMEOUT,
+                auth_timeout=CONNECT_TIMEOUT,
+            )
     except NetmikoAuthenticationException as e:
         raise SSHAuthError(f'Usuário/senha SSH recusados por {info["ip"]}') from e
     except NetmikoTimeoutException as e:

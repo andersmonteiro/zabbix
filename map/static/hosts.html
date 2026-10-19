@@ -116,6 +116,13 @@
       grid-column: 1 / -1; font-size: 11.5px; font-weight: 600; color: var(--text-muted);
       text-transform: uppercase; letter-spacing: 0.06em; margin: 10px 0 -4px;
     }
+    .field-checkbox { grid-column: 1 / -1; }
+    .field-label-inline {
+      display: flex; align-items: center; gap: 8px; font-family: var(--sans);
+      font-size: 13px; color: var(--text-primary); cursor: pointer;
+    }
+    .field-label-inline input[type="checkbox"] { width: auto; margin: 0; flex-shrink: 0; }
+    .field-hint { font-size: 11.5px; color: var(--text-muted); margin: 4px 0 0; }
     /* Botão "olho" na senha SSH -- revela a credencial já salva (o campo
        vem sempre em branco do form, ver openEditModal em hosts.js). */
     .field-input-eye { position: relative; }
@@ -321,6 +328,13 @@
           <div class="field">
             <label class="field-label" for="host-ssh-port">Porta SSH</label>
             <input id="host-ssh-port" name="ssh_port" placeholder="22" />
+          </div>
+          <div class="field field-checkbox">
+            <label class="field-label-inline">
+              <input id="host-ssh-legacy-kex" name="ssh_legacy_kex" type="checkbox" />
+              Permitir troca de chave SSH antiga (diffie-hellman-group14-sha1)
+            </label>
+            <p class="field-hint">Só marque se o equipamento recusar conexão com "no matching key exchange method" -- é uma criptografia defasada, use só quando o firmware não suportar nada melhor.</p>
           </div>
 
           <p class="field-section-label">Localização (opcional)</p>
