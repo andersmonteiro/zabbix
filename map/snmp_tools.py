@@ -14,7 +14,14 @@ from pysnmp.hlapi import (
 from zabbix_client import ZabbixAPIError
 
 SYS_DESCR_OID = '1.3.6.1.2.1.1.1.0'
-TIMEOUT_SECONDS = 3
+# Teste interativo (não é o polling de métricas) -- pior caso antes era
+# TIMEOUT_SECONDS(3) * (1 retry + tentativa inicial) = ~6s, confirmado ao
+# vivo em 7.4s reais (host sem resposta SNMP). Como é só feedback sob
+# demanda (o operador pode clicar "Testar" de novo se achar que foi um
+# pacote perdido à toa), prefere falhar rápido a esperar um retry
+# automático que a maioria das vezes só confirma o mesmo "não respondeu".
+TIMEOUT_SECONDS = 1.5
+RETRIES = 0
 
 
 class SNMPToolError(Exception):
@@ -57,7 +64,7 @@ def test_snmp(hostid, zabbix_client):
     iterator = getCmd(
         SnmpEngine(),
         CommunityData(info['community']),
-        UdpTransportTarget((info['ip'], info['port']), timeout=TIMEOUT_SECONDS, retries=1),
+        UdpTransportTarget((info['ip'], info['port']), timeout=TIMEOUT_SECONDS, retries=RETRIES),
         ContextData(),
         ObjectType(ObjectIdentity(SYS_DESCR_OID)),
     )
