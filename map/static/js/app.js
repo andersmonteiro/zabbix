@@ -244,6 +244,23 @@ function applyEditMode() {
     } else if (line.pm.enabled()) {
       line.pm.disable();
     }
+    // Halo/flow são decoração (glow) que só acompanha a linha via
+    // repositionPointLocally (arrasto do MARCADOR do equipamento) -- um
+    // arrasto de VÉRTICE pelo geoman move só a linha principal em tempo
+    // real, deixando halo/flow pra trás na forma antiga por baixo. Visto
+    // ao vivo: durante o arrasto isso parece uma linha bifurcada/duplicada
+    // (bug reportado), que "sara" sozinha só depois que pm:edit salva e
+    // chama refresh() (reconstrói tudo do zero, já na forma final).
+    // Escondidas durante a edição evita esse garfo visual enquanto o
+    // traçado real se move; refresh() (ao salvar, ou ao sair do modo
+    // edição) recria halo/flow já no formato certo.
+    (line._siblingLayers || []).forEach((sibling) => {
+      if (editMode) {
+        if (map.hasLayer(sibling)) map.removeLayer(sibling);
+      } else if (!map.hasLayer(sibling)) {
+        sibling.addTo(map);
+      }
+    });
   });
 }
 
@@ -904,6 +921,10 @@ if (editModeBtn) {
     editModeBtn.classList.toggle('active', editMode);
     editModeBtn.textContent = editMode ? 'Editando…' : 'Editar';
     applyEditMode();
+    // Sem edição nenhuma feita, nenhum pm:edit roda refresh() -- sem isso
+    // aqui, halo/flow (escondidos ao entrar no modo edição) só voltavam no
+    // próximo ciclo automático (até REFRESH_INTERVAL_MS de atraso).
+    if (!editMode) refresh();
   });
 }
 

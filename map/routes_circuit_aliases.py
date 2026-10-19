@@ -55,6 +55,40 @@ def create_circuit_alias():
         db.close()
 
 
+@circuit_aliases_bp.route('/<int:alias_id>', methods=['PUT'])
+def update_circuit_alias(alias_id):
+    """Corrige um apelido/host/interface/nota existente sem precisar
+    apagar e recriar -- só troca os campos que vierem presentes no corpo
+    (igual update_user em routes_users.py), string vazia limpa a nota."""
+    data = request.get_json(force=True, silent=True) or {}
+    db = _session_factory()
+    try:
+        row = db.get(CircuitAlias, alias_id)
+        if row is None:
+            return jsonify({'error': 'Apelido não encontrado'}), 404
+        if 'alias' in data:
+            alias = (data.get('alias') or '').strip()
+            if not alias:
+                return jsonify({'error': 'alias não pode ficar vazio'}), 400
+            row.alias = alias
+        if 'hostid' in data:
+            hostid = (data.get('hostid') or '').strip()
+            if not hostid:
+                return jsonify({'error': 'hostid não pode ficar vazio'}), 400
+            row.zabbix_hostid = hostid
+        if 'interface' in data:
+            interface = (data.get('interface') or '').strip()
+            if not interface:
+                return jsonify({'error': 'interface não pode ficar vazia'}), 400
+            row.interface_name = interface
+        if 'note' in data:
+            row.note = (data.get('note') or '').strip() or None
+        db.commit()
+        return jsonify(_serialize(row, db))
+    finally:
+        db.close()
+
+
 @circuit_aliases_bp.route('/<int:alias_id>', methods=['DELETE'])
 def delete_circuit_alias(alias_id):
     db = _session_factory()

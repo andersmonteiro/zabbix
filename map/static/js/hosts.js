@@ -34,8 +34,37 @@ function statusPill(label, state) {
   return `<span class="status-pill ${state ? 'ok' : 'fail'}" data-proto="${label}">${state ? 'UP' : 'DOWN'}</span>`;
 }
 
-function sshState(h) {
-  return h.ssh_last_ok === true;
+const SSH_STALE_THRESHOLD_MS = 15 * 60 * 1000; // ~3x o ciclo do ssh_poller (padrão 5min)
+
+function formatRelativeTime(isoString) {
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 1) return 'agora mesmo';
+  if (minutes < 60) return `há ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `há ${hours}h`;
+  return `há ${Math.round(hours / 24)}d`;
+}
+
+// Diferente de statusPill (só UP/DOWN): se o último ciclo do ssh_poller foi
+// há muito tempo (ou nunca rodou pra esse host), mostra "SEM DADO" em vez de
+// reaproveitar um resultado antigo como se fosse atual -- foi exatamente por
+// faltar esse aviso que o bug do sinal óptico (ssh_tools.py, corrigido nesta
+// sessão) ficou invisível por meses: o cache parava de atualizar e a tela
+// continuava mostrando o último "UP" registrado, sem nada indicando que os
+// dados por trás tinham parado de renovar.
+function sshPill(h) {
+  const checkedAt = h.ssh_last_checked_at;
+  const isStale = !checkedAt || (Date.now() - new Date(checkedAt).getTime()) > SSH_STALE_THRESHOLD_MS;
+  if (isStale) {
+    const title = checkedAt
+      ? `Última coleta SSH ${formatRelativeTime(checkedAt)} -- atrasada`
+      : 'Nunca coletado via SSH';
+    return `<span class="status-pill unknown" data-proto="SSH" title="${esc(title)}">SEM DADO</span>`;
+  }
+  const ok = h.ssh_last_ok === true;
+  const title = `Última coleta SSH ${formatRelativeTime(checkedAt)}`;
+  return `<span class="status-pill ${ok ? 'ok' : 'fail'}" data-proto="SSH" title="${esc(title)}">${ok ? 'UP' : 'DOWN'}</span>`;
 }
 
 function snmpState(h) {
@@ -62,7 +91,7 @@ function renderHosts(hosts) {
         <div class="host-col" title="${esc(h.groups.join(', '))}">${esc(h.groups.join(', ')) || '—'}</div>
         <div class="host-col host-col-ip">${esc(h.ip) || '—'}</div>
         <div class="host-col">${statusPill('Ping', pingState(h))}</div>
-        <div class="host-col">${statusPill('SSH', sshState(h))}</div>
+        <div class="host-col">${sshPill(h)}</div>
         <div class="host-col">${statusPill('SNMP', snmpState(h))}</div>
         <button class="host-expand-btn" type="button" aria-label="Editar host" title="Editar host">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>

@@ -246,8 +246,12 @@
       const aliases = await resp.json();
       const list = document.getElementById('circuit-aliases-list');
       list.innerHTML = aliases.map((a) => `
-        <div class="list-item" data-id="${esc(a.id)}">
-          <span><strong>${esc(a.alias)}</strong> → ${esc(a.host_name || a.hostid)} / ${esc(a.interface)}${a.note ? ' — ' + esc(a.note) : ''}</span>
+        <div class="list-item circuit-alias-row" data-id="${esc(a.id)}">
+          <span class="circuit-alias-host">${esc(a.host_name || a.hostid)}</span>
+          <input class="circuit-alias-edit" data-field="alias" data-id="${esc(a.id)}" placeholder="Apelido" value="${esc(a.alias)}" />
+          <input class="circuit-alias-edit" data-field="interface" data-id="${esc(a.id)}" placeholder="Interface" value="${esc(a.interface)}" />
+          <input class="circuit-alias-edit" data-field="note" data-id="${esc(a.id)}" placeholder="Nota" value="${esc(a.note || '')}" />
+          <button type="button" class="circuit-alias-save btn-secondary" data-id="${esc(a.id)}">Salvar</button>
           <button type="button" class="circuit-alias-delete row-delete" data-id="${esc(a.id)}">Remover</button>
         </div>
       `).join('') || '<p>Nenhum apelido cadastrado ainda.</p>';
@@ -258,6 +262,27 @@
             await loadCircuitAliases();
           } else {
             document.getElementById('circuit-alias-status').textContent = 'Falha ao remover apelido.';
+          }
+        });
+      });
+      list.querySelectorAll('.circuit-alias-save').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const row = btn.closest('.circuit-alias-row');
+          const alias = row.querySelector('[data-field="alias"]').value;
+          const iface = row.querySelector('[data-field="interface"]').value;
+          const note = row.querySelector('[data-field="note"]').value;
+          const resp = await fetch(`/api/circuit-aliases/${btn.dataset.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ alias, interface: iface, note }),
+          });
+          const statusEl = document.getElementById('circuit-alias-status');
+          if (resp.ok) {
+            statusEl.textContent = 'Apelido salvo.';
+            await loadCircuitAliases();
+          } else {
+            const body = await resp.json().catch(() => ({}));
+            statusEl.textContent = body.error || 'Falha ao salvar apelido.';
           }
         });
       });
