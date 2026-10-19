@@ -136,8 +136,6 @@ def _build_macros(data, existing_macros=None):
         macros.append({'macro': '{$SSH_PASS}', 'value': ssh_pass})
     if data.get('ssh_port'):
         macros.append({'macro': '{$SSH_PORT}', 'value': data['ssh_port']})
-    if data.get('ssh_legacy_kex'):
-        macros.append({'macro': '{$SSH_LEGACY_KEX}', 'value': '1'})
     return macros, community, port
 
 
@@ -223,7 +221,6 @@ def _serialize_host(h, point=None, conn_status=None):
         'vendor': macros.get('{$VENDOR}', ''),
         'model': macros.get('{$MODEL}', ''),
         'functions': macros.get('{$FUNCTIONS}', ''),
-        'ssh_legacy_kex': macros.get('{$SSH_LEGACY_KEX}', '') == '1',
         'ssh_user': macros.get('{$SSH_USER}', ''),
         'ssh_port': macros.get('{$SSH_PORT}', ''),
         'status': 'enabled' if h.get('status') == '0' else 'disabled',

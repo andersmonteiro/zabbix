@@ -33,9 +33,11 @@ from zabbix_client import ZabbixAPIError
 # (group14-sha256) é idêntica, só troca o hash -- reaproveitada aqui só
 # trocando sha256 por sha1, registrada no paramiko sob o nome antigo.
 # NUNCA fica no _preferred_kex padrão (isso enfraqueceria a negociação de
-# QUALQUER conexão, até com equipamento novo) -- só é oferecida quando o
-# host tem a macro {$SSH_LEGACY_KEX}=1 cadastrada explicitamente, pra cada
-# caso confirmado precisar, nunca como padrão geral.
+# QUALQUER conexão, até com equipamento novo) -- só entra automaticamente
+# como segunda tentativa, depois que a conexão normal já falhou (ver
+# _connect), nunca como padrão geral. Detecção automática de propósito:
+# o operador do cliente não tem por que entender/configurar criptografia
+# SSH manualmente.
 class _KexGroup14SHA1(KexGroup14SHA256):
     name = 'diffie-hellman-group14-sha1'
     hash_algo = hashlib.sha1
@@ -165,7 +167,6 @@ def _fetch_basic_host_info(hostid, zabbix_client):
         'username': macros.get('{$SSH_USER}'),
         'password': macros.get('{$SSH_PASS}'),
         'functions_raw': macros.get('{$FUNCTIONS}') or '',
-        'legacy_kex': (macros.get('{$SSH_LEGACY_KEX}') or '').strip() == '1',
     }
 
 
@@ -193,24 +194,40 @@ def _check_tcp_port(ip, port, timeout=PORT_CHECK_TIMEOUT):
         return False
 
 
+def _open_connection(info):
+    return ConnectHandler(
+        device_type=info['device_type'],
+        host=info['ip'],
+        port=info['port'],
+        username=info['username'],
+        password=info['password'],
+        timeout=CONNECT_TIMEOUT,
+        banner_timeout=CONNECT_TIMEOUT,
+        auth_timeout=CONNECT_TIMEOUT,
+    )
+
+
 def _connect(info):
-    kex_ctx = _allow_legacy_kex() if info.get('legacy_kex') else contextlib.nullcontext()
     try:
-        with kex_ctx:
-            return ConnectHandler(
-                device_type=info['device_type'],
-                host=info['ip'],
-                port=info['port'],
-                username=info['username'],
-                password=info['password'],
-                timeout=CONNECT_TIMEOUT,
-                banner_timeout=CONNECT_TIMEOUT,
-                auth_timeout=CONNECT_TIMEOUT,
-            )
+        return _open_connection(info)
     except NetmikoAuthenticationException as e:
         raise SSHAuthError(f'Usuário/senha SSH recusados por {info["ip"]}') from e
     except NetmikoTimeoutException as e:
-        raise SSHToolError(f'Não respondeu na porta SSH ({info["ip"]}:{info["port"]})') from e
+        # Pode ser timeout de verdade (host fora do ar) OU um equipamento
+        # antigo cujo SSH só oferece "diffie-hellman-group14-sha1" --
+        # confirmado ao vivo (BGP-KM30-HUAWEI-6720) que isso aparece pro
+        # netmiko como o mesmo tipo de falha genérica, não um erro
+        # específico de kex. Em vez de expor isso como configuração manual
+        # (operador do cliente não tem por que entender criptografia SSH),
+        # detecta sozinho: tenta de novo, automaticamente, com o algoritmo
+        # antigo liberado -- só paga esse segundo round-trip nos casos que
+        # já falharam mesmo, nunca na conexão normal (que sempre funciona
+        # de primeira pra qualquer equipamento moderno).
+        try:
+            with _allow_legacy_kex():
+                return _open_connection(info)
+        except Exception:
+            raise SSHToolError(f'Não respondeu na porta SSH ({info["ip"]}:{info["port"]})') from e
     except Exception as e:
         raise SSHToolError(f'Falha ao conectar em {info["ip"]}: {e}') from e
 
